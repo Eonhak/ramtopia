@@ -1,8 +1,16 @@
 # RAMTOPIA
 
-작은 픽셀 왕국을 탐험하는 싱글 플레이 턴제 전략 게임. 전사 이동, 안개 탐험, 도시 점령, 전투, 훈련, 도시 성장, AI 왕국과 승패 판정을 제공합니다.
+브라우저에서 플레이하는 픽셀 턴제 전략 게임입니다. 전사 이동, 안개 탐험, 도시 점령, 전투, 훈련, 도시 성장, AI 왕국과 승패 판정을 제공합니다. EXE 설치는 필요하지 않습니다.
 
-## 실행
+## 웹에서 플레이
+
+GitHub Pages 배포 후 주소: https://eonhak.github.io/ramtopia/
+
+`main`에 푸시하면 **Actions → Deploy Web Game**에서 빌드하고 `gh-pages` 브랜치에 정적 사이트를 게시합니다. Actions 아티팩트 저장 공간은 사용하지 않습니다.
+
+최초 한 번 저장소 **Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch: gh-pages / (root) → Save**를 설정해야 합니다. `gh-pages`가 없으면 Deploy Web Game 실행이 성공한 뒤 선택하세요. 저장소 공개 여부와 요금제에 따라 GitHub Pages 사용 가능 여부가 달라질 수 있습니다.
+
+## 로컬 실행
 
 Node.js 20.19+ 또는 22.12+에서:
 
@@ -11,24 +19,10 @@ npm ci
 npm run dev -- --port 3000
 ```
 
-배포 빌드: `npm run build`
+브라우저로 http://localhost:3000 에 접속합니다. 배포 빌드는 `npm run build`, 빌드 미리보기는 `npm run preview`입니다.
 
-초록 전사를 클릭한 다음 빛나는 인접 타일을 클릭하면 이동하거나 공격합니다. 도시의 전사를 먼저 이동시키면 그 도시에서 새 전사를 훈련할 수 있습니다. 턴을 마치면 AI가 행동하고 도시 수입을 받습니다. 붉은 수도를 점령하면 승리합니다.
+## 조작
 
-외부 서비스나 API 키는 필요하지 않습니다. 글꼴은 Google Fonts를 사용하며 연결이 없으면 시스템 글꼴을 사용합니다.
+초록 전사를 클릭하고 빛나는 인접 타일을 클릭하면 이동하거나 공격합니다. 도시의 전사를 먼저 이동시키면 그 도시에서 새 전사를 훈련할 수 있습니다. 턴을 마치면 AI가 행동하고 도시 수입을 받습니다. 붉은 수도를 점령하면 승리합니다.
 
-## Windows 데스크톱 앱
-
-Windows 10/11 64비트용입니다. `RAMTOPIA-Windows-x64.zip`을 모두 압축 해제한 뒤 `RAMTOPIA.exe`를 실행합니다. EXE와 함께 있는 파일과 폴더가 필요합니다. Node.js 설치나 인터넷 연결은 필요하지 않습니다.
-
-직접 패키징하려면 `npm ci` 이후 `npm run package:win`을 실행하세요. 결과는 `release/RAMTOPIA-win32-x64`에 생성됩니다. 이 버전은 코드 서명되지 않았습니다.
-
-## GitHub에서 다운로드
-
-저장소의 **Releases → 최신 릴리스 → Assets → RAMTOPIA-Windows-x64.zip**에서 Windows용 파일을 다운로드하세요. ZIP 전체를 압축 해제하고 `RAMTOPIA.exe`를 실행합니다.
-
-`main` 푸시에서는 Windows 빌드를 검증합니다. `v*` 태그를 푸시하거나 **Actions → Build Windows Game → Run workflow**를 실행하면 Windows 빌드와 같은 작업에서 ZIP을 Releases에 직접 게시합니다. Actions 아티팩트 저장소는 사용하지 않습니다. 수동 실행의 릴리스 이름은 `build-실행번호`입니다.
-
-## 작은 데스크톱 창 (v1.0.2)
-
-기본 창은 280×360 논리 픽셀이며 화면 오른쪽 아래에 표시됩니다. Windows 디스플레이 배율에 따라 실제 픽셀 수는 달라집니다. 제목 표시줄을 드래그해 이동하고, ⌖ 버튼으로 항상 위 표시를 전환할 수 있습니다. −는 최소화, ×는 종료입니다. 작은 창에서는 지도, 자원, 선택한 타일과 행동 버튼만 표시됩니다.
+외부 API 키는 필요하지 않습니다. 글꼴은 Google Fonts를 사용하며 연결이 없으면 시스템 글꼴을 사용합니다.
