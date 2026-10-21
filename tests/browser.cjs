@@ -54,7 +54,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
  if(kind==='win'||kind==='mutual'){units=[{x:8,y:3,team:0,hp:kind==='mutual'?1:10,acted:false}];if(kind==='mutual')units.push({x:9,y:3,team:1,hp:1,acted:false});at(8,3).type='grass';}
  if(kind==='lose')units=[{x:3,y:6,team:1,hp:10,acted:false}];
  if(kind==='cluster')units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:0,hp:10,acted:false},{x:4,y:6,team:0,hp:10,acted:false}];
- if(kind==='economy'){gold=100;researched.add('gathering');units=[{x:3,y:6,team:0,hp:10,acted:false}];for(const [x,y,type,resource] of [[3,6,'grass','fruit'],[4,7,'grass','fruit'],[2,7,'mountain','ore'],[2,8,'water','fish'],[2,6,'forest','game'],[3,8,'forest','wood'],[4,8,'grass','grain']])Object.assign(at(x,y),{type,resource,developed:false});}if(kind==='rest')gold=100;
+ if(kind==='economy'){gold=100;researched.add('gathering');units=[{x:3,y:5,team:0,hp:10,acted:false}];for(const [x,y,type,resource] of [[3,6,'grass','fruit'],[4,7,'grass','fruit'],[2,7,'mountain','ore'],[2,8,'water','fish'],[2,6,'forest','game'],[3,8,'forest','wood'],[4,8,'grass','grain']])Object.assign(at(x,y),{type,resource,developed:false});}if(kind==='rest')gold=100;
  if(kind==='animals'){researched.add('hunting');Object.assign(at(4,7),{type:'forest',resource:'game'});at(4,8).type='forest';}
  if(kind==='bow'){gold=100;units=[{x:3,y:7,type:'archer',team:0,hp:8,acted:false},{x:5,y:7,team:1,hp:10,acted:false}];researched=new Set(['hunting','archery']);}
  if(kind==='diagonal'){units=[{x:3,y:7,team:0,hp:10,acted:false}];}
@@ -67,7 +67,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
  if(kind==='assassin'){gold=100;researched=new Set(['scouting','stealth','assassination']);units=[{x:3,y:7,team:0,type:'assassin',hp:10,acted:false}];}
  if(kind==='fog'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:5,y:7,team:1,hp:10,acted:false}];}
  if(kind==='capture'){units=[{x:6,y:5,team:0,hp:10,acted:false}];at(6,5).type='grass';}
- reveal();if(kind!=='fog')for(const t of world.flat()){t.visible=true;t.seen=true;}update();draw();},vision(){for(const t of world.flat())t.seen=false;reveal();update();draw();},get snapshot(){return{night:isNight(turn),visible:world.flat().filter(t=>t.visible).length,seen:world.flat().filter(t=>t.seen).length,stats:units.map(u=>stats(u)),nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
+ reveal();if(kind!=='fog')for(const t of world.flat()){t.visible=true;t.seen=true;}update();draw();},vision(){for(const t of world.flat())t.seen=false;reveal();update();draw();},get snapshot(){return{night:isNight(turn),visible:world.flat().filter(t=>t.visible).length,seen:world.flat().filter(t=>t.seen).length,stats:units.map(u=>stats(u)),nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],resources:world.flat().filter(t=>t.resource&&!t.developed).map(t=>({x:t.x,y:t.y,resource:t.resource})),cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
     });
   });
   await page.goto(process.env.TEST_URL || "http://localhost:3000");
@@ -104,6 +104,23 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
     await page.mouse.click(p.x, p.y);
     await page.waitForFunction(() => !window.__gameTest.snapshot.animating);
     await page.waitForTimeout(60);
+  }
+  async function harvest(name) {
+    const keys = {
+      "열매 수확": "fruit",
+      "곡물 수확": "grain",
+      "광산 개발": "ore",
+      "어장 개발": "fish",
+      "동물 사냥": "game",
+      "목재 수확": "wood",
+    };
+    const t = (await snapshot()).resources.find(
+      (t) => t.resource === keys[name],
+    );
+    assert(t, "resource exists: " + name);
+    await clickTile(t.x, t.y, false);
+    await page.click("#develop");
+    await clickTile(3, 7, false);
   }
   async function research(name) {
     await page.click("#research");
@@ -165,6 +182,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await clickTile(3, 7, false);
   assert.equal(await page.locator("#actionPanel").isVisible(), false);
   assert.equal(await page.locator("#productionDock").isVisible(), true);
+  assert.equal(await page.locator(".resource-option").count(), 0);
   assert.equal(
     await page.locator("#productionUnits .production-icon:visible").count(),
     7,
@@ -179,7 +197,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
     1,
     "all production icons stay in one horizontal row",
   );
-  for (let i = 0; i < 30; i++) await page.click("#zoomIn");
+  await page.click("#zoomMax");
   assert.equal((await snapshot()).zoom, 4);
   for (let i = 0; i < 30; i++) await page.click("#zoomOut");
   assert.equal((await snapshot()).zoom, 0.25);
@@ -218,15 +236,13 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await fixture("economy");
   await clickTile(3, 7);
   assert.equal(await page.locator("#recruit").isEnabled(), true);
-  const fruits = page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" });
-  await fruits.first().click();
+
+  await harvest("열매 수확");
   assert.match(
     await page.locator("#cityGrowthText").innerText(),
     /인구 1 \/ 2/,
   );
-  await fruits.first().click();
+  await harvest("열매 수확");
   let state = await snapshot();
   assert.equal(state.cities.find((c) => c.owner === 0).level, 2);
   assert.equal(state.cities.find((c) => c.owner === 0).population, 0);
@@ -268,16 +284,8 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   assert.equal((await snapshot()).gold, 80);
   await clickTile(3, 7);
   assert.equal(await page.locator("#recruitRider").isDisabled(), true);
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" })
-    .first()
-    .click();
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" })
-    .first()
-    .click();
+  await harvest("열매 수확");
+  await harvest("열매 수확");
   assert.equal(await page.locator("#recruitRider").isVisible(), true);
   await page.click("#recruitRider");
   state = await snapshot();
@@ -293,11 +301,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await research("방어술");
   await clickTile(3, 7);
   assert.equal(await page.locator("#recruitGuard").isDisabled(), true);
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "곡물 수확" })
-    .first()
-    .click();
+  await harvest("곡물 수확");
   await page.click("#recruitGuard");
   assert.equal((await snapshot()).units[1].hp, 15);
   await fixture("rest");
@@ -315,27 +319,17 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await research("등산");
   await research("제련");
   await clickTile(3, 7);
-  const ore = page.locator(".resource-option").filter({ hasText: "광산 개발" });
-  assert((await ore.count()) > 0);
-  await ore.first().click();
+  await harvest("광산 개발");
   assert((await snapshot()).cities.find((c) => c.owner === 0).level >= 2);
   await fixture("economy");
   await research("낚시");
   await clickTile(3, 7);
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "어장 개발" })
-    .first()
-    .click();
+  await harvest("어장 개발");
   assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 2);
   await fixture("economy");
   await research("사냥");
   await clickTile(3, 7);
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "동물 사냥" })
-    .first()
-    .click();
+  await harvest("동물 사냥");
   assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 2);
   await fixture("combat");
   await clickTile(3, 7);
@@ -384,34 +378,16 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   assert.equal((await snapshot()).units[0].x, 4);
   await fixture("economy");
   await clickTile(3, 7);
-  assert.equal(
-    await page
-      .locator(".resource-option")
-      .filter({ hasText: "동물 사냥" })
-      .first()
-      .isDisabled(),
-    true,
-  );
+  await clickTile(2, 6, false);
+  assert.equal(await page.locator("#develop").isDisabled(), true);
   await research("사냥");
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "동물 사냥" })
-    .first()
-    .click();
+  await harvest("동물 사냥");
   assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 2);
   await research("벌목");
   await research("투석기");
   assert.equal(await page.locator("#recruitCatapult").isDisabled(), true);
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "목재 수확" })
-    .first()
-    .click();
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" })
-    .first()
-    .click();
+  await harvest("목재 수확");
+  await harvest("열매 수확");
   assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 3);
   await page.click("#recruitCatapult");
   assert.equal((await snapshot()).units[1].type, "catapult");
@@ -421,21 +397,9 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await research("기사");
   await clickTile(3, 7);
   assert.equal(await page.locator("#recruitKnight").isDisabled(), true);
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "광산 개발" })
-    .first()
-    .click();
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" })
-    .first()
-    .click();
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" })
-    .first()
-    .click();
+  await harvest("광산 개발");
+  await harvest("열매 수확");
+  await harvest("열매 수확");
   assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 3);
   await page.click("#recruitKnight");
   assert.equal((await snapshot()).units[1].type, "knight");
@@ -486,16 +450,8 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await research("궁술");
   await clickTile(3, 7);
   assert.equal(await page.locator("#recruitArcher").isDisabled(), true);
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" })
-    .first()
-    .click();
-  await page
-    .locator(".resource-option")
-    .filter({ hasText: "열매 수확" })
-    .first()
-    .click();
+  await harvest("열매 수확");
+  await harvest("열매 수확");
   await page.click("#recruitArcher");
   assert.equal((await snapshot()).units[1].type, "archer");
   assert.equal((await snapshot()).units[1].acted, true);

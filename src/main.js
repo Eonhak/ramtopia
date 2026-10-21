@@ -43,7 +43,7 @@ for (const id of [
   "inspectUnit",
 ])
   $("productionUnits").append($(id));
-$("productionDock").prepend($("resourceOptions"));
+
 const N = 12;
 let world,
   units,
@@ -315,7 +315,7 @@ function update() {
     if (icon) {
       const c = icon.getContext("2d");
       c.translate(35, 49);
-      c.scale(2.1, 2.1);
+      c.scale(3, 3);
       drawUnit(
         c,
         0,
@@ -356,8 +356,7 @@ function update() {
     $("cityGrowthFill").style.width =
       ((city.population || 0) / growthRequired(city)) * 100 + "%";
   }
-  $("resourceOptions").hidden = !ownCity;
-  if (ownCity) renderCityResources(t);
+
   if (!showUnit && !city && resource && t.seen)
     $("tileDescription").textContent =
       `${resource.name} · ${t.developed ? "개발 완료" : `개발 ${resource.cost} ✦ / 인구 +${resource.population}`} · ${owner ? owner.city.name + " 영토" : "소유 도시 없음"}`;
@@ -743,7 +742,7 @@ canvas.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
-    setZoom(zoom + (e.deltaY < 0 ? 0.1 : -0.1));
+    setZoom(zoom * Math.exp(-e.deltaY * 0.002));
   },
   { passive: false },
 );
@@ -902,26 +901,6 @@ function develop(t) {
   draw();
 }
 $("develop").onclick = () => develop(at(selected.x, selected.y));
-function renderCityResources(city) {
-  const tiles = world
-    .flat()
-    .filter(
-      (t) =>
-        t.seen && t.resource && !t.developed && cityForTile(world, t) === city,
-    );
-  $("resourceOptions").replaceChildren();
-  for (const t of tiles) {
-    const r = RESOURCES[t.resource],
-      button = document.createElement("button");
-    button.className = "resource-option";
-    button.disabled = !canDevelop(t);
-    button.innerHTML = `<span>${r.icon} ${r.verb} <small>(${t.x + 1}, ${t.y + 1})</small></span><b>${r.cost} ✦ <small>인구 +${r.population}</small></b>${r.tech && !researched.has(r.tech) ? `<em>${TECHNOLOGIES[r.tech].name} 연구 필요</em>` : ""}`;
-    button.onclick = () => develop(t);
-    $("resourceOptions").append(button);
-  }
-  if (!tiles.length)
-    $("resourceOptions").textContent = "현재 영토의 자원을 모두 개발했습니다.";
-}
 function renderResearch() {
   $("researchGold").textContent = gold + " ✦";
   $("researchSurcharge").textContent = `도시 성장 할증 +${researchCost(
@@ -1148,7 +1127,8 @@ $("newGame").onclick = () => {
 };
 $("help").onclick = () => $("helpDialog").showModal();
 $("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
-$("zoomIn").onclick = () => setZoom(zoom + 0.15);
-$("zoomOut").onclick = () => setZoom(zoom - 0.15);
+$("zoomIn").onclick = () => setZoom(zoom + 0.25);
+$("zoomMax").onclick = () => setZoom(4);
+$("zoomOut").onclick = () => setZoom(zoom - 0.25);
 new ResizeObserver(draw).observe(canvas);
 openNationChoice();
