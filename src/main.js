@@ -22,6 +22,9 @@ let actionMode = null,
 let pan = { x: 0, y: 0 },
   pointerStart = null,
   dragged = false;
+const activePointers = new Map();
+let pinchStart = null,
+  suppressTap = false;
 const directions = [
   [1, 0],
   [-1, 0],
@@ -149,6 +152,7 @@ function update() {
     u = t.seen ? unitAt(t.x, t.y) : null,
     city = t.seen ? t.city : null;
   const showUnit = !!u && (selectionKind === "unit" || !city);
+  $("actionPanel").classList.toggle("unit-compact", showUnit);
   const types = {
     grass: "초원",
     water: "바다",
@@ -195,29 +199,16 @@ function update() {
     ready = ownUnit && !u.acted && !busy && !over;
   const ownCity = !showUnit && city?.owner === 0;
   const buttons = {
-    moveUnit: ownUnit,
-    attackUnit: ownUnit,
     restUnit: ownUnit,
     recruit: ownCity,
     upgrade: ownCity,
     inspectCity: showUnit && !!city,
     inspectUnit: !showUnit && !!u,
-    cancelAction: !!actionMode,
   };
   for (const [id, visible] of Object.entries(buttons)) $(id).hidden = !visible;
-  $("moveUnit").disabled =
-    !ready ||
-    !directions.some(([dx, dy]) => {
-      const v = at(u.x + dx, u.y + dy);
-      return v && v.type !== "water" && !unitAt(v.x, v.y);
-    });
-  $("attackUnit").disabled =
-    !ready || !units.some((v) => v.team === 1 && distance(v, u) === 1);
   $("restUnit").disabled = !ready || u.hp >= 10;
   $("recruit").disabled = busy || over || !ownCity || !!u || gold < 5;
   $("upgrade").disabled = busy || over || !ownCity || gold < 8;
-  $("moveUnit").classList.toggle("active", actionMode === "move");
-  $("attackUnit").classList.toggle("active", actionMode === "attack");
   $("actionHint").textContent = over
     ? "게임이 끝났습니다. 새 왕국을 시작해 보세요."
     : busy
@@ -229,7 +220,7 @@ function update() {
           : ownUnit
             ? u.acted
               ? "턴을 마치면 다시 행동할 수 있습니다."
-              : "아래에서 행동을 선택하세요."
+              : "흰 테두리는 이동, 붉은 타일은 공격입니다."
             : ownCity
               ? u
                 ? "전사가 도시를 비우면 새 전사를 훈련할 수 있습니다."
@@ -253,9 +244,9 @@ function available(t) {
   )
     return null;
   const occupant = unitAt(t.x, t.y);
-  if (actionMode === "move" && !occupant) return "move";
-  if (actionMode === "attack" && t.seen && occupant?.team === 1)
-    return "attack";
+  if (selectionKind === "unit" && actionMode === "unit" && !occupant)
+    return "move";
+  if (actionMode === "unit" && t.seen && occupant?.team === 1) return "attack";
   return null;
 }
 function draw() {
@@ -268,7 +259,7 @@ function draw() {
       pan,
       available,
       panelHeight:
-        panelOpen && canvas.clientWidth < 541
+        panelOpen && selectionKind !== "unit" && canvas.clientWidth < 541
           ? $("actionPanel").offsetHeight + 65
           : 0,
     });
@@ -278,17 +269,15 @@ function selectTile(t) {
   const u = t.seen ? unitAt(t.x, t.y) : null;
   selectedUnit = u?.team === 0 ? u : null;
   selectionKind = u ? "unit" : "city";
-  actionMode = null;
+  actionMode = selectedUnit && !selectedUnit.acted ? "unit" : null;
   panelOpen = true;
   update();
   draw();
 }
 function cancelSelection() {
-  if (actionMode) actionMode = null;
-  else {
-    panelOpen = false;
-    selectedUnit = null;
-  }
+  actionMode = null;
+  panelOpen = false;
+  selectedUnit = null;
   update();
   draw();
 }
@@ -339,13 +328,54 @@ function act(u, t) {
   reveal();
   return true;
 }
+function pointerPair() {
+  const [a, b] = [...activePointers.values()];
+  return {
+    distance: Math.hypot(b.x - a.x, b.y - a.y),
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  };
+}
+function beginPinch() {
+  const pair = pointerPair(),
+    rect = canvas.getBoundingClientRect();
+  pinchStart = {
+    distance: Math.max(1, pair.distance),
+    zoom,
+    worldX: (pair.x - rect.left - view.ox) / view.scale,
+    worldY: (pair.y - rect.top - view.oy) / view.scale,
+  };
+  suppressTap = true;
+  dragged = true;
+  pointerStart = null;
+}
+function rebaseDrag() {
+  const p = activePointers.values().next().value;
+  pointerStart = p ? { x: p.x, y: p.y, panX: pan.x, panY: pan.y } : null;
+}
 canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
-  pointerStart = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
-  dragged = false;
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
+  if (activePointers.size === 1) {
+    suppressTap = false;
+    dragged = false;
+    rebaseDrag();
+  } else beginPinch();
 });
 canvas.addEventListener("pointermove", (e) => {
+  if (!activePointers.has(e.pointerId)) return;
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (activePointers.size >= 2) {
+    if (!pinchStart) beginPinch();
+    const pair = pointerPair(),
+      rect = canvas.getBoundingClientRect();
+    setZoom((pinchStart.zoom * pair.distance) / pinchStart.distance);
+    pan.x += pair.x - rect.left - (view.ox + pinchStart.worldX * view.scale);
+    pan.y += pair.y - rect.top - (view.oy + pinchStart.worldY * view.scale);
+    draw();
+    return;
+  }
   if (!pointerStart) return;
   const dx = e.clientX - pointerStart.x,
     dy = e.clientY - pointerStart.y;
@@ -356,34 +386,49 @@ canvas.addEventListener("pointermove", (e) => {
   }
 });
 canvas.addEventListener("pointerup", (e) => {
-  if (!pointerStart) return;
-  pointerStart = null;
-  if (dragged || busy || over) return;
-  const b = canvas.getBoundingClientRect(),
-    t = pickTile(view, e.clientX - b.left, e.clientY - b.top);
-  if (!t) {
-    panelOpen = false;
-    actionMode = null;
-    selectedUnit = null;
-    update();
-    draw();
+  if (!activePointers.has(e.pointerId)) return;
+  const wasGesture = suppressTap || dragged;
+  activePointers.delete(e.pointerId);
+  pinchStart = null;
+  if (activePointers.size) {
+    suppressTap = true;
+    dragged = true;
+    if (activePointers.size >= 2) beginPinch();
+    else rebaseDrag();
     return;
   }
-  if (actionMode) {
-    if (available(t)) {
-      const actor = selectedUnit;
-      if (act(actor, t)) {
-        selectTile(at(actor.x, actor.y));
-        return;
-      }
-    }
-    toast("빛나는 타일을 선택하거나 행동을 취소하세요.");
+  pointerStart = null;
+  if (wasGesture || busy || over) return;
+  const rect = canvas.getBoundingClientRect(),
+    t = pickTile(view, e.clientX - rect.left, e.clientY - rect.top);
+  if (!t) {
+    cancelSelection();
     return;
+  }
+  if (available(t)) {
+    const actor = selectedUnit;
+    if (act(actor, t)) {
+      selectTile(at(actor.x, actor.y));
+      return;
+    }
   }
   selectTile(t);
 });
-canvas.addEventListener("pointercancel", () => {
+function cancelPointer(e) {
+  if (!activePointers.delete(e.pointerId)) return;
+  pinchStart = null;
+  suppressTap = true;
+  dragged = true;
+  rebaseDrag();
+  if (activePointers.size >= 2) beginPinch();
+}
+canvas.addEventListener("pointercancel", cancelPointer);
+canvas.addEventListener("lostpointercapture", cancelPointer);
+window.addEventListener("blur", () => {
+  activePointers.clear();
+  pinchStart = null;
   pointerStart = null;
+  suppressTap = true;
 });
 canvas.addEventListener(
   "wheel",
@@ -398,18 +443,6 @@ function setZoom(value) {
   $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
   draw();
 }
-$("moveUnit").onclick = () => {
-  if ($("moveUnit").disabled) return;
-  actionMode = "move";
-  update();
-  draw();
-};
-$("attackUnit").onclick = () => {
-  if ($("attackUnit").disabled) return;
-  actionMode = "attack";
-  update();
-  draw();
-};
 $("restUnit").onclick = () => {
   if ($("restUnit").disabled || !selectedUnit) return;
   selectedUnit.hp = Math.min(10, selectedUnit.hp + 3);
@@ -427,11 +460,10 @@ $("inspectCity").onclick = () => {
 };
 $("inspectUnit").onclick = () => {
   selectionKind = "unit";
-  actionMode = null;
+  actionMode = selectedUnit && !selectedUnit.acted ? "unit" : null;
   update();
   draw();
 };
-$("cancelAction").onclick = cancelSelection;
 $("closePanel").onclick = () => {
   actionMode = null;
   panelOpen = false;
@@ -455,7 +487,7 @@ $("recruit").onclick = () => {
   addLog("새로운 전사가 왕국에 합류했습니다.");
   selectedUnit = unitAt(t.x, t.y);
   selectionKind = "unit";
-  actionMode = null;
+  actionMode = selectedUnit && !selectedUnit.acted ? "unit" : null;
   update();
   draw();
 };
@@ -524,6 +556,10 @@ $("endTurn").onclick = async () => {
   busy = false;
   selectedUnit = unitAt(selected.x, selected.y);
   if (selectedUnit?.team !== 0) selectedUnit = null;
+  actionMode =
+    panelOpen && selectionKind === "unit" && selectedUnit && !over
+      ? "unit"
+      : null;
   update();
   draw();
 };

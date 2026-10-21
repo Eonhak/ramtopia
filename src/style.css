@@ -806,3 +806,96 @@ dialog p {
     padding: 22px;
   }
 }
+
+/* Units expose their actions on the map, with only a small information strip. */
+.action-panel.unit-compact {
+  left: 50%;
+  right: auto;
+  bottom: 23px;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: calc(100% - 220px);
+  padding: 9px 35px 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+  animation: none;
+  overflow: visible;
+  max-height: none;
+}
+.unit-compact .panel-heading {
+  position: absolute;
+  right: 7px;
+  top: 8px;
+}
+.unit-compact .panel-heading .eyebrow,
+.unit-compact #terrainTag,
+.unit-compact .health-bar,
+.unit-compact .action-hint {
+  display: none;
+}
+.unit-compact .selection-body {
+  margin: 0;
+  gap: 7px;
+}
+.unit-compact .tile-preview {
+  width: 26px;
+  height: 30px;
+  font-size: 23px;
+}
+.unit-compact .selection-body h2 {
+  font-size: 11px;
+  margin: 0 0 3px;
+}
+.unit-compact .selection-body p {
+  font-size: 9px;
+  white-space: nowrap;
+}
+.unit-compact .actions {
+  display: flex;
+  gap: 5px;
+}
+.unit-compact .actions button {
+  min-height: 0;
+  min-width: 39px;
+  padding: 6px 7px;
+  white-space: nowrap;
+}
+.unit-compact .actions button > span {
+  font-size: 13px;
+  margin: 0;
+}
+.unit-compact .actions button b {
+  font-size: 8px;
+  margin-top: 3px;
+}
+.unit-compact .actions button small {
+  display: none;
+}
+@media (max-width: 540px) {
+  .action-panel.unit-compact {
+    left: 12px;
+    right: 12px;
+    bottom: 56px;
+    max-width: none;
+    width: auto;
+    transform: none;
+    padding: 8px 32px 8px 9px;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .unit-compact .selection-body h2 {
+    font-size: 10px;
+  }
+  .unit-compact .selection-body p {
+    font-size: 8px;
+  }
+  .unit-compact .actions button {
+    padding: 5px 6px;
+  }
+  .unit-compact .panel-heading {
+    right: 5px;
+    top: 7px;
+  }
+}

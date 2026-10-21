@@ -337,9 +337,9 @@ export function renderMap(
     let a = available(t),
       sel = selected && selected.x === t.x && selected.y === t.y;
     if (a || sel) {
-      if (a) diamond(c, p.x, y, a === "attack" ? "#ff8e8060" : "#ddffbd55");
-      c.strokeStyle = sel ? "#fff3b2" : a === "attack" ? "#ffaaa0" : "#e5ffd0";
-      c.lineWidth = sel ? 2.5 : 1.5;
+      if (a) diamond(c, p.x, y, a === "attack" ? "#ed504e99" : "#ffffff18");
+      c.strokeStyle = sel ? "#fff3b2" : a === "attack" ? "#ff6560" : "#ffffff";
+      c.lineWidth = sel ? 2.5 : 2.3;
       c.beginPath();
       c.moveTo(p.x, y - 15);
       c.lineTo(p.x + 30, y);
