@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index--xj72ATt.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Cwl_VWqn.css">
+    <script type="module" crossorigin src="./assets/index-df572A-A.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-J2dWjZ0y.css">
   </head>
   <body>
     <div id="app">
@@ -28,6 +28,13 @@
             <span>↗</span><strong id="income">+1</strong><small>턴 수입</small>
           </div>
         </div>
+        <button
+          id="accountButton"
+          class="account-button"
+          title="로그인 또는 계정"
+        >
+          로그인
+        </button>
         <button id="research" class="research-btn" title="별로 기술 연구">
           ⚗ 연구</button
         ><button id="help" class="icon-btn" title="게임 도움말">?</button
@@ -146,7 +153,6 @@
             <button id="zoomOut" title="축소">−</button
             ><span id="zoomLabel">100%</span
             ><button id="zoomIn" title="확대">+</button
-            ><button id="zoomMax" title="400%로 최대 확대">400%</button
             ><button id="resetView" title="지도 중앙으로">⌖</button>
           </div>
           <div class="map-tip">
@@ -238,6 +244,59 @@
         유닛은 한 번 무료 진급해 최대 체력 +5와 완전 회복을 얻습니다.
       </p>
       <button id="startPlay">모험 시작하기 →</button>
+    </dialog>
+    <dialog
+      id="accountDialog"
+      class="account-dialog"
+      aria-labelledby="accountTitle"
+    >
+      <button id="closeAccount" class="icon-btn" aria-label="계정 창 닫기">
+        ×
+      </button>
+      <h2 id="accountTitle">왕국에 돌아오세요</h2>
+      <div id="accountTabs" class="account-tabs">
+        <button type="button" id="loginTab" aria-pressed="true">로그인</button
+        ><button type="button" id="registerTab" aria-pressed="false">
+          회원가입
+        </button>
+      </div>
+      <form id="accountForm">
+        <label id="nicknameField" hidden
+          >닉네임<input
+            id="accountNickname"
+            name="nickname"
+            autocomplete="nickname"
+            minlength="2"
+            maxlength="20"
+        /></label>
+        <label
+          >이메일<input
+            id="accountEmail"
+            name="email"
+            type="email"
+            autocomplete="email"
+            maxlength="254"
+            required
+        /></label>
+        <label
+          >비밀번호<input
+            id="accountPassword"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            minlength="8"
+            maxlength="128"
+            required
+        /></label>
+        <p id="passwordHelp" hidden>8자 이상의 비밀번호를 사용하세요.</p>
+        <button id="submitAccount" type="submit">로그인</button>
+      </form>
+      <div id="accountProfile" hidden>
+        <p id="accountWelcome"></p>
+        <p id="profileEmail"></p>
+        <button id="logoutAccount">로그아웃</button>
+      </div>
+      <p id="accountMessage" role="status" aria-live="polite"></p>
     </dialog>
   </body>
 </html>
