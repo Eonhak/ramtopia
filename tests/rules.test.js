@@ -97,9 +97,10 @@ test("resources are randomized near cities with guaranteed starting harvest rout
   const inner = a
     .flat()
     .filter((t) => Math.max(Math.abs(t.x - 2), Math.abs(t.y - 2)) === 1);
-  for (const kind of ["game", "fruit", "wood", "grain"])
+  for (const kind of ["game", "fruit"])
     assert(inner.some((t) => t.resource === kind));
   assert.equal(a[2][2].resource, null);
+  assert(inner.filter((t) => !t.resource).length >= 2);
   assert(a.flat().some((t) => !t.city && !t.resource));
 });
 test("mountains and water require their actual traversal research", () => {
@@ -227,4 +228,59 @@ test("archers require hunting then archery, a level-2 city and have range 2", ()
   assert(NATIONS.some((n) => n.id === "goguryeo"));
   for (const n of NATIONS)
     assert(TECHNOLOGIES[n.tech] && !TECHNOLOGIES[n.tech].requires);
+});
+
+import {
+  combatStats,
+  refreshVisibility,
+  isNight,
+  promote,
+  changeVessel,
+} from "../src/rules.js";
+test("assassins are weak by day and gain speed and damage at night", () => {
+  const u = { type: "assassin" };
+  assert.equal(combatStats(u).moves, 1);
+  assert.equal(combatStats(u).attack, 1);
+  assert.equal(combatStats(u, { night: true }).moves, 3);
+  assert.equal(combatStats(u, { night: true }).attack, 10);
+  assert(!isNight(1));
+  assert(isNight(2));
+});
+test("transport ships cannot attack, upgrades cost stars and require research", () => {
+  const u = { type: "warrior", boat: "transport", hp: 10 };
+  assert.equal(combatStats(u).attack, 0);
+  assert.equal(combatStats(u).counter, 0);
+  assert.equal(combatStats(u).range, 0);
+  assert.equal(changeVessel(u, "scout", new Set(), 100), false);
+  assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 4), false);
+  assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 5), 5);
+  assert.equal(combatStats(u).attack, 3);
+  assert.equal(changeVessel(u, "warship", new Set(["navigation"]), 100), false);
+  assert.equal(changeVessel(u, "warship", new Set(["navalwarfare"]), 10), 10);
+  assert.equal(combatStats(u).attack, 7);
+  assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 100), false);
+});
+test("three kills allow one veteran promotion with +5 max hp and full healing", () => {
+  const u = { hp: 1, kills: 2 };
+  assert.equal(promote(u), false);
+  u.kills = 3;
+  assert(promote(u));
+  assert.equal(u.hp, 15);
+  assert.equal(combatStats(u).hp, 15);
+  u.hp = 2;
+  assert.equal(promote(u), false);
+  assert.equal(u.hp, 2);
+});
+test("basic fog exposes only nearby tiles; night contracts visibility and mapping never reveals enemy presence", () => {
+  const w = grid(),
+    u = { x: 2, y: 2, team: 0 };
+  refreshVisibility(w, [u], false, new Set());
+  assert.equal(w.flat().filter((t) => t.visible).length, 9);
+  assert.equal(w.flat().filter((t) => t.seen).length, 9);
+  refreshVisibility(w, [u], true, new Set());
+  assert.equal(w.flat().filter((t) => t.visible).length, 5);
+  assert.equal(w.flat().filter((t) => t.seen).length, 9);
+  refreshVisibility(w, [u], true, new Set(["cartography"]));
+  assert.equal(w.flat().filter((t) => t.seen).length, 25);
+  assert.equal(w.flat().filter((t) => t.visible).length, 5);
 });

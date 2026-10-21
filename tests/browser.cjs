@@ -59,8 +59,13 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
  if(kind==='mountain'){units=[{x:3,y:7,team:0,hp:10,acted:false}];Object.assign(at(4,7),{type:'mountain',resource:'ore'});gold=100;}
  if(kind==='siege'){gold=100;researched=new Set(['hunting','lumber','siege']);units=[{x:3,y:7,type:'catapult',team:0,hp:8,acted:false},{x:5,y:7,team:1,hp:6,acted:false}];for(const x of [3,4,5])at(x,7).type='grass';}
 
+ if(kind==='navy'){gold=100;researched=new Set(['fishing','navigation','navalwarfare']);units=[{x:3,y:7,team:0,hp:10,acted:false}];at(4,7).type='water';at(5,7).type='water';}
+ if(kind==='promote'){units=[{x:3,y:7,team:0,hp:1,kills:3,acted:true}];}
+ if(kind==='thirdkill'){units=[{x:3,y:7,team:0,hp:10,kills:2,acted:false},{x:4,y:7,team:1,hp:3,acted:false}];}
+ if(kind==='assassin'){gold=100;researched=new Set(['scouting','stealth','assassination']);units=[{x:3,y:7,team:0,type:'assassin',hp:10,acted:false}];}
+ if(kind==='fog'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:5,y:7,team:1,hp:10,acted:false}];}
  if(kind==='capture'){units=[{x:6,y:5,team:0,hp:10,acted:false}];at(6,5).type='grass';}
- reveal();update();draw();},get snapshot(){return{nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
+ reveal();if(kind!=='fog')for(const t of world.flat()){t.visible=true;t.seen=true;}update();draw();},vision(){for(const t of world.flat())t.seen=false;reveal();update();draw();},get snapshot(){return{night:isNight(turn),visible:world.flat().filter(t=>t.visible).length,seen:world.flat().filter(t=>t.seen).length,stats:units.map(u=>stats(u)),nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
     });
   });
   await page.goto(process.env.TEST_URL || "http://localhost:3000");
@@ -101,6 +106,15 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   assert.equal(await page.locator(".nation-card").count(), 8);
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("#nationDialog").isVisible(), true);
+  assert.equal(await page.locator(".nation-preview").count(), 8);
+  const previewImages = await page
+    .locator(".nation-preview")
+    .evaluateAll((canvases) => canvases.map((c) => c.toDataURL()));
+  assert.equal(
+    new Set(previewImages).size,
+    8,
+    "each country has distinct visual art",
+  );
   await page.click('[data-nation="goguryeo"]');
   await page.click("#startNation");
   assert.equal((await snapshot()).nation, "goguryeo");
@@ -237,6 +251,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await page.click("#restUnit");
   assert.equal((await snapshot()).units[0].hp, 9);
   await fixture("economy");
+  await page.evaluate(() => window.__gameTest.vision());
   const beforeScout = Number(await page.locator("#land").innerText());
   await research("정찰");
   assert(Number(await page.locator("#land").innerText()) > beforeScout);
@@ -429,12 +444,68 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   assert.equal((await snapshot()).units[1].acted, true);
   await fixture("bow");
   await research("정밀 사격");
+  await page.evaluate(() => {
+    const t = window.__gameTest.view.hit.find(
+      (p) => p.t.x === 5 && p.t.y === 7,
+    ).t;
+    t.visible = true;
+    t.seen = true;
+  });
   await clickTile(3, 7);
   await clickTile(5, 7);
   state = await snapshot();
   assert.equal(state.units[1].hp, 3);
   assert.equal(state.units[0].hp, 8);
   assert.equal(state.units[0].x, 3);
+  await fixture("navy");
+  await clickTile(3, 7);
+  await clickTile(4, 7);
+  state = await snapshot();
+  assert.equal(state.units[0].boat, "transport");
+  assert.equal(state.stats[0].attack, 0);
+  await page.click("#upgradeScout");
+  assert.equal((await snapshot()).units[0].boat, "scout");
+  assert.equal((await snapshot()).gold, 95);
+  await page.click("#upgradeWarship");
+  assert.equal((await snapshot()).units[0].boat, "warship");
+  assert.equal((await snapshot()).gold, 85);
+  assert.equal((await snapshot()).stats[0].attack, 7);
+  await fixture("thirdkill");
+  await clickTile(3, 7);
+  await clickTile(4, 7);
+  assert.equal((await snapshot()).units[0].kills, 3);
+  assert.equal(await page.locator("#promoteUnit").isVisible(), true);
+  await page.click("#promoteUnit");
+  state = await snapshot();
+  assert.equal(state.units[0].veteran, true);
+  assert.equal(state.units[0].hp, 15);
+  assert.equal(state.stats[0].hp, 15);
+  await fixture("assassin");
+  assert.equal((await snapshot()).stats[0].attack, 1);
+  assert.equal((await snapshot()).stats[0].moves, 1);
+  await page.click("#endTurn");
+  await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
+  assert.equal((await snapshot()).night, true);
+  assert.equal((await snapshot()).stats[0].attack, 10);
+  assert.equal((await snapshot()).stats[0].moves, 3);
+  assert.match(await page.locator("#phaseBadge").innerText(), /밤/);
+  await fixture("fog");
+  state = await snapshot();
+  assert(state.seen < 20);
+  assert.equal(state.visible, 9);
+  assert.equal(
+    await page
+      .locator("#map")
+      .evaluate(
+        () =>
+          window.__gameTest.view.hit.find((p) => p.t.x === 5 && p.t.y === 7)
+            .unit,
+      ),
+    false,
+  );
+  await page.click("#endTurn");
+  await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
+  assert((await snapshot()).visible < 9);
   // Real multi-touch input through Chromium, including cancellation and a remaining finger.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.__gameTest.fixture("rest"));
@@ -549,7 +620,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
 
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: nation selection and new maps, diagonal movement, visible animal harvest, archers and marksmanship, overlapping selection, animations, production cooldown, resource growth, research, victory/defeat and multi-touch",
+    "PASS: eight unique nation art previews, sailing and ship upgrades, kill promotion, day/night assassins and fog, nation selection, movement/combat, research, victory/defeat and multi-touch",
   );
   await browser.close();
 })().catch((e) => {

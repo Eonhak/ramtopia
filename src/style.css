@@ -1256,3 +1256,123 @@ dialog p {
     margin-top: 10px;
   }
 }
+.phase-badge {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  transform: translateX(-50%);
+  padding: 7px 12px;
+  border: 1px solid #e8deae30;
+  border-radius: 20px;
+  background: #1d384777;
+  color: #dfd6af;
+  font-size: 10px;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+.night .phase-badge {
+  border-color: #9eacd340;
+  color: #c6d3eb;
+  background: #1a254fcc;
+}
+.night .topbar,
+.night .turnbar {
+  background: #101c31;
+}
+.night .map-caption p,
+.night .map-tip {
+  color: #8c9fb9;
+}
+.night .map-caption h1 {
+  color: #d6e0ed;
+}
+.night .game-panel {
+  background: #18263e;
+}
+.unit-compact .selection-body p {
+  font-size: 8px;
+  white-space: normal;
+  max-width: 235px;
+}
+.unit-compact .actions {
+  flex-wrap: wrap;
+}
+.unit-compact .actions button {
+  font-size: 8px;
+  min-width: 37px;
+}
+.unit-compact:has(#promoteUnit:not([hidden])) {
+  max-width: calc(100% - 50px);
+}
+@media (max-width: 540px) {
+  .phase-badge {
+    top: 64px;
+    left: auto;
+    right: 12px;
+    transform: none;
+    font-size: 8px;
+    padding: 5px 8px;
+  }
+  .unit-compact .selection-body p {
+    max-width: 160px;
+    font-size: 7px;
+  }
+  .unit-compact:has(#upgradeScout:not([hidden])),
+  .unit-compact:has(#promoteUnit:not([hidden])) {
+    padding-right: 26px;
+    gap: 3px;
+  }
+  .unit-compact .actions button {
+    padding: 4px;
+    min-width: 31px;
+  }
+}
+.nation-preview {
+  display: block;
+  width: 126px;
+  height: 70px;
+  max-width: 100%;
+  margin: 0 auto;
+  background: transparent;
+  image-rendering: auto;
+  cursor: pointer;
+}
+.nation-card {
+  padding-top: 7px;
+}
+.nation-card.selected {
+  padding-top: 6px;
+}
+.nation-card > b {
+  letter-spacing: 0.3px;
+}
+.map-caption h1 {
+  font-weight: 500;
+}
+.topbar {
+  background: #1b3143;
+}
+.turnbar {
+  background: #1b3143;
+}
+.action-panel {
+  box-shadow: 0 15px 50px #112f3d50;
+}
+@media (max-width: 540px) {
+  .nation-preview {
+    width: 102px;
+    height: 57px;
+  }
+  .nation-card {
+    padding: 5px 6px 9px;
+  }
+  .nation-card.selected {
+    padding: 4px 5px 8px;
+  }
+  .nation-card > b {
+    margin: 3px 0;
+  }
+  .nation-dialog h2 {
+    font-size: 20px;
+  }
+}

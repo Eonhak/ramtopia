@@ -1,7 +1,15 @@
 import "./style.css";
 import { NATIONS, generateWorld } from "./world.js";
+import { drawCity, drawUnit } from "./visuals.js";
 import {
   UNIT_TYPES,
+  combatStats,
+  isNight,
+  refreshVisibility,
+  canPromote,
+  promote,
+  changeVessel,
+  VESSELS,
   NEIGHBORS,
   gridDistance,
   TECH_BRANCHES,
@@ -56,6 +64,12 @@ let selectedNation = NATIONS[0],
 const at = (x, y) => world[y]?.[x];
 const unitAt = (x, y) => units.find((u) => u.x === x && u.y === y);
 const distance = gridDistance;
+const stats = (u) =>
+  combatStats(u, {
+    night: isNight(turn),
+    techs: u.team === 0 ? researched : new Set(["climbing"]),
+  });
+const inSight = (t) => t.visible ?? t.seen;
 function init() {
   $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
   $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
@@ -106,20 +120,7 @@ function init() {
   draw();
 }
 function reveal() {
-  if (researched.has("cartography")) {
-    for (const t of world.flat()) t.seen = true;
-    return;
-  }
-  for (let u of units.filter((u) => u.team === 0))
-    for (let row of world)
-      for (let t of row)
-        if (distance(t, u) <= (researched.has("scouting") ? 5 : 3))
-          t.seen = true;
-  for (let row of world)
-    for (let t of row)
-      if (t.city?.owner === 0)
-        for (let row2 of world)
-          for (let v of row2) if (distance(t, v) <= 3) v.seen = true;
+  refreshVisibility(world, units, isNight(turn), researched);
 }
 function addLog(s) {
   logs.unshift({ turn, s });
@@ -135,6 +136,11 @@ function ownCities() {
   return world.flat().filter((t) => t.city?.owner === 0);
 }
 function update() {
+  document.body.classList.toggle("night", isNight(turn));
+  $("phaseIcon").textContent = isNight(turn) ? "☾" : "☀";
+  $("phaseBadge").textContent = isNight(turn)
+    ? "밤 · 시야 축소"
+    : "낮 · 탐험 시간";
   const cities = ownCities();
   $("gold").textContent = gold;
   $("cities").textContent = cities.length;
@@ -160,7 +166,7 @@ function update() {
       : Math.min(85, cities.length * 15)) + "%";
   $("actionPanel").hidden = !panelOpen;
   const t = at(selected.x, selected.y),
-    u = t.seen ? unitAt(t.x, t.y) : null,
+    u = inSight(t) ? unitAt(t.x, t.y) : null,
     city = t.seen ? t.city : null;
   const showUnit = !!u && (selectionKind === "unit" || !city);
   $("actionPanel").classList.toggle("unit-compact", showUnit);
@@ -176,7 +182,7 @@ function update() {
   $("tileTitle").textContent = !t.seen
     ? "안개 너머의 땅"
     : showUnit
-      ? `${u.team === 0 ? selectedNation.name : enemyNation.name} ${unitSpec(u).name}`
+      ? `${u.team === 0 ? selectedNation.name : enemyNation.name} ${stats(u).name}`
       : city
         ? city.name
         : types[t.type];
@@ -196,13 +202,16 @@ function update() {
   $("tileDescription").textContent = !t.seen
     ? "전사를 보내 새로운 땅을 발견하세요."
     : showUnit
-      ? `체력 ${u.hp} / ${unitSpec(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : "행동 가능"}`
+      ? `체력 ${u.hp} / ${stats(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : "행동 가능"}`
       : city
         ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner === 1 ? "적의 도시" : "중립 마을"} · 인구 ${city.population || 0}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
         : "왕국의 지도를 넓혀 보세요.";
+  if (showUnit)
+    $("tileDescription").textContent +=
+      ` · ${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${stats(u).attack}`;
   $("healthBar").hidden = !showUnit;
   $("healthBar").firstElementChild.style.width =
-    (u ? (u.hp / unitSpec(u).hp) * 100 : 0) + "%";
+    (u ? (u.hp / stats(u).hp) * 100 : 0) + "%";
   $("actionPanel").classList.toggle(
     "enemy",
     showUnit ? u.team === 1 : city?.owner === 1,
@@ -219,6 +228,10 @@ function update() {
     recruitCatapult: ownCity,
     recruitKnight: ownCity,
     recruitArcher: ownCity,
+    recruitAssassin: ownCity,
+    promoteUnit: ownUnit && canPromote(u),
+    upgradeScout: ownUnit && u.boat === "transport",
+    upgradeWarship: ownUnit && !!u.boat && u.boat !== "warship",
     buildRoad:
       !showUnit &&
       t.seen &&
@@ -230,7 +243,21 @@ function update() {
     inspectUnit: !showUnit && !!u,
   };
   for (const [id, visible] of Object.entries(buttons)) $(id).hidden = !visible;
-  $("restUnit").disabled = !ready || u.hp >= unitSpec(u).hp;
+  $("promoteUnit").disabled =
+    !ownUnit || busy || animating || over || !canPromote(u);
+  for (const [id, kind] of [
+    ["upgradeScout", "scout"],
+    ["upgradeWarship", "warship"],
+  ])
+    $(id).disabled =
+      !ownUnit ||
+      busy ||
+      animating ||
+      over ||
+      !u?.boat ||
+      !researched.has(VESSELS[kind].tech) ||
+      gold < VESSELS[kind].cost;
+  $("restUnit").disabled = !ready || u.hp >= stats(u).hp;
   for (const [id, type] of [
     ["recruit", "warrior"],
     ["recruitRider", "rider"],
@@ -238,6 +265,7 @@ function update() {
     ["recruitCatapult", "catapult"],
     ["recruitKnight", "knight"],
     ["recruitArcher", "archer"],
+    ["recruitAssassin", "assassin"],
   ]) {
     const spec = UNIT_TYPES[type],
       missing = spec.tech && !researched.has(spec.tech);
@@ -335,8 +363,8 @@ function available(t) {
   const occupant = unitAt(t.x, t.y);
   if (
     occupant?.team === 1 &&
-    t.seen &&
-    distance(t, selectedUnit) <= unitSpec(selectedUnit).range
+    inSight(t) &&
+    distance(t, selectedUnit) <= stats(selectedUnit).range
   )
     return "attack";
   if (
@@ -346,8 +374,9 @@ function available(t) {
       units,
       selectedUnit,
       t,
-      unitSpec(selectedUnit).moves,
+      stats(selectedUnit).moves,
       researched,
+      isNight(turn),
     )?.length
   )
     return "move";
@@ -364,6 +393,9 @@ function draw() {
       available,
       animation,
       effects,
+      night: isNight(turn),
+      nation: selectedNation,
+      enemyNation,
       panelHeight:
         panelOpen && selectionKind !== "unit" && canvas.clientWidth < 541
           ? $("actionPanel").offsetHeight + 65
@@ -372,7 +404,7 @@ function draw() {
 }
 function selectTile(t) {
   selected = { x: t.x, y: t.y };
-  const u = t.seen ? unitAt(t.x, t.y) : null;
+  const u = inSight(t) ? unitAt(t.x, t.y) : null;
   selectedUnit = u?.team === 0 ? u : null;
   selectionKind = u ? "unit" : "city";
   actionMode = selectedUnit && !selectedUnit.acted ? "unit" : null;
@@ -434,6 +466,7 @@ function tween(duration, step) {
 }
 async function walk(u, path) {
   for (const t of path) {
+    if (t.type === "water") u.boat = u.boat || "transport";
     const from = project(u.x, u.y),
       to = project(t.x, t.y);
     animation = { unit: u, position: from };
@@ -446,6 +479,7 @@ async function walk(u, path) {
     });
     u.x = t.x;
     u.y = t.y;
+    if (t.type !== "water") delete u.boat;
     animation = null;
   }
 }
@@ -457,8 +491,15 @@ async function act(u, t) {
   if (enemy?.team === u.team || !canEnter(t, u, techs)) return false;
   const path = enemy
     ? null
-    : movementPath(world, units, u, t, unitSpec(u).moves, techs);
-  if (enemy ? distance(u, t) > unitSpec(u).range : !path?.length) return false;
+    : movementPath(world, units, u, t, stats(u).moves, techs, isNight(turn));
+  if (
+    enemy
+      ? stats(u).attack === 0 ||
+        distance(u, t) > stats(u).range ||
+        (u.team === 0 && !inSight(t))
+      : !path?.length
+  )
+    return false;
   animating = true;
   u.acted = true;
   actionMode = null;
@@ -469,7 +510,7 @@ async function act(u, t) {
         to = project(t.x, t.y);
       animation = { unit: u, position: from };
       await tween(300, (p) => {
-        if (unitSpec(u).range > 1) {
+        if (stats(u).range > 1) {
           animation.projectile = {
             from,
             to,
@@ -485,12 +526,9 @@ async function act(u, t) {
         }
       });
       animation = null;
-      const damage =
-          unitSpec(u).attack +
-          (u.team === 0 && u.type === "archer" && researched.has("marksmanship")
-            ? 2
-            : 0),
-        counter = distance(u, t) === 1 ? unitSpec(enemy).counter : 0;
+      const damage = stats(u).attack,
+        counter =
+          distance(u, t) <= stats(enemy).range ? stats(enemy).counter : 0;
       enemy.hp -= damage;
       u.hp -= counter;
       effects = [
@@ -500,11 +538,19 @@ async function act(u, t) {
       await tween(300, (p) => effects.forEach((e) => (e.progress = p)));
       effects = [];
       const killed = enemy.hp <= 0;
-      if (killed) units = units.filter((v) => v !== enemy);
+      if (killed) {
+        u.kills = (u.kills || 0) + 1;
+        units = units.filter((v) => v !== enemy);
+      }
       if (u.hp <= 0) units = units.filter((v) => v !== u);
-      if (killed && units.includes(u) && distance(u, t) === 1)
+      if (
+        killed &&
+        units.includes(u) &&
+        stats(u).range === 1 &&
+        distance(u, t) === 1
+      )
         await walk(u, [t]);
-      addLog(`${unitSpec(u).name} 교전${killed ? " · 적 처치" : ""}`);
+      addLog(`${stats(u).name} 교전${killed ? " · 적 처치" : ""}`);
     } else await walk(u, path);
     if (units.includes(u)) capture(u);
     reveal();
@@ -635,7 +681,7 @@ function setZoom(value) {
 $("restUnit").onclick = () => {
   if ($("restUnit").disabled || !selectedUnit) return;
   selectedUnit.hp = Math.min(
-    unitSpec(selectedUnit).hp,
+    stats(selectedUnit).hp,
     selectedUnit.hp + (researched.has("medicine") ? 5 : 3),
   );
   selectedUnit.acted = true;
@@ -706,6 +752,28 @@ $("recruitGuard").onclick = () => recruit("guard");
 $("recruitCatapult").onclick = () => recruit("catapult");
 $("recruitKnight").onclick = () => recruit("knight");
 $("recruitArcher").onclick = () => recruit("archer");
+$("recruitAssassin").onclick = () => recruit("assassin");
+$("promoteUnit").onclick = () => {
+  if (busy || animating || over || !selectedUnit || !promote(selectedUnit))
+    return;
+  addLog("3킬 진급 · 최대 체력 +5, 체력 완전 회복");
+  update();
+  draw();
+};
+for (const [id, kind] of [
+  ["upgradeScout", "scout"],
+  ["upgradeWarship", "warship"],
+])
+  $(id).onclick = () => {
+    if (busy || animating || over || !selectedUnit) return;
+    const spent = changeVessel(selectedUnit, kind, researched, gold);
+    if (!spent) return;
+    gold -= spent;
+    addLog(VESSELS[kind].name + " 개조 완료");
+    reveal();
+    update();
+    draw();
+  };
 $("buildRoad").onclick = () => {
   const t = at(selected.x, selected.y);
   if (
@@ -887,7 +955,7 @@ $("endTurn").onclick = async () => {
       u.acted = false;
       delete u.bornTurn;
       if (at(u.x, u.y).city?.owner === u.team)
-        u.hp = Math.min(unitSpec(u).hp, u.hp + 2);
+        u.hp = Math.min(stats(u).hp, u.hp + 2);
     }
     if (
       turn % 3 === 0 &&
@@ -908,6 +976,7 @@ $("endTurn").onclick = async () => {
     $("status").textContent =
       "전사를 움직이거나, 도시를 선택해 병력을 훈련하세요.";
   }
+  reveal();
   busy = false;
   selectedUnit = unitAt(selected.x, selected.y);
   if (selectedUnit?.team !== 0) selectedUnit = null;
@@ -928,7 +997,7 @@ function openNationChoice() {
     button.dataset.nation = nation.id;
     button.setAttribute("aria-pressed", String(nation.id === pendingNation.id));
     button.style.setProperty("--nation-color", nation.color);
-    button.innerHTML = `<span>${nation.symbol}</span><b>${nation.name}</b><small>${nation.trait}</small>`;
+    button.innerHTML = `<canvas class="nation-preview" width="180" height="100" aria-label="${nation.name}의 도시와 전사"></canvas><b>${nation.name}</b><small>${nation.trait}</small>`;
     button.onclick = () => {
       pendingNation = nation;
       for (const card of $("nationGrid").children) {
@@ -941,6 +1010,19 @@ function openNationChoice() {
       $("nationDescription").textContent = nation.description;
     };
     $("nationGrid").append(button);
+    const preview = button.querySelector("canvas"),
+      context = preview.getContext("2d");
+    context.translate(48, 79);
+    context.scale(1.3, 1.3);
+    drawCity(context, 0, 0, { owner: 0, level: 1 }, nation);
+    drawUnit(
+      context,
+      40,
+      -2,
+      { team: 0, hp: 10, type: "warrior", acted: true },
+      nation,
+      false,
+    );
   }
   $("nationDescription").textContent = pendingNation.description;
   $("cancelNation").hidden = !world;

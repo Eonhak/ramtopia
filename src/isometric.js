@@ -1,3 +1,4 @@
+import { drawCity, drawUnit } from "./visuals.js";
 export const project = (x, y) => ({ x: (x - y) * 30, y: (x + y) * 15 });
 function poly(c, p, color) {
   c.beginPath();
@@ -119,62 +120,6 @@ function mountain(c, x, y) {
     "#bacbc3",
   );
 }
-function house(c, x, y, city) {
-  let team = city.owner,
-    col = team === 0 ? "#62c6a4" : team === 1 ? "#ee8c7d" : "#d2b781";
-  block(c, x, y - 11, 13, 7, 13, "#fff0cb", "#c3bd9c", "#8d9e91");
-  poly(
-    c,
-    [
-      [x - 15, y - 11],
-      [x, y - 29],
-      [x, y - 7],
-    ],
-    col,
-  );
-  poly(
-    c,
-    [
-      [x, y - 29],
-      [x + 15, y - 11],
-      [x, y - 7],
-    ],
-    team === 1 ? "#b75b64" : team === 0 ? "#288d80" : "#99835e",
-  );
-  block(c, x - 3, y - 5, 3, 2, 7, "#61796d", "#526d61", "#48635a");
-  if (city.level > 1)
-    block(c, x + 15, y - 8, 6, 4, 13, "#f1e6c8", "#b3b497", "#859c93");
-  if (team !== -1) {
-    block(c, x - 15, y - 12, 4, 3, 13, "#eff1df", "#bcc8b1", "#819c96");
-    block(c, x + 13, y - 10, 4, 3, 11, "#eff1df", "#bcc8b1", "#819c96");
-  }
-  if (team === -1) {
-    c.fillStyle = "#fff2c8";
-    c.beginPath();
-    c.arc(x + 15, y - 26, 5, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = "#735f43";
-    c.font = "bold 8px sans-serif";
-    c.textAlign = "center";
-    c.fillText("?", x + 15, y - 23);
-    return;
-  }
-  c.strokeStyle = "#e8e7cd";
-  c.lineWidth = 1.3;
-  c.beginPath();
-  c.moveTo(x + 14, y);
-  c.lineTo(x + 14, y - 36);
-  c.stroke();
-  poly(
-    c,
-    [
-      [x + 14, y - 36],
-      [x + 28, y - 32],
-      [x + 14, y - 27],
-    ],
-    team === 0 ? "#b3f5b6" : team === 1 ? "#ffa49a" : "#eddaa0",
-  );
-}
 function resourceArt(c, x, y, kind) {
   if (kind === "game") {
     block(c, x, y - 5, 5, 3, 5, "#e0bf8d", "#b9966c", "#947955");
@@ -265,135 +210,6 @@ function resourceArt(c, x, y, kind) {
       "#d3c1ed",
     );
 }
-function warrior(c, x, y, u) {
-  if (u.type === "catapult") {
-    block(c, x, y - 8, 12, 7, 8, "#c6a478", "#947b59", "#6b634c");
-    for (const dx of [-10, 10]) {
-      c.fillStyle = "#415462";
-      c.beginPath();
-      c.ellipse(x + dx, y + 5, 4, 6, 0, 0, Math.PI * 2);
-      c.fill();
-    }
-    c.strokeStyle = "#dac498";
-    c.lineWidth = 4;
-    c.beginPath();
-    c.moveTo(x - 6, y - 6);
-    c.lineTo(x + 5, y - 30);
-    c.stroke();
-    poly(
-      c,
-      [
-        [x - 1, y - 31],
-        [x + 9, y - 34],
-        [x + 12, y - 28],
-        [x + 3, y - 25],
-      ],
-      "#747f85",
-    );
-    c.fillStyle = "#263f4e";
-    c.fillRect(x - 11, y + 13, 22, 3);
-    c.fillStyle = u.team === 0 ? "#acfac2" : "#ffa99c";
-    c.fillRect(x - 11, y + 13, (22 * Math.max(0, u.hp)) / 8, 3);
-    if (!u.acted) {
-      c.fillStyle = "#fff0ae";
-      c.beginPath();
-      c.arc(x, y - 40, 2, 0, Math.PI * 2);
-      c.fill();
-    }
-    return;
-  }
-
-  if (u.type === "rider" || u.type === "knight") {
-    block(c, x, y - 2, 13, 6, 8, "#bd9971", "#8c735a", "#6b5b4b");
-    for (const dx of [-9, 8])
-      block(c, x + dx, y + 4, 2, 2, 8, "#bfa27a", "#675a49", "#534d44");
-  }
-  if (u.type === "guard")
-    block(c, x - 8, y - 12, 8, 5, 13, "#d4e3de", "#87ada8", "#527f83");
-  let color =
-    u.type === "knight" ? "#d4bd7d" : u.team === 0 ? "#64d3b4" : "#f08e81";
-  c.fillStyle = "#183c4b55";
-  c.beginPath();
-  c.ellipse(x, y + 3, 11, 4, 0, 0, Math.PI * 2);
-  c.fill();
-  for (let dx of [-4, 4])
-    block(c, x + dx, y - 3, 3, 2, 6, "#c8d6d0", "#3e5962", "#263f4e");
-  block(
-    c,
-    x,
-    y - 16,
-    8,
-    4,
-    13,
-    color,
-    u.team === 0 ? "#399a90" : "#b85e69",
-    u.team === 0 ? "#227c7b" : "#8c485b",
-  );
-  block(c, x, y - 26, 6, 4, 9, "#ffe6b7", "#deb991", "#bc987e");
-  block(c, x, y - 30, 8, 5, 5, "#f0f6ed", "#bfd4d2", "#8faeb6");
-  poly(
-    c,
-    [
-      [x - 8, y - 30],
-      [x, y - 34],
-      [x + 8, y - 30],
-      [x, y - 27],
-    ],
-    color,
-  );
-  if (u.type === "archer") {
-    c.strokeStyle = "#d5ac76";
-    c.lineWidth = 2;
-    c.beginPath();
-    c.ellipse(x + 11, y - 18, 6, 12, 0, -Math.PI / 2, Math.PI / 2);
-    c.stroke();
-    c.strokeStyle = "#f6eccf";
-    c.lineWidth = 0.8;
-    c.beginPath();
-    c.moveTo(x + 11, y - 30);
-    c.lineTo(x + 11, y - 6);
-    c.stroke();
-    c.strokeStyle = "#d8e8e0";
-    c.lineWidth = 1.3;
-    c.beginPath();
-    c.moveTo(x + 4, y - 18);
-    c.lineTo(x + 22, y - 18);
-    c.stroke();
-  } else {
-    block(c, x - 9, y - 15, 4, 3, 10, "#e4d6a4", "#b59c6c", "#8b8b69");
-    c.strokeStyle = "#edf8ff";
-    c.lineWidth = 2;
-    c.beginPath();
-    c.moveTo(x + 12, y - 8);
-    c.lineTo(x + 12, y - 28);
-    c.stroke();
-    c.strokeStyle = "#c5b77d";
-    c.beginPath();
-    c.moveTo(x + 8, y - 13);
-    c.lineTo(x + 16, y - 13);
-    c.stroke();
-  }
-  c.fillStyle = "#284958";
-  c.fillRect(x - 11, y + 9, 22, 3);
-  c.fillStyle = u.team === 0 ? "#acfac2" : "#ffa99c";
-  c.fillRect(
-    x - 11,
-    y + 9,
-    (22 * Math.max(0, u.hp)) /
-      (u.type === "guard" || u.type === "knight"
-        ? 15
-        : u.type === "archer"
-          ? 8
-          : 10),
-    3,
-  );
-  if (!u.acted) {
-    c.fillStyle = "#fff0ae";
-    c.beginPath();
-    c.arc(x, y - 40, 2, 0, Math.PI * 2);
-    c.fill();
-  }
-}
 export function renderMap(
   canvas,
   {
@@ -406,6 +222,9 @@ export function renderMap(
     panelHeight = 0,
     animation = null,
     effects = [],
+    night = false,
+    nation,
+    enemyNation,
   },
 ) {
   let c = canvas.getContext("2d"),
@@ -422,8 +241,8 @@ export function renderMap(
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, h);
   let bg = c.createLinearGradient(0, 0, w, h);
-  bg.addColorStop(0, "#193a54");
-  bg.addColorStop(1, "#2e5e6a");
+  bg.addColorStop(0, night ? "#0e192e" : "#2b485d");
+  bg.addColorStop(1, night ? "#182a43" : "#436476");
   c.fillStyle = bg;
   c.fillRect(0, 0, w, h);
   let scale = Math.max(0.2, Math.min((w - 50) / 720, (h - 130) / 360)) * zoom;
@@ -460,7 +279,7 @@ export function renderMap(
         [p.x, y + 15 + depth],
         [p.x - 30, y + depth],
       ],
-      fog ? "#7a9fae" : water ? "#347f98" : "#568c72",
+      fog ? "#293c50" : water ? "#347f98" : "#568c72",
     );
     poly(
       c,
@@ -470,14 +289,14 @@ export function renderMap(
         [p.x + 30, y + depth],
         [p.x, y + 15 + depth],
       ],
-      fog ? "#6d93a6" : water ? "#2b708b" : "#3f7666",
+      fog ? "#24384c" : water ? "#2b708b" : "#3f7666",
     );
     diamond(
       c,
       p.x,
       y,
       fog
-        ? "#a3c1cd"
+        ? "#405468"
         : water
           ? "#4c9db0"
           : t.type === "forest"
@@ -497,7 +316,7 @@ export function renderMap(
           [p.x + 14, y - 2],
           [p.x + 2, y + 5],
         ],
-        "#c1d7df88",
+        "#596c7e44",
       );
     else if (water) {
       c.strokeStyle = "#b5e6e060";
@@ -512,7 +331,8 @@ export function renderMap(
         tree(c, p.x + 8, y - 3, 0.9);
       }
       if (t.type === "mountain") mountain(c, p.x, y);
-      if (t.city) house(c, p.x, y, t.city);
+      if (t.city)
+        drawCity(c, p.x, y, t.city, t.city.owner === 0 ? nation : enemyNation);
       if (t.type === "grass" && !t.city)
         poly(
           c,
@@ -554,8 +374,12 @@ export function renderMap(
         c.fill();
       }
     }
-    let u = t.seen && units.find((u) => u.x === t.x && u.y === t.y);
-    if (u && animation?.unit !== u) warrior(c, p.x, y - 3, u);
+    if (t.seen && !(t.visible ?? t.seen))
+      diamond(c, p.x, y, night ? "#0b183b99" : "#132b4266");
+    let u =
+      (t.visible ?? t.seen) && units.find((u) => u.x === t.x && u.y === t.y);
+    if (u && animation?.unit !== u)
+      drawUnit(c, p.x, y - 3, u, u.team === 0 ? nation : enemyNation, night);
     hit.push({
       t,
       x: p.x,
@@ -587,11 +411,13 @@ export function renderMap(
       c.ellipse(rx, ry, 9, 5, 0, 0, Math.PI * 2);
       c.fill();
       if (!t.developed) {
+        c.globalAlpha = (t.visible ?? t.seen) ? 1 : 0.3;
         c.save();
         c.translate(rx, ry);
         c.scale(1.25, 1.25);
         resourceArt(c, 0, 0, t.resource);
         c.restore();
+        c.globalAlpha = 1;
       } else {
         c.strokeStyle = "#f4df91";
         c.lineWidth = 2;
@@ -623,9 +449,20 @@ export function renderMap(
       c.fillText(label, p.x, y + 24);
     }
   }
-  if (animation && world[animation.unit.y]?.[animation.unit.x]?.seen) {
+  if (
+    animation &&
+    (world[animation.unit.y]?.[animation.unit.x]?.visible ??
+      world[animation.unit.y]?.[animation.unit.x]?.seen)
+  ) {
     const p = animation.position;
-    warrior(c, p.x, p.y - 11, animation.unit);
+    drawUnit(
+      c,
+      p.x,
+      p.y - 11,
+      animation.unit,
+      animation.unit.team === 0 ? nation : enemyNation,
+      night,
+    );
   }
   if (animation?.projectile) {
     const { from, to, progress: k } = animation.projectile;
@@ -664,7 +501,10 @@ export function renderMap(
   }
 
   for (const effect of effects) {
-    if (!world[effect.y]?.[effect.x]?.seen) continue;
+    if (!(
+      world[effect.y]?.[effect.x]?.visible ?? world[effect.y]?.[effect.x]?.seen
+    ))
+      continue;
     const p = project(effect.x, effect.y),
       k = effect.progress;
     c.save();

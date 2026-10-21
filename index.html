@@ -37,6 +37,7 @@
             id="map"
             aria-label="입체 왕국 지도. 유닛이나 타일을 클릭해 행동을 선택하세요."
           ></canvas>
+          <div id="phaseBadge" class="phase-badge">낮 · 탐험 시간</div>
           <div class="map-caption">
             <span class="eyebrow">THE EVERGREEN ISLES</span>
             <h1>한 걸음 너머의 세계</h1>
@@ -85,13 +86,24 @@
             </div>
             <div id="resourceOptions" class="resource-options" hidden></div>
             <div class="actions">
-              <button id="restUnit" title="행동을 사용해 체력 3 회복">
+              <button id="promoteUnit">
+                <span>★</span><b>정예 진급</b
+                ><small>3킬 · 최대체력 +5 · 완전 회복</small></button
+              ><button id="upgradeScout">
+                <span>⚑</span><b>정찰선 개조</b><small>5 ✦</small></button
+              ><button id="upgradeWarship">
+                <span>⚓</span><b>전투함 개조</b
+                ><small>10 ✦ · 해전술</small></button
+              ><button id="restUnit" title="행동을 사용해 체력 3 회복">
                 <span>✚</span><b>휴식</b><small>체력 +3</small>
               </button>
               <button id="recruit">
                 <span>⚔</span><b>전사 훈련</b><small>5 ✦</small>
               </button>
-              <button id="recruitArcher">
+              <button id="recruitAssassin">
+                <span>☾</span><b>암살자 훈련</b
+                ><small>도시 레벨2 · 암살술 필요</small></button
+              ><button id="recruitArcher">
                 <span>➶</span><b>궁수 훈련</b
                 ><small>도시 레벨 2 · 궁술 필요</small></button
               ><button id="recruitRider">
@@ -133,7 +145,7 @@
         </div>
         <footer class="turnbar">
           <div class="turn-badge">
-            <span>☀</span><b id="turnLabel">턴 01</b>
+            <span id="phaseIcon">☀</span><b id="turnLabel">턴 01</b>
           </div>
           <div class="turn-message">
             <b id="statusTitle">당신의 이야기가 시작됩니다</b>
@@ -201,6 +213,16 @@
         한 손가락으로 지도를 이동하고 두 손가락을 벌리거나 모아 확대·축소하세요.
         PC에서는 드래그와 스크롤, + / − 버튼을 사용할 수 있습니다. Esc 키로
         선택을 닫거나 행동을 취소합니다.
+      </p>
+      <p>
+        기본 시야는 주변 1칸이며, 정찰 연구 시 낮에는 2칸입니다. 턴마다 낮·밤이
+        교대하고 밤에는 시야가 더 좁아집니다. 적은 현재 시야에서만 보입니다.
+        암살자는 낮 이동1·공격1, 밤 이동3·공격10입니다.
+      </p>
+      <p>
+        항해 후 바다에 들어가면 공격 불가 수송선에 승선합니다. 5별로 정찰선,
+        해전술 후 10별로 전투함 개조가 가능합니다. 상륙하면 배는 해제됩니다. 3킬
+        유닛은 한 번 무료 진급해 최대 체력 +5와 완전 회복을 얻습니다.
       </p>
       <button id="startPlay">모험 시작하기 →</button>
     </dialog>

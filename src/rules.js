@@ -11,6 +11,18 @@ export const NEIGHBORS = [
 export const gridDistance = (a, b) =>
   Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 export const UNIT_TYPES = {
+  assassin: {
+    name: "암살자",
+    icon: "☾",
+    cost: 10,
+    hp: 10,
+    attack: 1,
+    counter: 1,
+    moves: 1,
+    level: 2,
+    range: 1,
+    tech: "assassination",
+  },
   archer: {
     name: "궁수",
     icon: "➶",
@@ -85,6 +97,16 @@ export const UNIT_TYPES = {
 };
 export const TECH_BRANCHES = [
   {
+    name: "그림자의 길",
+    icon: "☾",
+    nodes: ["scouting", "stealth", "assassination"],
+  },
+  {
+    name: "함대와 해전",
+    icon: "⚓",
+    nodes: ["fishing", "navigation", "navalwarfare"],
+  },
+  {
     name: "활과 화살",
     icon: "➶",
     nodes: ["hunting", "archery", "marksmanship"],
@@ -109,6 +131,27 @@ export const TECH_BRANCHES = [
   },
 ];
 export const TECHNOLOGIES = {
+  stealth: {
+    name: "은신",
+    icon: "◐",
+    cost: 6,
+    requires: "scouting",
+    description: "암살술의 선행 기술",
+  },
+  assassination: {
+    name: "암살술",
+    icon: "☾",
+    cost: 10,
+    requires: "stealth",
+    description: "레벨 2 암살자 · 낮 이동1 공격1 / 밤 이동3 공격10",
+  },
+  navalwarfare: {
+    name: "해전술",
+    icon: "⚓",
+    cost: 10,
+    requires: "navigation",
+    description: "수송선·정찰선을 공격력7 전투함으로 개조",
+  },
   archery: {
     name: "궁술",
     icon: "➶",
@@ -208,7 +251,7 @@ export const TECHNOLOGIES = {
     icon: "⚓",
     cost: 8,
     requires: "fishing",
-    description: "모든 아군 유닛이 바다 타일 이동 가능",
+    description: "바다 진입 시 수송선 승선 · 정찰선 개조 가능",
   },
   medicine: {
     name: "의술",
@@ -221,14 +264,14 @@ export const TECHNOLOGIES = {
     name: "정찰",
     icon: "⌖",
     cost: 5,
-    description: "유닛 탐험 시야 3 → 5",
+    description: "낮의 육상 시야 1 → 2 · 밤에는 1",
   },
   cartography: {
     name: "지도 제작",
     icon: "▧",
     cost: 7,
     requires: "scouting",
-    description: "미탐험 타일을 포함한 대륙 전체 공개",
+    description: "대륙 지형 공개 · 적 유닛은 현재 시야에서만 확인",
   },
   trade: {
     name: "교역",
@@ -336,6 +379,8 @@ export function addPopulation(city, amount) {
   }
   return levels;
 }
+const aroundTiles = (world, city) =>
+  world.flat().filter((t) => !t.city && gridDistance(t, city) === 1);
 export function seedResources(world, random = Math.random) {
   const cities = world.flat().filter((t) => t.city),
     shuffle = (a) =>
@@ -359,7 +404,7 @@ export function seedResources(world, random = Math.random) {
         ),
     );
     for (const t of around) {
-      if (t.resource || random() > 0.7) continue;
+      if (t.resource || random() > 0.32) continue;
       t.resource =
         t.type === "forest"
           ? random() < 0.6
@@ -383,11 +428,22 @@ export function seedResources(world, random = Math.random) {
           cityForTile(world, t) === city,
       ),
     );
-    for (const [i, kind] of ["game", "fruit", "wood", "grain"].entries())
+    for (const [i, kind] of ["game", "fruit"].entries())
       if (inner[i]) {
         inner[i].resource = kind;
         inner[i].type = kind === "game" || kind === "wood" ? "forest" : "grass";
       }
+  }
+  for (const city of cities) {
+    const inner = shuffle(
+      aroundTiles(world, city).filter((t) => cityForTile(world, t) === city),
+    );
+    const protectedTiles = new Set([
+      inner.find((t) => t.resource === "game"),
+      inner.find((t) => t.resource === "fruit"),
+    ]);
+    const candidates = inner.filter((t) => !protectedTiles.has(t));
+    for (const t of candidates.slice(0, 2)) t.resource = null;
   }
 }
 export function movementPath(
@@ -397,6 +453,7 @@ export function movementPath(
   target,
   maxSteps = unitSpec(u).moves,
   techs = new Set(),
+  night = false,
 ) {
   if (
     !canEnter(target, u, techs) ||
@@ -432,7 +489,7 @@ export function movementPath(
       }
       const cost =
           n.cost +
-          (t.type === "forest" && unitSpec(u).moves > 1
+          (t.type === "forest" && combatStats(u, { night, techs }).moves > 1
             ? 2
             : techs.has("roads") && world[n.y][n.x].road && t.road
               ? 0.5
@@ -444,4 +501,92 @@ export function movementPath(
     }
   }
   return null;
+}
+
+export const isNight = (turn) => turn % 2 === 0;
+export const VESSELS = {
+  transport: {
+    name: "수송선",
+    attack: 0,
+    counter: 0,
+    range: 0,
+    moves: 2,
+    sight: 1,
+  },
+  scout: {
+    name: "정찰선",
+    attack: 3,
+    counter: 2,
+    range: 2,
+    moves: 3,
+    sight: 3,
+    cost: 5,
+    tech: "navigation",
+  },
+  warship: {
+    name: "전투함",
+    attack: 7,
+    counter: 4,
+    range: 3,
+    moves: 2,
+    sight: 2,
+    cost: 10,
+    tech: "navalwarfare",
+  },
+};
+export function combatStats(u, { night = false, techs = new Set() } = {}) {
+  const base = unitSpec(u),
+    s = { ...base, hp: base.hp + (u.veteran ? 5 : 0) };
+  if (u.type === "assassin") {
+    s.moves = night ? 3 : 1;
+    s.attack = night ? 10 : 1;
+  }
+  if (u.type === "archer" && techs.has("marksmanship")) s.attack += 2;
+  if (u.boat) Object.assign(s, VESSELS[u.boat]);
+  return s;
+}
+export function visionRadius(u, night, techs) {
+  const base = u.boat ? VESSELS[u.boat].sight : techs.has("scouting") ? 2 : 1;
+  return Math.max(1, base - (night ? 1 : 0));
+}
+export function refreshVisibility(world, units, night, techs, team = 0) {
+  for (const t of world.flat()) t.visible = false;
+  const sources = units
+    .filter((u) => u.team === team)
+    .map((u) => ({ ...u, radius: visionRadius(u, night, techs) }));
+  for (const t of world.flat())
+    if (t.city?.owner === team) sources.push({ ...t, radius: night ? 0 : 1 });
+  for (const t of world.flat()) {
+    if (techs.has("cartography")) t.seen = true;
+    t.visible = sources.some(
+      (s) =>
+        gridDistance(t, s) <= s.radius &&
+        (!night || manhattan(t, s) <= s.radius),
+    );
+    if (t.visible) t.seen = true;
+  }
+}
+export function canPromote(u) {
+  return (u.kills || 0) >= 3 && !u.veteran;
+}
+export function promote(u) {
+  if (!canPromote(u)) return false;
+  u.veteran = true;
+  u.hp = unitSpec(u).hp + 5;
+  return true;
+}
+export function changeVessel(u, kind, techs, gold) {
+  const target = VESSELS[kind];
+  if (
+    !u.boat ||
+    !target?.cost ||
+    u.boat === kind ||
+    u.boat === "warship" ||
+    (kind === "scout" && u.boat !== "transport") ||
+    !techs.has(target.tech) ||
+    gold < target.cost
+  )
+    return false;
+  u.boat = kind;
+  return target.cost;
 }
