@@ -1,4 +1,19 @@
 import './style.css';
+if (window.ramtopiaWindow) {
+  document.body.classList.add('desktop-widget');
+  const bar = document.createElement('div');
+  bar.className = 'widget-titlebar';
+  bar.innerHTML = '<span>♜ RAMTOPIA</span><button id="widgetHelp" title="도움말">?</button><button id="widgetPin" class="pinned" title="항상 위에 표시" aria-pressed="true">⌖</button><button id="widgetMin" title="최소화">−</button><button id="widgetClose" title="닫기">×</button>';
+  document.body.prepend(bar);
+  document.getElementById('widgetMin').onclick = () => window.ramtopiaWindow.minimize();
+  document.getElementById('widgetClose').onclick = () => window.ramtopiaWindow.close();
+  document.getElementById('widgetPin').onclick = event => {
+    window.ramtopiaWindow.togglePin();
+    const pinned = event.currentTarget.classList.toggle('pinned');
+    event.currentTarget.setAttribute('aria-pressed', String(pinned));
+  };
+  document.getElementById('widgetHelp').onclick = () => document.getElementById('helpDialog').showModal();
+}
 const $=id=>document.getElementById(id),canvas=$('map'),ctx=canvas.getContext('2d');
 const N=12,T=32;let world,units,gold,turn,selected,selectedUnit,logs,busy=false,over=false,zoom=1,view,toastTimer;
 const directions=[[1,0],[-1,0],[0,1],[0,-1]];
