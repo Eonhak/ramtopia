@@ -1,0 +1,19 @@
+{
+  "name": "ramtopia",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build --base=./",
+    "preview": "vite preview --host 0.0.0.0",
+    "desktop": "npm run build && electron .",
+    "package:win": "npm run build && node desktop/package.cjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.4.4",
+    "electron": "^39.8.6",
+    "vite": "^7.1.0"
+  },
+  "main": "desktop/main.cjs"
+}
