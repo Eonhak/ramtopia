@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index-CtcUwwCo.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-gMbg6T2k.css">
+    <script type="module" crossorigin src="./assets/index-DhvUy6Bp.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Zk7GY0X0.css">
   </head>
   <body>
     <div id="app">
@@ -25,7 +25,7 @@
             ><small>별</small>
           </div>
           <div>
-            <span>↗</span><strong id="income">+3</strong><small>턴 수입</small>
+            <span>↗</span><strong id="income">+1</strong><small>턴 수입</small>
           </div>
         </div>
         <button id="research" class="research-btn" title="별로 기술 연구">
@@ -133,6 +133,14 @@
               </button>
             </div>
           </section>
+          <nav
+            id="productionDock"
+            class="production-dock"
+            aria-label="도시 유닛 생산"
+            hidden
+          >
+            <div id="productionUnits" class="production-units"></div>
+          </nav>
           <div id="toast" role="status"></div>
           <div class="map-controls">
             <button id="zoomOut" title="축소">−</button
@@ -193,9 +201,9 @@
         마칩니다. 휴식하면 체력을 3 회복합니다.
       </p>
       <p>
-        도시를 클릭하면 전사 훈련과 도시 성장이 가능합니다. 전사가 도시 위에
-        있다면 ‘도시 관리’로 전환하세요. 빈 도시에서 별 5개로 전사를 훈련할 수
-        있습니다. 생산된 유닛은 다음 턴부터 행동합니다.
+        도시 바닥을 누르면 하단에 병종 아이콘이 한 줄로 표시됩니다. 자원 수확은
+        아이콘 위의 자원 버튼을 사용하세요. 빈 도시에서 별 5개로 전사를 훈련할
+        수 있습니다. 생산된 유닛은 다음 턴부터 행동합니다.
       </p>
       <p>
         도시 주변에 무작위로 배치되는 열매·동물·목재·곡물·물고기·광석을 해당
