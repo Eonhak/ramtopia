@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index-BaopTi7-.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CCuXxw8d.css">
+    <script type="module" crossorigin src="./assets/index-Cfm2tqVj.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-TZevkB1_.css">
   </head>
   <body>
     <div id="app">
@@ -28,7 +28,9 @@
             <span>↗</span><strong id="income">+3</strong><small>턴 수입</small>
           </div>
         </div>
-        <button id="help" class="icon-btn" title="게임 도움말">?</button
+        <button id="research" class="research-btn" title="별로 기술 연구">
+          ⚗ 연구</button
+        ><button id="help" class="icon-btn" title="게임 도움말">?</button
         ><button id="newGame" class="icon-btn" title="새 게임">↻</button>
       </header>
       <main>
@@ -78,6 +80,12 @@
             </div>
             <div id="healthBar" class="health-bar" hidden><i></i></div>
             <div id="actionHint" class="action-hint"></div>
+            <div id="cityGrowth" class="city-growth" hidden>
+              <span id="cityGrowthText"></span>
+              <div><i id="cityGrowthFill"></i></div>
+              <small>주변 자원을 개발하면 인구가 증가합니다.</small>
+            </div>
+            <div id="resourceOptions" class="resource-options" hidden></div>
             <div class="actions">
               <button id="restUnit" title="행동을 사용해 체력 3 회복">
                 <span>✚</span><b>휴식</b><small>체력 +3</small>
@@ -85,8 +93,14 @@
               <button id="recruit">
                 <span>⚔</span><b>전사 훈련</b><small>5 ✦</small>
               </button>
-              <button id="upgrade">
-                <span>♜</span><b>도시 성장</b><small>8 ✦</small>
+              <button id="recruitRider">
+                <span>♞</span><b>기병 훈련</b><small>9 ✦ · 이동 2</small>
+              </button>
+              <button id="recruitGuard">
+                <span>⛨</span><b>방패병 훈련</b><small>8 ✦ · 체력 15</small>
+              </button>
+              <button id="develop">
+                <span>●</span><b>자원 개발</b><small>인구 증가</small>
               </button>
               <button id="inspectCity">
                 <span>⚑</span><b>도시 관리</b><small>도시 행동 보기</small>
@@ -121,6 +135,13 @@
       </main>
       <div id="logs" class="event-feed" aria-live="polite"></div>
     </div>
+    <dialog id="researchDialog" class="research-dialog">
+      <button id="closeResearch" class="icon-btn">×</button
+      ><span class="eyebrow">KNOWLEDGE OF THE KINGDOM</span>
+      <h2>왕국의 연구 <small id="researchGold"></small></h2>
+      <p>별을 사용해 자원 개발, 새로운 병종과 왕국의 능력을 해금하세요.</p>
+      <div id="techGrid"></div>
+    </dialog>
     <dialog id="helpDialog">
       <button id="closeHelp" class="icon-btn">×</button
       ><span class="eyebrow">HOW TO PLAY</span>
@@ -132,11 +153,17 @@
       <p>
         도시를 클릭하면 전사 훈련과 도시 성장이 가능합니다. 전사가 도시 위에
         있다면 ‘도시 관리’로 전환하세요. 빈 도시에서 별 5개로 전사를 훈련할 수
-        있습니다.
+        있습니다. 생산된 유닛은 다음 턴부터 행동합니다.
       </p>
       <p>
-        중립 마을은 진입하면 점령됩니다. 턴을 마치면 AI가 행동하고 도시 수입을
-        얻습니다. 붉은 수도를 점령하면 승리합니다.
+        도시 주변의 열매·동물·물고기·광석을 별로 개발해 인구를 채우면 도시가
+        성장하고 턴 수입이 증가합니다. 상단의 연구에서 기병·방패병, 자원 개발
+        기술과 새 능력을 해금하세요.
+      </p>
+      <p>
+        중립·적 마을을 점령하면 해당 유닛의 행동이 종료됩니다. 적을 처치하면
+        공격한 유닛이 그 칸으로 진입합니다. 턴을 마치면 AI가 행동하고 도시
+        수입을 얻습니다. 붉은 수도를 점령하면 승리합니다.
       </p>
       <p>
         한 손가락으로 지도를 이동하고 두 손가락을 벌리거나 모아 확대·축소하세요.
