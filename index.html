@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index-Cfm2tqVj.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-TZevkB1_.css">
+    <script type="module" crossorigin src="./assets/index-DoCFrf0r.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Dcfpq4VA.css">
   </head>
   <body>
     <div id="app">
@@ -96,7 +96,15 @@
               <button id="recruitRider">
                 <span>♞</span><b>기병 훈련</b><small>9 ✦ · 이동 2</small>
               </button>
-              <button id="recruitGuard">
+              <button id="recruitCatapult">
+                <span>◉</span><b>투석기 훈련</b
+                ><small>레벨 3 · 연구 필요</small></button
+              ><button id="recruitKnight">
+                <span>♘</span><b>기사 훈련</b
+                ><small>레벨 3 · 연구 필요</small></button
+              ><button id="buildRoad">
+                <span>↝</span><b>도로 건설</b><small>2 ✦</small></button
+              ><button id="recruitGuard">
                 <span>⛨</span><b>방패병 훈련</b><small>8 ✦ · 체력 15</small>
               </button>
               <button id="develop">
@@ -139,7 +147,11 @@
       <button id="closeResearch" class="icon-btn">×</button
       ><span class="eyebrow">KNOWLEDGE OF THE KINGDOM</span>
       <h2>왕국의 연구 <small id="researchGold"></small></h2>
-      <p>별을 사용해 자원 개발, 새로운 병종과 왕국의 능력을 해금하세요.</p>
+      <p>
+        왼쪽부터 순서대로 연구하세요. 사냥은 두 계통이 공유하며 한 번만
+        연구합니다. 도시 레벨 2는 기병·방패병, 레벨 3은 투석기·기사를
+        생산합니다.
+      </p>
       <div id="techGrid"></div>
     </dialog>
     <dialog id="helpDialog">
@@ -156,9 +168,10 @@
         있습니다. 생산된 유닛은 다음 턴부터 행동합니다.
       </p>
       <p>
-        도시 주변의 열매·동물·물고기·광석을 별로 개발해 인구를 채우면 도시가
-        성장하고 턴 수입이 증가합니다. 상단의 연구에서 기병·방패병, 자원 개발
-        기술과 새 능력을 해금하세요.
+        도시 주변에 무작위로 배치되는 열매·동물·목재·곡물·물고기·광석을 해당
+        기술 연구 후 별로 수확해 인구를 채우면 도시가 성장하고 턴 수입이
+        증가합니다. 상단의 연구에서 기병·방패병, 자원 개발 기술과 새 능력을
+        해금하세요.
       </p>
       <p>
         중립·적 마을을 점령하면 해당 유닛의 행동이 종료됩니다. 적을 처치하면
