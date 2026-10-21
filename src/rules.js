@@ -1,4 +1,28 @@
+export const NEIGHBORS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+];
+export const gridDistance = (a, b) =>
+  Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 export const UNIT_TYPES = {
+  archer: {
+    name: "궁수",
+    icon: "➶",
+    cost: 7,
+    hp: 8,
+    attack: 5,
+    counter: 2,
+    moves: 1,
+    level: 2,
+    range: 2,
+    tech: "archery",
+  },
   warrior: {
     name: "전사",
     icon: "⚔",
@@ -60,6 +84,11 @@ export const UNIT_TYPES = {
   },
 };
 export const TECH_BRANCHES = [
+  {
+    name: "활과 화살",
+    icon: "➶",
+    nodes: ["hunting", "archery", "marksmanship"],
+  },
   { name: "사냥과 기동", icon: "♞", nodes: ["hunting", "roads", "riding"] },
   { name: "숲과 공성", icon: "♠", nodes: ["hunting", "lumber", "siege"] },
   { name: "산과 강철", icon: "◆", nodes: ["climbing", "smelting", "chivalry"] },
@@ -80,6 +109,20 @@ export const TECH_BRANCHES = [
   },
 ];
 export const TECHNOLOGIES = {
+  archery: {
+    name: "궁술",
+    icon: "➶",
+    cost: 7,
+    requires: "hunting",
+    description: "레벨 2 도시에서 궁수 훈련 · 사거리 2",
+  },
+  marksmanship: {
+    name: "정밀 사격",
+    icon: "◎",
+    cost: 10,
+    requires: "archery",
+    description: "모든 아군 궁수 공격력 +2",
+  },
   hunting: {
     name: "사냥",
     icon: "♠",
@@ -372,21 +415,28 @@ export function movementPath(
       world[n.y][n.x].city.owner !== u.team
     )
       continue;
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
+    for (const [dx, dy] of NEIGHBORS) {
       const t = world[n.y + dy]?.[n.x + dx];
       if (
         !canEnter(t, u, techs) ||
         units.some((v) => v !== u && v.x === t.x && v.y === t.y)
       )
         continue;
+      if (dx && dy) {
+        const sideA = world[n.y]?.[n.x + dx],
+          sideB = world[n.y + dy]?.[n.x];
+        const blocked = (v) =>
+          !canEnter(v, u, techs) ||
+          units.some((o) => o !== u && o.x === v.x && o.y === v.y);
+        if (blocked(sideA) && blocked(sideB)) continue;
+      }
       const cost =
           n.cost +
-          (techs.has("roads") && world[n.y][n.x].road && t.road ? 0.5 : 1),
+          (t.type === "forest" && unitSpec(u).moves > 1
+            ? 2
+            : techs.has("roads") && world[n.y][n.x].road && t.road
+              ? 0.5
+              : 1),
         key = `${t.x},${t.y}`;
       if (cost > maxSteps || (best.get(key) ?? Infinity) <= cost) continue;
       best.set(key, cost);

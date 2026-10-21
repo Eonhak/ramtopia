@@ -1139,3 +1139,120 @@ dialog p {
     font-size: 8px;
   }
 }
+.nation-dialog {
+  max-width: 760px;
+  width: calc(100% - 28px);
+  padding: 30px;
+  background: #f7f6ec;
+}
+.nation-dialog h2 {
+  font-size: 26px;
+  margin: 12px 0 14px;
+}
+.nation-dialog > p {
+  font-size: 11px;
+}
+.nation-dialog::backdrop {
+  background: #112d43e8;
+  backdrop-filter: blur(10px);
+}
+#nationGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 23px 0 16px;
+}
+.nation-card {
+  border: 1px solid #dce3d2;
+  background: #eef1e5;
+  border-radius: 9px;
+  padding: 17px 8px;
+  color: #4f705c;
+  text-align: center;
+}
+.nation-card > span {
+  display: block;
+  font-size: 30px;
+  color: var(--nation-color);
+  height: 42px;
+}
+.nation-card > b {
+  display: block;
+  font-size: 12px;
+  margin: 7px 0;
+}
+.nation-card > small {
+  font-size: 9px;
+  color: #94a28b;
+}
+.nation-card.selected {
+  border: 2px solid var(--nation-color);
+  padding: 16px 7px;
+  background: #e2ecd9;
+  box-shadow: 0 3px 12px #40634615;
+}
+.nation-card:hover {
+  background: #e2ecd9;
+}
+#nationDescription {
+  padding: 11px 14px;
+  background: #e8eedf;
+  border-radius: 6px;
+  color: #6f856b;
+  line-height: 1.8;
+}
+.nation-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+#startNation {
+  background: #416e5b;
+  color: #fff;
+  border: 0;
+  padding: 13px 20px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+@media (max-width: 540px) {
+  .nation-dialog {
+    padding: 20px;
+    max-height: 94dvh;
+  }
+  .nation-dialog h2 {
+    font-size: 21px;
+  }
+  #nationGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px;
+    margin: 16px 0;
+  }
+  .nation-card {
+    padding: 10px 6px;
+  }
+  .nation-card.selected {
+    padding: 9px 5px;
+  }
+  .nation-card > span {
+    font-size: 25px;
+    height: 29px;
+  }
+  .nation-card > b {
+    font-size: 11px;
+    margin: 5px;
+  }
+  .nation-card > small {
+    font-size: 8px;
+  }
+  .nation-dialog > p {
+    font-size: 10px;
+  }
+  #nationDescription {
+    margin: 10px 0;
+  }
+  .nation-footer {
+    margin-top: 10px;
+  }
+}

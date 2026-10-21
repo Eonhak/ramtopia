@@ -48,17 +48,24 @@ test("resource ownership follows nearest city and cannot borrow enemy territory"
   assert.equal(cityForTile(w, w[2][3]).city.owner, 1);
   assert.equal(cityForTile(w, w[4][4]), null);
 });
-test("riders move two empty tiles but cannot cross water, units or uncaptured villages", () => {
-  const w = grid(),
-    u = { x: 1, y: 1, type: "rider", team: 0 };
-  assert.equal(movementPath(w, [u], u, w[1][3]).length, 2);
-  w[1][2].city = { owner: -1, level: 1 };
-  assert.equal(movementPath(w, [u], u, w[1][3]), null);
-  w[1][2].city = null;
-  w[1][2].type = "water";
-  assert.equal(movementPath(w, [u], u, w[1][3]), null);
-  w[1][2].type = "grass";
-  assert.equal(movementPath(w, [u, { x: 2, y: 1 }], u, w[1][3]), null);
+test("riders cannot cross water, units or uncaptured villages in a corridor", () => {
+  const w = [
+      Array.from({ length: 5 }, (_, x) => ({
+        x,
+        y: 0,
+        type: "grass",
+        city: null,
+      })),
+    ],
+    u = { x: 1, y: 0, type: "rider", team: 0 };
+  assert.equal(movementPath(w, [u], u, w[0][3]).length, 2);
+  w[0][2].city = { owner: -1, level: 1 };
+  assert.equal(movementPath(w, [u], u, w[0][3]), null);
+  w[0][2].city = null;
+  w[0][2].type = "water";
+  assert.equal(movementPath(w, [u], u, w[0][3]), null);
+  w[0][2].type = "grass";
+  assert.equal(movementPath(w, [u, { x: 2, y: 0 }], u, w[0][3]), null);
 });
 
 import {
@@ -141,4 +148,83 @@ test("all technology chains are three tiers with valid ordered prerequisites", (
   }
   for (const s of Object.values(UNIT_TYPES))
     if (s.tech) assert(TECHNOLOGIES[s.tech]);
+});
+
+import { generateWorld, NATIONS } from "../src/world.js";
+import { NEIGHBORS } from "../src/rules.js";
+test("eight-direction movement includes diagonal destinations and avoids blocked corner cuts", () => {
+  const w = grid(),
+    u = { x: 1, y: 1, team: 0 };
+  assert.equal(movementPath(w, [u], u, w[2][2]).length, 1);
+  w[1][2].type = "water";
+  w[2][1].type = "water";
+  assert.equal(movementPath(w, [u], u, w[2][2]), null);
+});
+test("forests cost extra movement for mobile units, but one-move units are exempt", () => {
+  const w = [Array.from({ length: 5 }, (_, x) => ({ x, y: 0, type: "grass" }))],
+    r = { x: 0, y: 0, type: "rider", team: 0 },
+    v = { ...r, type: "warrior" };
+  w[0][1].type = "forest";
+  assert.equal(movementPath(w, [r], r, w[0][1]).length, 1);
+  assert.equal(movementPath(w, [r], r, w[0][2]), null);
+  assert.equal(movementPath(w, [v], v, w[0][1]).length, 1);
+  w[0][1].road = true;
+  w[0][0].road = true;
+  assert.equal(movementPath(w, [r], r, w[0][2], 2, new Set(["roads"])), null);
+});
+test("random maps change terrain and settlement positions while keeping cities connected", () => {
+  const a = generateWorld(12, seeded(42)),
+    b = generateWorld(12, seeded(99));
+  assert.notDeepEqual(a.home, b.home);
+  assert.notDeepEqual(
+    a.world.flat().map((t) => t.type),
+    b.world.flat().map((t) => t.type),
+  );
+  for (let seed = 1; seed <= 35; seed++) {
+    const g = generateWorld(12, seeded(seed)),
+      cities = g.world.flat().filter((t) => t.city);
+    assert.equal(cities.length, 5);
+    assert.equal(cities.filter((t) => t.city.owner === 0).length, 1);
+    assert.equal(cities.filter((t) => t.city.owner === 1).length, 1);
+    const queue = [g.home],
+      seen = new Set([g.home.x + "," + g.home.y]);
+    while (queue.length) {
+      const n = queue.shift();
+      for (const [dx, dy] of NEIGHBORS) {
+        const t = g.world[n.y + dy]?.[n.x + dx];
+        if (
+          !t ||
+          !["grass", "forest"].includes(t.type) ||
+          seen.has(t.x + "," + t.y)
+        )
+          continue;
+        if (dx && dy) {
+          const walk = (v) => v && ["grass", "forest"].includes(v.type);
+          if (
+            !walk(g.world[n.y]?.[n.x + dx]) &&
+            !walk(g.world[n.y + dy]?.[n.x])
+          )
+            continue;
+        }
+        seen.add(t.x + "," + t.y);
+        queue.push(t);
+      }
+    }
+    for (const c of cities) assert(seen.has(c.x + "," + c.y));
+  }
+});
+test("archers require hunting then archery, a level-2 city and have range 2", () => {
+  assert.equal(TECHNOLOGIES.archery.requires, "hunting");
+  assert.equal(TECHNOLOGIES.marksmanship.requires, "archery");
+  assert.equal(UNIT_TYPES.archer.range, 2);
+  assert(
+    !canRecruit({ owner: 0, level: 1 }, "archer", new Set(["archery"]), 100),
+  );
+  assert(
+    canRecruit({ owner: 0, level: 2 }, "archer", new Set(["archery"]), 100),
+  );
+  assert(NATIONS.some((n) => n.id === "rome"));
+  assert(NATIONS.some((n) => n.id === "goguryeo"));
+  for (const n of NATIONS)
+    assert(TECHNOLOGIES[n.tech] && !TECHNOLOGIES[n.tech].requires);
 });

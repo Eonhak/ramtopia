@@ -1,6 +1,9 @@
 import "./style.css";
+import { NATIONS, generateWorld } from "./world.js";
 import {
   UNIT_TYPES,
+  NEIGHBORS,
+  gridDistance,
   TECH_BRANCHES,
   canRecruit,
   canEnter,
@@ -44,18 +47,15 @@ let pan = { x: 0, y: 0 },
 const activePointers = new Map();
 let pinchStart = null,
   suppressTap = false;
-const directions = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
+const directions = NEIGHBORS;
+let selectedNation = NATIONS[0],
+  pendingNation = NATIONS[0],
+  enemyNation = NATIONS[1],
+  homeCapital,
+  enemyCapital;
 const at = (x, y) => world[y]?.[x];
 const unitAt = (x, y) => units.find((u) => u.x === x && u.y === y);
-const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-function rng(x, y) {
-  return (((x * 731 + y * 193 + 17) * 16807) % 997) / 997;
-}
+const distance = gridDistance;
 function init() {
   $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
   $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
@@ -63,7 +63,7 @@ function init() {
   activePointers.clear();
   pointerStart = null;
   pinchStart = null;
-  researched = new Set();
+  researched = new Set([selectedNation.tech]);
   animating = false;
   animation = null;
   effects = [];
@@ -74,60 +74,34 @@ function init() {
   $("zoomLabel").textContent = "100%";
   gold = 10;
   turn = 1;
+  const generated = generateWorld(N);
+  world = generated.world;
+  homeCapital = generated.home;
+  enemyCapital = generated.enemy;
+  enemyNation = NATIONS.filter((n) => n.id !== selectedNation.id)[
+    Math.floor(Math.random() * (NATIONS.length - 1))
+  ];
+  at(homeCapital.x, homeCapital.y).city.name = selectedNation.capital;
+  at(enemyCapital.x, enemyCapital.y).city.name = enemyNation.capital;
+  $("kingdomName").textContent = selectedNation.name;
+  $("objectiveTitle").textContent = enemyNation.name + "의 수도를 점령하세요";
   units = [
-    { x: 3, y: 7, team: 0, hp: 10, acted: false },
-    { x: 9, y: 3, team: 1, hp: 10, acted: false },
+    { ...homeCapital, team: 0, hp: 10, acted: false },
+    { ...enemyCapital, team: 1, hp: 10, acted: false },
   ];
   logs = [];
   busy = false;
   over = false;
-  selected = { x: 3, y: 7 };
+  selected = { ...homeCapital };
   selectedUnit = null;
-  world = Array.from({ length: N }, (_, y) =>
-    Array.from({ length: N }, (_, x) => {
-      let d = ((x - 5.5) / 5.5) ** 2 + ((y - 5.5) / 5.3) ** 2;
-      let water = d > 1.03 || (x === 6 && y < 3) || (x === 0 && y > 7);
-      let r = rng(x, y);
-      return {
-        x,
-        y,
-        type: water
-          ? "water"
-          : r < 0.19
-            ? "mountain"
-            : r < 0.48
-              ? "forest"
-              : "grass",
-        seen: false,
-        city: null,
-      };
-    }),
-  );
-  for (let [x, y, owner, name] of [
-    [3, 7, 0, "숲의 수도"],
-    [9, 3, 1, "붉은 수도"],
-    [6, 6, -1, "이끼 마을"],
-    [4, 3, -1, "바람 마을"],
-    [8, 8, -1, "햇살 마을"],
-  ])
-    Object.assign(at(x, y), {
-      type: "grass",
-      city: { owner, name, level: 1, population: 0 },
-    });
-  for (let [x, y] of [
-    [3, 6],
-    [4, 7],
-    [8, 3],
-    [9, 4],
-    [7, 6],
-    [8, 6],
-    [8, 5],
-    [8, 4],
-  ])
-    at(x, y).type = "grass";
   seedResources(world);
   reveal();
-  addLog("초록 깃발이 올랐습니다. 모험을 시작하세요.");
+  addLog(
+    selectedNation.name +
+      "의 깃발이 올랐습니다. " +
+      TECHNOLOGIES[selectedNation.tech].name +
+      " 기술 보유",
+  );
   update();
   draw();
 }
@@ -171,7 +145,7 @@ function update() {
   $("income").textContent =
     "+" + cities.reduce((a, t) => a + cityIncome(t.city, researched), 0);
   $("turnLabel").innerHTML =
-    `턴 ${String(turn).padStart(2, "0")} <span>${over ? "게임 종료" : animating ? "행동 중" : busy ? "붉은 왕국의 차례" : "당신의 차례"}</span>`;
+    `턴 ${String(turn).padStart(2, "0")} <span>${over ? "게임 종료" : animating ? "행동 중" : busy ? enemyNation.name + "의 차례" : "당신의 차례"}</span>`;
   $("logs").innerHTML = logs
     .map(
       (l) =>
@@ -180,7 +154,8 @@ function update() {
     .join("");
   $("endTurn").disabled = busy || animating || over;
   $("progress").style.width =
-    (over && ownCities().some((t) => t.x === 9 && t.y === 3)
+    (over &&
+    ownCities().some((t) => t.x === enemyCapital.x && t.y === enemyCapital.y)
       ? 100
       : Math.min(85, cities.length * 15)) + "%";
   $("actionPanel").hidden = !panelOpen;
@@ -201,7 +176,7 @@ function update() {
   $("tileTitle").textContent = !t.seen
     ? "안개 너머의 땅"
     : showUnit
-      ? `${u.team === 0 ? "숲의" : "붉은"} ${unitSpec(u).name}`
+      ? `${u.team === 0 ? selectedNation.name : enemyNation.name} ${unitSpec(u).name}`
       : city
         ? city.name
         : types[t.type];
@@ -243,6 +218,7 @@ function update() {
     recruitGuard: ownCity,
     recruitCatapult: ownCity,
     recruitKnight: ownCity,
+    recruitArcher: ownCity,
     buildRoad:
       !showUnit &&
       t.seen &&
@@ -261,6 +237,7 @@ function update() {
     ["recruitGuard", "guard"],
     ["recruitCatapult", "catapult"],
     ["recruitKnight", "knight"],
+    ["recruitArcher", "archer"],
   ]) {
     const spec = UNIT_TYPES[type],
       missing = spec.tech && !researched.has(spec.tech);
@@ -310,7 +287,7 @@ function update() {
   $("actionHint").textContent = over
     ? "게임이 끝났습니다. 새 왕국을 시작해 보세요."
     : busy
-      ? "붉은 왕국이 행동하고 있습니다."
+      ? enemyNation.name + "이 행동하고 있습니다."
       : actionMode === "move"
         ? "빛나는 인접 타일을 클릭하면 이동합니다."
         : actionMode === "attack"
@@ -329,7 +306,11 @@ function update() {
                   ? "탐험하지 않은 땅의 정보는 아직 보이지 않습니다."
                   : t.type === "water"
                     ? "전사는 바다를 건널 수 없습니다."
-                    : "전사를 이동시켜 이 땅을 탐험하세요.";
+                    : t.type === "forest"
+                      ? "숲 진입 비용 +1 · 이동력 1 유닛은 페널티 없음"
+                      : t.type === "mountain" && !researched.has("climbing")
+                        ? "등산 연구 후 진입할 수 있습니다."
+                        : "전사를 이동시켜 이 땅을 탐험하세요.";
   if (!showUnit && !city && resource && t.seen)
     $("actionHint").textContent =
       resource.tech && !researched.has(resource.tech)
@@ -400,6 +381,7 @@ function selectTile(t) {
   draw();
 }
 function cancelSelection() {
+  if (!world) return;
   actionMode = null;
   panelOpen = false;
   selectedUnit = null;
@@ -409,15 +391,15 @@ function cancelSelection() {
 function finish(win) {
   over = true;
   $("statusTitle").textContent = win
-    ? "에버그린의 새로운 왕이 탄생했습니다!"
-    : "숲의 깃발이 내려갔습니다";
+    ? selectedNation.name + "의 새로운 왕이 탄생했습니다!"
+    : selectedNation.name + "의 깃발이 내려갔습니다";
   $("status").textContent = win
-    ? "붉은 수도를 정복했습니다. 당신의 왕국에 영광을!"
+    ? enemyNation.name + "의 수도를 정복했습니다. 당신의 왕국에 영광을!"
     : "새로운 왕국에서 다시 도전해 보세요.";
   $("objectiveText").textContent = win ? "수도 점령 1 / 1" : "왕국 함락";
   addLog(
     win
-      ? "붉은 수도 정복! 숲의 왕국이 승리했습니다."
+      ? selectedNation.name + "이 상대 수도를 정복해 승리했습니다."
       : "수도가 함락되었습니다.",
   );
   toast(win ? "✦ 승리! 에버그린은 당신의 것입니다." : "수도가 함락되었습니다.");
@@ -427,9 +409,13 @@ function capture(u) {
   if (t.city && t.city.owner !== u.team) {
     t.city.owner = u.team;
     u.acted = true;
-    addLog(`${u.team === 0 ? "숲의 왕국" : "붉은 왕국"}이 ${t.city.name} 점령`);
-    if (u.team === 0 && t.x === 9 && t.y === 3) finish(true);
-    if (u.team === 1 && t.x === 3 && t.y === 7) finish(false);
+    addLog(
+      `${u.team === 0 ? selectedNation.name : enemyNation.name}이 ${t.city.name} 점령`,
+    );
+    if (u.team === 0 && t.x === enemyCapital.x && t.y === enemyCapital.y)
+      finish(true);
+    if (u.team === 1 && t.x === homeCapital.x && t.y === homeCapital.y)
+      finish(false);
   }
 }
 function tween(duration, step) {
@@ -484,7 +470,12 @@ async function act(u, t) {
       animation = { unit: u, position: from };
       await tween(300, (p) => {
         if (unitSpec(u).range > 1) {
-          animation.projectile = { from, to, progress: p };
+          animation.projectile = {
+            from,
+            to,
+            progress: p,
+            arrow: u.type === "archer",
+          };
         } else {
           const k = Math.sin(Math.PI * p) * 0.38;
           animation.position = {
@@ -494,7 +485,11 @@ async function act(u, t) {
         }
       });
       animation = null;
-      const damage = unitSpec(u).attack,
+      const damage =
+          unitSpec(u).attack +
+          (u.team === 0 && u.type === "archer" && researched.has("marksmanship")
+            ? 2
+            : 0),
         counter = distance(u, t) === 1 ? unitSpec(enemy).counter : 0;
       enemy.hp -= damage;
       u.hp -= counter;
@@ -669,7 +664,14 @@ $("closePanel").onclick = () => {
   draw();
 };
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !$("helpDialog").open) cancelSelection();
+  if (
+    e.key === "Escape" &&
+    world &&
+    !$("helpDialog").open &&
+    !$("nationDialog").open &&
+    !$("researchDialog").open
+  )
+    cancelSelection();
 });
 $("resetView").onclick = () => {
   pan = { x: 0, y: 0 };
@@ -703,6 +705,7 @@ $("recruitRider").onclick = () => recruit("rider");
 $("recruitGuard").onclick = () => recruit("guard");
 $("recruitCatapult").onclick = () => recruit("catapult");
 $("recruitKnight").onclick = () => recruit("knight");
+$("recruitArcher").onclick = () => recruit("archer");
 $("buildRoad").onclick = () => {
   const t = at(selected.x, selected.y);
   if (
@@ -848,6 +851,11 @@ function pathStep(u, goal) {
         seen.has(key)
       )
         continue;
+      if (dx && dy) {
+        const techs = u.team === 0 ? researched : new Set(["climbing"]);
+        const blocked = (v) => !canEnter(v, u, techs) || !!unitAt(v.x, v.y);
+        if (blocked(at(p.x + dx, p.y)) && blocked(at(p.x, p.y + dy))) continue;
+      }
       let other = unitAt(x, y);
       if (other?.team === u.team) continue;
       seen.add(key);
@@ -867,7 +875,7 @@ $("endTurn").onclick = async () => {
     if (over) break;
     let targets = units.filter((v) => v.team === 0);
     let adjacent = targets.find((v) => distance(u, v) === 1);
-    let goal = adjacent || { x: 3, y: 7 };
+    let goal = adjacent || homeCapital;
     let step = pathStep(u, goal);
     if (step) await act(u, step);
     draw();
@@ -881,9 +889,19 @@ $("endTurn").onclick = async () => {
       if (at(u.x, u.y).city?.owner === u.team)
         u.hp = Math.min(unitSpec(u).hp, u.hp + 2);
     }
-    if (turn % 3 === 0 && !unitAt(9, 3) && at(9, 3).city.owner === 1) {
-      units.push({ x: 9, y: 3, team: 1, hp: 10, acted: true, bornTurn: turn });
-      addLog("붉은 수도에 지원군이 도착했습니다.");
+    if (
+      turn % 3 === 0 &&
+      !unitAt(enemyCapital.x, enemyCapital.y) &&
+      at(enemyCapital.x, enemyCapital.y).city.owner === 1
+    ) {
+      units.push({
+        ...enemyCapital,
+        team: 1,
+        hp: 10,
+        acted: true,
+        bornTurn: turn,
+      });
+      addLog(enemyNation.name + " 수도에 지원군이 도착했습니다.");
     }
     addLog("새로운 아침. 도시에서 별을 거두었습니다.");
     $("statusTitle").textContent = `턴 ${turn}, 왕국의 다음 걸음`;
@@ -900,17 +918,50 @@ $("endTurn").onclick = async () => {
   update();
   draw();
 };
+function openNationChoice() {
+  pendingNation = selectedNation;
+  $("nationGrid").replaceChildren();
+  for (const nation of NATIONS) {
+    const button = document.createElement("button");
+    button.className =
+      "nation-card" + (nation.id === pendingNation.id ? " selected" : "");
+    button.dataset.nation = nation.id;
+    button.setAttribute("aria-pressed", String(nation.id === pendingNation.id));
+    button.style.setProperty("--nation-color", nation.color);
+    button.innerHTML = `<span>${nation.symbol}</span><b>${nation.name}</b><small>${nation.trait}</small>`;
+    button.onclick = () => {
+      pendingNation = nation;
+      for (const card of $("nationGrid").children) {
+        card.classList.toggle("selected", card.dataset.nation === nation.id);
+        card.setAttribute(
+          "aria-pressed",
+          String(card.dataset.nation === nation.id),
+        );
+      }
+      $("nationDescription").textContent = nation.description;
+    };
+    $("nationGrid").append(button);
+  }
+  $("nationDescription").textContent = pendingNation.description;
+  $("cancelNation").hidden = !world;
+  $("nationDialog").showModal();
+}
+$("startNation").onclick = () => {
+  selectedNation = pendingNation;
+  init();
+  $("nationDialog").close();
+};
+$("cancelNation").onclick = () => $("nationDialog").close();
+$("nationDialog").addEventListener("cancel", (e) => {
+  if (!world) e.preventDefault();
+});
 $("newGame").onclick = () => {
   if (busy || animating) return;
-  if (confirm("현재 왕국을 떠나 새로운 게임을 시작할까요?")) {
-    init();
-    $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
-    $("objectiveText").textContent = "수도 점령 0 / 1";
-  }
+  if (confirm("새로운 나라와 지도로 시작할까요?")) openNationChoice();
 };
 $("help").onclick = () => $("helpDialog").showModal();
 $("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
 $("zoomIn").onclick = () => setZoom(zoom + 0.15);
 $("zoomOut").onclick = () => setZoom(zoom - 0.15);
 new ResizeObserver(draw).observe(canvas);
-init();
+openNationChoice();

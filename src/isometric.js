@@ -144,6 +144,21 @@ function house(c, x, y, city) {
   block(c, x - 3, y - 5, 3, 2, 7, "#61796d", "#526d61", "#48635a");
   if (city.level > 1)
     block(c, x + 15, y - 8, 6, 4, 13, "#f1e6c8", "#b3b497", "#859c93");
+  if (team !== -1) {
+    block(c, x - 15, y - 12, 4, 3, 13, "#eff1df", "#bcc8b1", "#819c96");
+    block(c, x + 13, y - 10, 4, 3, 11, "#eff1df", "#bcc8b1", "#819c96");
+  }
+  if (team === -1) {
+    c.fillStyle = "#fff2c8";
+    c.beginPath();
+    c.arc(x + 15, y - 26, 5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = "#735f43";
+    c.font = "bold 8px sans-serif";
+    c.textAlign = "center";
+    c.fillText("?", x + 15, y - 23);
+    return;
+  }
   c.strokeStyle = "#e8e7cd";
   c.lineWidth = 1.3;
   c.beginPath();
@@ -165,7 +180,15 @@ function resourceArt(c, x, y, kind) {
     block(c, x, y - 5, 5, 3, 5, "#e0bf8d", "#b9966c", "#947955");
     block(c, x + 5, y - 11, 2, 2, 6, "#ebd4ae", "#bd9e75", "#9f8563");
     c.strokeStyle = "#d6b387";
-    c.lineWidth = 1;
+    for (const dx of [-3, 3]) {
+      c.strokeStyle = "#785a3e";
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.moveTo(x + dx, y - 1);
+      c.lineTo(x + dx, y + 4);
+      c.stroke();
+    }
+    c.lineWidth = 1.5;
     c.beginPath();
     c.moveTo(x + 5, y - 11);
     c.lineTo(x + 4, y - 16);
@@ -318,18 +341,38 @@ function warrior(c, x, y, u) {
     ],
     color,
   );
-  block(c, x - 9, y - 15, 4, 3, 10, "#e4d6a4", "#b59c6c", "#8b8b69");
-  c.strokeStyle = "#edf8ff";
-  c.lineWidth = 2;
-  c.beginPath();
-  c.moveTo(x + 12, y - 8);
-  c.lineTo(x + 12, y - 28);
-  c.stroke();
-  c.strokeStyle = "#c5b77d";
-  c.beginPath();
-  c.moveTo(x + 8, y - 13);
-  c.lineTo(x + 16, y - 13);
-  c.stroke();
+  if (u.type === "archer") {
+    c.strokeStyle = "#d5ac76";
+    c.lineWidth = 2;
+    c.beginPath();
+    c.ellipse(x + 11, y - 18, 6, 12, 0, -Math.PI / 2, Math.PI / 2);
+    c.stroke();
+    c.strokeStyle = "#f6eccf";
+    c.lineWidth = 0.8;
+    c.beginPath();
+    c.moveTo(x + 11, y - 30);
+    c.lineTo(x + 11, y - 6);
+    c.stroke();
+    c.strokeStyle = "#d8e8e0";
+    c.lineWidth = 1.3;
+    c.beginPath();
+    c.moveTo(x + 4, y - 18);
+    c.lineTo(x + 22, y - 18);
+    c.stroke();
+  } else {
+    block(c, x - 9, y - 15, 4, 3, 10, "#e4d6a4", "#b59c6c", "#8b8b69");
+    c.strokeStyle = "#edf8ff";
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(x + 12, y - 8);
+    c.lineTo(x + 12, y - 28);
+    c.stroke();
+    c.strokeStyle = "#c5b77d";
+    c.beginPath();
+    c.moveTo(x + 8, y - 13);
+    c.lineTo(x + 16, y - 13);
+    c.stroke();
+  }
   c.fillStyle = "#284958";
   c.fillRect(x - 11, y + 9, 22, 3);
   c.fillStyle = u.team === 0 ? "#acfac2" : "#ffa99c";
@@ -337,7 +380,11 @@ function warrior(c, x, y, u) {
     x - 11,
     y + 9,
     (22 * Math.max(0, u.hp)) /
-      (u.type === "guard" || u.type === "knight" ? 15 : 10),
+      (u.type === "guard" || u.type === "knight"
+        ? 15
+        : u.type === "archer"
+          ? 8
+          : 10),
     3,
   );
   if (!u.acted) {
@@ -509,39 +556,6 @@ export function renderMap(
     }
     let u = t.seen && units.find((u) => u.x === t.x && u.y === t.y);
     if (u && animation?.unit !== u) warrior(c, p.x, y - 3, u);
-    if (!fog && t.resource && !t.city) {
-      const colors = {
-        fruit: "#f3aa74",
-        game: "#dbb992",
-        fish: "#afe2e8",
-        ore: "#d7c2f0",
-        wood: "#cfa679",
-        grain: "#f4d083",
-      };
-      const rx = p.x + 15,
-        ry = y + 4;
-      if (!t.developed) resourceArt(c, rx, ry, t.resource);
-      else
-        poly(
-          c,
-          [
-            [rx, ry - 5],
-            [rx + 4, ry],
-            [rx, ry + 4],
-            [rx - 4, ry],
-          ],
-          "#e6d39e",
-        );
-      if (t.developed) {
-        c.strokeStyle = "#a5cb8b";
-        c.lineWidth = 1.5;
-        c.beginPath();
-        c.moveTo(rx - 3, ry);
-        c.lineTo(rx, ry + 3);
-        c.lineTo(rx + 5, ry - 4);
-        c.stroke();
-      }
-    }
     hit.push({
       t,
       x: p.x,
@@ -560,23 +574,95 @@ export function renderMap(
           : 0,
     });
   }
+  // Resource sprites and ownership labels are a foreground pass: trees and adjacent tiles cannot hide them.
+  for (const t of world.flat()) {
+    if (!t.seen) continue;
+    const p = project(t.x, t.y),
+      y = p.y - (t.type === "water" ? 0 : 8);
+    if (t.resource && !t.city) {
+      const rx = p.x + 17,
+        ry = y + 5;
+      c.fillStyle = "#173b4666";
+      c.beginPath();
+      c.ellipse(rx, ry, 9, 5, 0, 0, Math.PI * 2);
+      c.fill();
+      if (!t.developed) {
+        c.save();
+        c.translate(rx, ry);
+        c.scale(1.25, 1.25);
+        resourceArt(c, 0, 0, t.resource);
+        c.restore();
+      } else {
+        c.strokeStyle = "#f4df91";
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(rx - 4, ry);
+        c.lineTo(rx - 1, ry + 3);
+        c.lineTo(rx + 5, ry - 4);
+        c.stroke();
+      }
+    }
+    if (t.city) {
+      const owner = t.city.owner,
+        label =
+          owner === 0
+            ? t.city.isCapital
+              ? "★ 내 수도"
+              : "⚑ 내 도시"
+            : owner === 1
+              ? t.city.isCapital
+                ? "⚔ 적 수도"
+                : "⚔ 적 도시"
+              : "◇ 중립 마을";
+      c.fillStyle =
+        owner === 0 ? "#123e43ed" : owner === 1 ? "#743a48ed" : "#f4e4bbf5";
+      c.fillRect(p.x - 25, y + 15, 50, 12);
+      c.fillStyle = owner === -1 ? "#5d503c" : "#ffffff";
+      c.font = "bold 7px sans-serif";
+      c.textAlign = "center";
+      c.fillText(label, p.x, y + 24);
+    }
+  }
   if (animation && world[animation.unit.y]?.[animation.unit.x]?.seen) {
     const p = animation.position;
     warrior(c, p.x, p.y - 11, animation.unit);
   }
   if (animation?.projectile) {
     const { from, to, progress: k } = animation.projectile;
-    c.fillStyle = "#354b5f";
-    c.beginPath();
-    c.arc(
-      from.x + (to.x - from.x) * k,
-      from.y + (to.y - from.y) * k - 30 - Math.sin(Math.PI * k) * 65,
-      4,
-      0,
-      Math.PI * 2,
-    );
-    c.fill();
+    const x = from.x + (to.x - from.x) * k,
+      y =
+        from.y +
+        (to.y - from.y) * k -
+        30 -
+        Math.sin(Math.PI * k) * (animation.projectile.arrow ? 15 : 65);
+    if (animation.projectile.arrow) {
+      c.save();
+      c.translate(x, y);
+      c.rotate(Math.atan2(to.y - from.y, to.x - from.x));
+      c.strokeStyle = "#f6e6ba";
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(-8, 0);
+      c.lineTo(7, 0);
+      c.stroke();
+      poly(
+        c,
+        [
+          [8, 0],
+          [3, -3],
+          [3, 3],
+        ],
+        "#edf8ff",
+      );
+      c.restore();
+    } else {
+      c.fillStyle = "#354b5f";
+      c.beginPath();
+      c.arc(x, y, 4, 0, Math.PI * 2);
+      c.fill();
+    }
   }
+
   for (const effect of effects) {
     if (!world[effect.y]?.[effect.x]?.seen) continue;
     const p = project(effect.x, effect.y),

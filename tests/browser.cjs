@@ -43,18 +43,24 @@ const assert = require("node:assert/strict");
       body:
         (await response.text()) +
         `
-window.__gameTest={get view(){return view},fixture(kind){init();
+window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture(kind){init();
+ world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',seen:false,city:null,resource:null,developed:false,road:false})));
+ homeCapital={x:3,y:7};enemyCapital={x:9,y:3};for(const [x,y,owner]of [[3,7,0],[9,3,1],[6,6,-1],[4,3,-1],[8,8,-1]])at(x,y).city={owner,name:'테스트 마을',level:1,population:0,isCapital:owner!==-1};units=[{x:3,y:7,team:0,hp:10,acted:false},{x:9,y:3,team:1,hp:10,acted:false}];researched=new Set();selected={x:3,y:7};
+
  if(kind==='combat'||kind==='kill'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:1,hp:kind==='kill'?4:10,acted:false}];}
  if(kind==='rest')units[0].hp=4;
  if(kind==='win'||kind==='mutual'){units=[{x:8,y:3,team:0,hp:kind==='mutual'?1:10,acted:false}];if(kind==='mutual')units.push({x:9,y:3,team:1,hp:4,acted:false});at(8,3).type='grass';}
  if(kind==='lose')units=[{x:3,y:6,team:1,hp:10,acted:false}];
  if(kind==='cluster')units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:0,hp:10,acted:false},{x:4,y:6,team:0,hp:10,acted:false}];
  if(kind==='economy'){gold=100;researched.add('gathering');units=[{x:3,y:6,team:0,hp:10,acted:false}];for(const [x,y,type,resource] of [[3,6,'grass','fruit'],[4,7,'grass','fruit'],[2,7,'mountain','ore'],[2,8,'water','fish'],[2,6,'forest','game'],[3,8,'forest','wood'],[4,8,'grass','grain']])Object.assign(at(x,y),{type,resource,developed:false});}if(kind==='rest')gold=100;
+ if(kind==='animals'){researched.add('hunting');Object.assign(at(4,7),{type:'forest',resource:'game'});at(4,8).type='forest';}
+ if(kind==='bow'){gold=100;units=[{x:3,y:7,type:'archer',team:0,hp:8,acted:false},{x:5,y:7,team:1,hp:10,acted:false}];researched=new Set(['hunting','archery']);}
+ if(kind==='diagonal'){units=[{x:3,y:7,team:0,hp:10,acted:false}];}
  if(kind==='mountain'){units=[{x:3,y:7,team:0,hp:10,acted:false}];Object.assign(at(4,7),{type:'mountain',resource:'ore'});gold=100;}
  if(kind==='siege'){gold=100;researched=new Set(['hunting','lumber','siege']);units=[{x:3,y:7,type:'catapult',team:0,hp:8,acted:false},{x:5,y:7,team:1,hp:6,acted:false}];for(const x of [3,4,5])at(x,7).type='grass';}
 
  if(kind==='capture'){units=[{x:6,y:5,team:0,hp:10,acted:false}];at(6,5).type='grass';}
- reveal();update();draw();},get snapshot(){return{units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(9,3).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
+ reveal();update();draw();},get snapshot(){return{nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
     });
   });
   await page.goto(process.env.TEST_URL || "http://localhost:3000");
@@ -91,6 +97,27 @@ window.__gameTest={get view(){return view},fixture(kind){init();
       .click();
     await page.click("#closeResearch");
   }
+  assert.equal(await page.locator("#nationDialog").isVisible(), true);
+  assert.equal(await page.locator(".nation-card").count(), 8);
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator("#nationDialog").isVisible(), true);
+  await page.click('[data-nation="goguryeo"]');
+  await page.click("#startNation");
+  assert.equal((await snapshot()).nation, "goguryeo");
+  assert((await snapshot()).researched.includes("hunting"));
+  assert.equal(await page.locator("#kingdomName").innerText(), "고구려");
+  const firstMap = (await snapshot()).map;
+  await page.evaluate(() => window.__gameTest.choose());
+  await page.click('[data-nation="rome"]');
+  await page.click("#cancelNation");
+  assert.equal((await snapshot()).nation, "goguryeo");
+  await page.evaluate(() => window.__gameTest.choose());
+  await page.click('[data-nation="rome"]');
+  await page.click("#startNation");
+  assert.equal((await snapshot()).nation, "rome");
+  assert((await snapshot()).researched.includes("gathering"));
+  assert.notEqual((await snapshot()).map, firstMap);
+  await fixture("base");
   assert.equal(await page.locator("#actionPanel").isVisible(), false);
   await clickTile(3, 7);
   assert((await snapshot()).targets.some((t) => t.x === 4 && t.y === 7));
@@ -352,6 +379,62 @@ window.__gameTest={get view(){return view},fixture(kind){init();
   assert.equal(state.units.length, 1);
   assert.equal(state.units[0].x, 3);
   assert.equal(state.units[0].hp, 8);
+  await fixture("diagonal");
+  await clickTile(3, 7);
+  assert((await snapshot()).targets.some((t) => t.x === 4 && t.y === 8));
+  await clickTile(4, 8);
+  assert.deepEqual(
+    { x: (await snapshot()).units[0].x, y: (await snapshot()).units[0].y },
+    { x: 4, y: 8 },
+  );
+  await fixture("animals");
+  await clickTile(4, 7);
+  assert.match(await page.locator("#tileDescription").innerText(), /야생동물/);
+  const countDeer = () =>
+    page.locator("#map").evaluate((c) => {
+      const { data } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4)
+        if (
+          Math.abs(data[i] - 224) < 3 &&
+          Math.abs(data[i + 1] - 191) < 3 &&
+          Math.abs(data[i + 2] - 141) < 3
+        )
+          count++;
+      return count;
+    });
+  assert(
+    (await countDeer()) > 5,
+    "animal sprite is visible despite adjacent forest",
+  );
+  await page.click("#develop");
+  assert.equal(await countDeer(), 0, "harvest removes the animal sprite");
+  await fixture("economy");
+  await research("사냥");
+  await research("궁술");
+  await clickTile(3, 7);
+  assert.equal(await page.locator("#recruitArcher").isDisabled(), true);
+  await page
+    .locator(".resource-option")
+    .filter({ hasText: "열매 수확" })
+    .first()
+    .click();
+  await page
+    .locator(".resource-option")
+    .filter({ hasText: "열매 수확" })
+    .first()
+    .click();
+  await page.click("#recruitArcher");
+  assert.equal((await snapshot()).units[1].type, "archer");
+  assert.equal((await snapshot()).units[1].acted, true);
+  await fixture("bow");
+  await research("정밀 사격");
+  await clickTile(3, 7);
+  await clickTile(5, 7);
+  state = await snapshot();
+  assert.equal(state.units[1].hp, 3);
+  assert.equal(state.units[0].hp, 8);
+  assert.equal(state.units[0].x, 3);
   // Real multi-touch input through Chromium, including cancellation and a remaining finger.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.__gameTest.fixture("rest"));
@@ -466,7 +549,7 @@ window.__gameTest={get view(){return view},fixture(kind){init();
 
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: overlapping selection, animated movement/combat, kill advance, production cooldown, village capture exhaustion, resource population and income, research and new units/abilities, victory/defeat, mobile layout and multi-touch",
+    "PASS: nation selection and new maps, diagonal movement, visible animal harvest, archers and marksmanship, overlapping selection, animations, production cooldown, resource growth, research, victory/defeat and multi-touch",
   );
   await browser.close();
 })().catch((e) => {
