@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index-DMxb_N-F.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BaKb-jA0.css">
+    <script type="module" crossorigin src="./assets/index-BaopTi7-.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CCuXxw8d.css">
   </head>
   <body>
     <div id="app">
@@ -79,24 +79,20 @@
             <div id="healthBar" class="health-bar" hidden><i></i></div>
             <div id="actionHint" class="action-hint"></div>
             <div class="actions">
-              <button id="moveUnit">
-                <span>➤</span><b>이동</b><small>인접한 땅으로</small></button
-              ><button id="attackUnit">
-                <span>⚔</span><b>공격</b><small>인접한 적에게</small></button
-              ><button id="restUnit">
-                <span>✚</span><b>휴식</b><small>체력 +3</small></button
-              ><button id="recruit">
-                <span>⚔</span><b>전사 훈련</b><small>5 ✦</small></button
-              ><button id="upgrade">
-                <span>♜</span><b>도시 성장</b><small>8 ✦</small></button
-              ><button id="inspectCity">
-                <span>⚑</span><b>도시 관리</b
-                ><small>도시 행동 보기</small></button
-              ><button id="inspectUnit">
-                <span>♟</span><b>전사 선택</b
-                ><small>유닛 행동 보기</small></button
-              ><button id="cancelAction">
-                <span>×</span><b>취소</b><small>선택으로 돌아가기</small>
+              <button id="restUnit" title="행동을 사용해 체력 3 회복">
+                <span>✚</span><b>휴식</b><small>체력 +3</small>
+              </button>
+              <button id="recruit">
+                <span>⚔</span><b>전사 훈련</b><small>5 ✦</small>
+              </button>
+              <button id="upgrade">
+                <span>♜</span><b>도시 성장</b><small>8 ✦</small>
+              </button>
+              <button id="inspectCity">
+                <span>⚑</span><b>도시 관리</b><small>도시 행동 보기</small>
+              </button>
+              <button id="inspectUnit">
+                <span>♟</span><b>전사 선택</b><small>지도에서 이동·공격</small>
               </button>
             </div>
           </section>
@@ -108,7 +104,7 @@
             ><button id="resetView" title="지도 중앙으로">⌖</button>
           </div>
           <div class="map-tip">
-            드래그로 지도 이동 <span>·</span> 스크롤로 확대
+            한 손가락으로 지도 이동 <span>·</span> 두 손가락으로 확대·축소
             <span>·</span> 클릭으로 행동 선택
           </div>
         </div>
@@ -130,8 +126,8 @@
       ><span class="eyebrow">HOW TO PLAY</span>
       <h2>에버그린의 첫걸음</h2>
       <p>
-        <b>전사 클릭 → 이동 또는 공격 → 빛나는 타일 클릭.</b> 전사는 매 턴 한 번
-        행동할 수 있습니다. 휴식하면 체력을 3 회복합니다.
+        <b>전사 클릭 → 흰 테두리로 이동, 붉은 타일로 공격.</b> 전사는 매 턴 한
+        번 행동할 수 있습니다. 휴식하면 체력을 3 회복합니다.
       </p>
       <p>
         도시를 클릭하면 전사 훈련과 도시 성장이 가능합니다. 전사가 도시 위에
@@ -143,8 +139,9 @@
         얻습니다. 붉은 수도를 점령하면 승리합니다.
       </p>
       <p>
-        드래그로 지도를 이동하고 스크롤 또는 + / −로 확대하세요. Esc 키로 선택을
-        닫거나 행동을 취소합니다.
+        한 손가락으로 지도를 이동하고 두 손가락을 벌리거나 모아 확대·축소하세요.
+        PC에서는 드래그와 스크롤, + / − 버튼을 사용할 수 있습니다. Esc 키로
+        선택을 닫거나 행동을 취소합니다.
       </p>
       <button id="startPlay">모험 시작하기 →</button>
     </dialog>
