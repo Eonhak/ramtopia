@@ -3,6 +3,9 @@ import { NATIONS, generateWorld } from "./world.js";
 import { drawCity, drawUnit } from "./visuals.js";
 import {
   UNIT_TYPES,
+  researchCost,
+  healthDamage,
+  canManageCity,
   combatStats,
   isNight,
   refreshVisibility,
@@ -169,7 +172,12 @@ function update() {
     u = inSight(t) ? unitAt(t.x, t.y) : null,
     city = t.seen ? t.city : null;
   const showUnit = !!u && (selectionKind === "unit" || !city);
+  $("actionPanel").classList.toggle(
+    "city-dock",
+    !showUnit && canManageCity(city),
+  );
   $("actionPanel").classList.toggle("unit-compact", showUnit);
+  if (city && !canManageCity(city) && !showUnit) $("actionPanel").hidden = true;
   const types = {
     grass: "초원",
     water: "바다",
@@ -202,13 +210,13 @@ function update() {
   $("tileDescription").textContent = !t.seen
     ? "전사를 보내 새로운 땅을 발견하세요."
     : showUnit
-      ? `체력 ${u.hp} / ${stats(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : "행동 가능"}`
+      ? `체력 ${u.hp} / ${stats(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : u.moved ? "이동 완료 · 공격 가능" : "이동·공격 가능"}`
       : city
         ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner === 1 ? "적의 도시" : "중립 마을"} · 인구 ${city.population || 0}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
         : "왕국의 지도를 넓혀 보세요.";
   if (showUnit)
     $("tileDescription").textContent +=
-      ` · ${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${stats(u).attack}`;
+      ` · ${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${healthDamage(stats(u).attack, u.hp, stats(u).hp)}`;
   $("healthBar").hidden = !showUnit;
   $("healthBar").firstElementChild.style.width =
     (u ? (u.hp / stats(u).hp) * 100 : 0) + "%";
@@ -221,14 +229,16 @@ function update() {
   const ownCity = !showUnit && city?.owner === 0;
   const buttons = {
     restUnit: ownUnit,
-    recruit: ownCity,
+    recruit: ownCity && canRecruit(city, "warrior", researched, Infinity),
     develop: !showUnit && t.seen && !!t.resource && !t.developed,
-    recruitRider: ownCity,
-    recruitGuard: ownCity,
-    recruitCatapult: ownCity,
-    recruitKnight: ownCity,
-    recruitArcher: ownCity,
-    recruitAssassin: ownCity,
+    recruitRider: ownCity && canRecruit(city, "rider", researched, Infinity),
+    recruitGuard: ownCity && canRecruit(city, "guard", researched, Infinity),
+    recruitCatapult:
+      ownCity && canRecruit(city, "catapult", researched, Infinity),
+    recruitKnight: ownCity && canRecruit(city, "knight", researched, Infinity),
+    recruitArcher: ownCity && canRecruit(city, "archer", researched, Infinity),
+    recruitAssassin:
+      ownCity && canRecruit(city, "assassin", researched, Infinity),
     promoteUnit: ownUnit && canPromote(u),
     upgradeScout: ownUnit && u.boat === "transport",
     upgradeWarship: ownUnit && !!u.boat && u.boat !== "warship",
@@ -239,7 +249,7 @@ function update() {
       !t.road &&
       t.type !== "water" &&
       cityForTile(world, t)?.city.owner === 0,
-    inspectCity: showUnit && !!city,
+    inspectCity: showUnit && ownUnit && canManageCity(city),
     inspectUnit: !showUnit && !!u,
   };
   for (const [id, visible] of Object.entries(buttons)) $(id).hidden = !visible;
@@ -275,7 +285,31 @@ function update() {
       over ||
       !canRecruit(city, type, researched, gold, !!u);
     $(id).innerHTML =
-      `<span>${spec.icon}</span><b>${spec.name} 훈련</b><small>${missing ? TECHNOLOGIES[spec.tech].name + " 연구 필요" : city && city.level < spec.level ? "도시 레벨 " + spec.level + " 필요" : spec.cost + " ✦ · 레벨 " + spec.level}</small>`;
+      `<canvas class="production-icon" width="70" height="64" aria-hidden="true"></canvas><b>${spec.name}</b><small>${missing ? TECHNOLOGIES[spec.tech].name + " 연구 필요" : city && city.level < spec.level ? "도시 레벨 " + spec.level + " 필요" : spec.cost + " ✦ · 레벨 " + spec.level}</small>`;
+  }
+  for (const [id, type] of [
+    ["recruit", "warrior"],
+    ["recruitRider", "rider"],
+    ["recruitGuard", "guard"],
+    ["recruitCatapult", "catapult"],
+    ["recruitKnight", "knight"],
+    ["recruitArcher", "archer"],
+    ["recruitAssassin", "assassin"],
+  ]) {
+    const icon = $(id).querySelector("canvas");
+    if (icon) {
+      const c = icon.getContext("2d");
+      c.translate(35, 49);
+      c.scale(1.25, 1.25);
+      drawUnit(
+        c,
+        0,
+        0,
+        { type, team: 0, hp: UNIT_TYPES[type].hp, acted: true },
+        selectedNation,
+        false,
+      );
+    }
   }
   $("buildRoad").disabled =
     busy ||
@@ -364,11 +398,14 @@ function available(t) {
   if (
     occupant?.team === 1 &&
     inSight(t) &&
+    !selectedUnit.attacked &&
     distance(t, selectedUnit) <= stats(selectedUnit).range
   )
     return "attack";
   if (
     !occupant &&
+    !selectedUnit.moved &&
+    !selectedUnit.attacked &&
     movementPath(
       world,
       units,
@@ -402,11 +439,11 @@ function draw() {
           : 0,
     });
 }
-function selectTile(t) {
+function selectTile(t, preferredKind) {
   selected = { x: t.x, y: t.y };
   const u = inSight(t) ? unitAt(t.x, t.y) : null;
   selectedUnit = u?.team === 0 ? u : null;
-  selectionKind = u ? "unit" : "city";
+  selectionKind = preferredKind || (u ? "unit" : "city");
   actionMode = selectedUnit && !selectedUnit.acted ? "unit" : null;
   panelOpen = true;
   update();
@@ -488,7 +525,13 @@ async function act(u, t) {
     return false;
   const enemy = unitAt(t.x, t.y);
   const techs = u.team === 0 ? researched : new Set(["climbing"]);
-  if (enemy?.team === u.team || !canEnter(t, u, techs)) return false;
+  if (
+    enemy?.team === u.team ||
+    !canEnter(t, u, techs) ||
+    (enemy && u.attacked) ||
+    (!enemy && (u.moved || u.attacked))
+  )
+    return false;
   const path = enemy
     ? null
     : movementPath(world, units, u, t, stats(u).moves, techs, isNight(turn));
@@ -501,7 +544,12 @@ async function act(u, t) {
   )
     return false;
   animating = true;
-  u.acted = true;
+  if (enemy) {
+    u.attacked = true;
+    u.acted = true;
+  } else {
+    u.moved = true;
+  }
   actionMode = null;
   update();
   try {
@@ -526,15 +574,18 @@ async function act(u, t) {
         }
       });
       animation = null;
-      const damage = stats(u).attack,
+      const damage = healthDamage(stats(u).attack, u.hp, stats(u).hp),
         counter =
-          distance(u, t) <= stats(enemy).range ? stats(enemy).counter : 0;
+          distance(u, t) <= stats(enemy).range
+            ? healthDamage(stats(enemy).counter, enemy.hp, stats(enemy).hp)
+            : 0;
       enemy.hp -= damage;
       u.hp -= counter;
       effects = [
         { x: t.x, y: t.y, text: "−" + damage, progress: 0 },
         { x: u.x, y: u.y, text: "−" + counter, progress: 0 },
       ];
+      effects = effects.filter((e) => e.text !== "−0");
       await tween(300, (p) => effects.forEach((e) => (e.progress = p)));
       effects = [];
       const killed = enemy.hp <= 0;
@@ -647,7 +698,15 @@ canvas.addEventListener("pointerup", async (e) => {
       return;
     }
   }
-  selectTile(t);
+  const hit = view.hit.find((p) => p.t === t),
+    groundY = (e.clientY - rect.top - view.oy) / view.scale;
+  selectTile(t, t.city && Math.abs(groundY - hit.y) < 11 ? "city" : undefined);
+  if (t.city && t.city.owner !== 0 && !unitAt(t.x, t.y))
+    toast(
+      t.city.owner === -1
+        ? "중립 마을 · 유닛으로 진입해 점령하세요."
+        : "적 도시 · 점령 후에 생산할 수 있습니다.",
+    );
 });
 function cancelPointer(e) {
   if (!activePointers.delete(e.pointerId)) return;
@@ -674,7 +733,7 @@ canvas.addEventListener(
   { passive: false },
 );
 function setZoom(value) {
-  zoom = Math.min(2.3, Math.max(0.65, value));
+  zoom = Math.min(2.3, Math.max(0.25, value));
   $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
   draw();
 }
@@ -691,6 +750,7 @@ $("restUnit").onclick = () => {
   draw();
 };
 $("inspectCity").onclick = () => {
+  if (!canManageCity(at(selected.x, selected.y).city)) return;
   selectionKind = "city";
   actionMode = null;
   update();
@@ -744,7 +804,7 @@ function recruit(type) {
     bornTurn: turn,
   });
   addLog(`${spec.name} 훈련 · 다음 턴부터 행동`);
-  selectTile(t);
+  selectTile(t, "unit");
 }
 $("recruit").onclick = () => recruit("warrior");
 $("recruitRider").onclick = () => recruit("rider");
@@ -849,6 +909,10 @@ function renderCityResources(city) {
 }
 function renderResearch() {
   $("researchGold").textContent = gold + " ✦";
+  $("researchSurcharge").textContent = `도시 성장 할증 +${researchCost(
+    { cost: 0 },
+    ownCities().map((t) => t.city),
+  )} ✦ · 보유 도시의 레벨 상승분마다 +2 ✦`;
   $("techGrid").replaceChildren();
   for (const branch of TECH_BRANCHES) {
     const row = document.createElement("section");
@@ -860,6 +924,10 @@ function renderResearch() {
     nodes.className = "tech-chain";
     for (const [index, key] of branch.nodes.entries()) {
       const tech = TECHNOLOGIES[key],
+        price = researchCost(
+          tech,
+          ownCities().map((t) => t.city),
+        ),
         learned = researched.has(key),
         locked = tech.requires && !researched.has(tech.requires);
       if (index) {
@@ -872,19 +940,23 @@ function renderResearch() {
       button.dataset.tech = key;
       button.className = "tech-card" + (learned ? " learned" : "");
       button.disabled =
-        learned || locked || gold < tech.cost || busy || animating || over;
-      button.innerHTML = `<span>${tech.icon}</span><div><b>${tech.name}</b><p>${tech.description}</p><small>${learned ? "연구 완료" : locked ? TECHNOLOGIES[tech.requires].name + " 선행 필요" : tech.cost + " ✦"}</small></div>`;
+        learned || locked || gold < price || busy || animating || over;
+      button.innerHTML = `<span>${tech.icon}</span><div><b>${tech.name}</b><p>${tech.description}</p><small>${learned ? "연구 완료" : locked ? TECHNOLOGIES[tech.requires].name + " 선행 필요" : price + " ✦"}</small></div>`;
       button.onclick = () => {
+        const price = researchCost(
+          tech,
+          ownCities().map((t) => t.city),
+        );
         if (
           researched.has(key) ||
-          gold < tech.cost ||
+          gold < price ||
           (tech.requires && !researched.has(tech.requires)) ||
           busy ||
           animating ||
           over
         )
           return;
-        gold -= tech.cost;
+        gold -= price;
         researched.add(key);
         addLog(`${tech.name} 연구 완료`);
         reveal();
@@ -946,13 +1018,31 @@ $("endTurn").onclick = async () => {
     let goal = adjacent || homeCapital;
     let step = pathStep(u, goal);
     if (step) await act(u, step);
+    if (units.includes(u) && !u.acted && !u.attacked && !over) {
+      const contact = units.find(
+        (v) => v.team === 0 && distance(u, v) <= stats(u).range,
+      );
+      if (contact) await act(u, at(contact.x, contact.y));
+    }
     draw();
   }
   if (!over) {
     turn++;
-    gold += ownCities().reduce((a, t) => a + cityIncome(t.city, researched), 0);
+    const earnings = ownCities().reduce(
+      (a, t) => a + cityIncome(t.city, researched),
+      0,
+    );
+    gold += earnings;
+    addLog(
+      `도시 수입 +${earnings} ✦ · ${ownCities()
+        .map((t) => t.city.name + " Lv." + t.city.level)
+        .join(", ")}`,
+    );
+    toast(`도시 수입 +${earnings} ✦`);
     for (let u of units) {
       u.acted = false;
+      delete u.moved;
+      delete u.attacked;
       delete u.bornTurn;
       if (at(u.x, u.y).city?.owner === u.team)
         u.hp = Math.min(stats(u).hp, u.hp + 2);
@@ -971,7 +1061,7 @@ $("endTurn").onclick = async () => {
       });
       addLog(enemyNation.name + " 수도에 지원군이 도착했습니다.");
     }
-    addLog("새로운 아침. 도시에서 별을 거두었습니다.");
+
     $("statusTitle").textContent = `턴 ${turn}, 왕국의 다음 걸음`;
     $("status").textContent =
       "전사를 움직이거나, 도시를 선택해 병력을 훈련하세요.";

@@ -49,7 +49,9 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
 
  if(kind==='combat'||kind==='kill'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:1,hp:kind==='kill'?4:10,acted:false}];}
  if(kind==='rest')units[0].hp=4;
- if(kind==='win'||kind==='mutual'){units=[{x:8,y:3,team:0,hp:kind==='mutual'?1:10,acted:false}];if(kind==='mutual')units.push({x:9,y:3,team:1,hp:4,acted:false});at(8,3).type='grass';}
+ if(kind==='income'){gold=10;units=units.slice(0,1);at(3,7).city.level=2;at(6,6).city.owner=0;at(6,6).city.level=3;}
+ if(kind==='wounded'){units=[{x:3,y:7,team:0,hp:5,acted:false},{x:4,y:7,team:1,hp:10,acted:false}];}
+ if(kind==='win'||kind==='mutual'){units=[{x:8,y:3,team:0,hp:kind==='mutual'?1:10,acted:false}];if(kind==='mutual')units.push({x:9,y:3,team:1,hp:1,acted:false});at(8,3).type='grass';}
  if(kind==='lose')units=[{x:3,y:6,team:1,hp:10,acted:false}];
  if(kind==='cluster')units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:0,hp:10,acted:false},{x:4,y:6,team:0,hp:10,acted:false}];
  if(kind==='economy'){gold=100;researched.add('gathering');units=[{x:3,y:6,team:0,hp:10,acted:false}];for(const [x,y,type,resource] of [[3,6,'grass','fruit'],[4,7,'grass','fruit'],[2,7,'mountain','ore'],[2,8,'water','fish'],[2,6,'forest','game'],[3,8,'forest','wood'],[4,8,'grass','grain']])Object.assign(at(x,y),{type,resource,developed:false});}if(kind==='rest')gold=100;
@@ -73,7 +75,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   const snapshot = () => page.evaluate(() => window.__gameTest.snapshot);
   const fixture = (kind) =>
     page.evaluate((kind) => window.__gameTest.fixture(kind), kind);
-  async function point(x, y, head = false) {
+  async function point(x, y, head = undefined) {
     return page.locator("#map").evaluate(
       (c, { x, y, head }) => {
         const v = window.__gameTest.view,
@@ -81,13 +83,23 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
           r = c.getBoundingClientRect();
         return {
           x: r.left + v.ox + t.x * v.scale,
-          y: r.top + v.oy + (t.y - (head ? 23 : 0)) * v.scale,
+          y:
+            r.top +
+            v.oy +
+            (t.y -
+              ((head ??
+              window.__gameTest.snapshot.units.some(
+                (u) => u.team === 0 && u.x === x && u.y === y,
+              ))
+                ? 20
+                : 0)) *
+              v.scale,
         };
       },
       { x, y, head },
     );
   }
-  async function clickTile(x, y, head = false) {
+  async function clickTile(x, y, head = undefined) {
     const p = await point(x, y, head);
     await page.mouse.click(p.x, p.y);
     await page.waitForFunction(() => !window.__gameTest.snapshot.animating);
@@ -140,12 +152,45 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   await page.waitForFunction(() => !window.__gameTest.snapshot.animating);
   assert.equal((await snapshot()).units[0].x, 4);
   assert.equal(await page.evaluate(() => window.__resetWasPrompted), false);
-  assert.equal((await snapshot()).units[0].acted, true);
+  assert.equal((await snapshot()).units[0].moved, true);
   assert.deepEqual((await snapshot()).targets, []);
   assert(
     (await page.evaluate(() => window.__renderFrames)).some((f) => f.animating),
     "movement produced visual animation frames",
   );
+  await fixture("base");
+  await clickTile(6, 6, false);
+  assert.equal(await page.locator("#actionPanel").isVisible(), false);
+  assert.equal(await page.locator("#inspectCity").isVisible(), false);
+  await clickTile(3, 7, false);
+  assert(
+    await page
+      .locator("#actionPanel")
+      .evaluate((el) => el.classList.contains("city-dock")),
+  );
+  assert((await page.locator("#actionPanel").boundingBox()).height < 190);
+  for (let i = 0; i < 30; i++) await page.click("#zoomOut");
+  assert.equal((await snapshot()).zoom, 0.25);
+  await fixture("income");
+  assert.equal(await page.locator("#income").innerText(), "+9");
+  await page.click("#endTurn");
+  await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
+  assert.equal((await snapshot()).gold, 19);
+  await fixture("wounded");
+  await clickTile(3, 7);
+  await clickTile(4, 7);
+  assert.equal((await snapshot()).units[1].hp, 7);
+  assert.equal((await snapshot()).units[0].hp, 2);
+  await fixture("fog");
+  await clickTile(3, 7);
+  await clickTile(4, 7, false);
+  assert(
+    (await snapshot()).targets.some(
+      (t) => t.x === 5 && t.y === 7 && t.action === "attack",
+    ),
+  );
+  await clickTile(5, 7);
+  assert.equal((await snapshot()).units[1].hp, 4);
   await fixture("cluster");
   await page.click("#zoomIn");
   await page.click("#zoomIn");
@@ -155,7 +200,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
     [4, 6],
     [4, 7],
   ]) {
-    await clickTile(x, y);
+    await clickTile(x, y, false);
     assert.deepEqual((await snapshot()).selected, { x, y });
   }
   await fixture("economy");

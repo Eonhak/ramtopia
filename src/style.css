@@ -1376,3 +1376,189 @@ dialog p {
     font-size: 20px;
   }
 }
+/* City selection is a low production tray, not a floating management window. */
+.action-panel.city-dock {
+  left: 50%;
+  right: auto;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100% - 230px));
+  padding: 10px 34px 9px 13px;
+  border-radius: 10px;
+  animation: none;
+  max-height: 185px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  gap: 5px 14px;
+  background: #f7f7eeed;
+  backdrop-filter: blur(12px);
+}
+.city-dock .panel-heading {
+  position: absolute;
+  right: 6px;
+  top: 7px;
+}
+.city-dock .panel-heading > .eyebrow,
+.city-dock #terrainTag,
+.city-dock .tile-preview,
+.city-dock .action-hint {
+  display: none;
+}
+.city-dock .selection-body {
+  margin: 0;
+  grid-column: 1;
+  gap: 0;
+}
+.city-dock .selection-body h2 {
+  font-size: 12px;
+  margin: 0 0 4px;
+}
+.city-dock .selection-body p {
+  font-size: 8px;
+  line-height: 1.5;
+}
+.city-dock .city-growth {
+  grid-column: 1;
+  padding: 0;
+  margin: 0;
+  background: none;
+}
+.city-dock .city-growth small {
+  display: none;
+}
+.city-dock .city-growth > div {
+  margin: 4px 0;
+  height: 3px;
+}
+.city-dock .city-growth > span {
+  font-size: 8px;
+}
+.city-dock .actions {
+  grid-column: 2;
+  grid-row: 1/3;
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  max-width: 420px;
+  overflow-x: auto;
+}
+.city-dock .actions button {
+  padding: 3px 5px;
+  min-width: 53px;
+  min-height: 61px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.city-dock .actions button > span {
+  font-size: 18px;
+  margin: 0;
+}
+.city-dock .actions button b {
+  font-size: 8px;
+  white-space: nowrap;
+}
+.city-dock .actions button small {
+  font-size: 8px;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.production-icon {
+  width: 35px;
+  height: 32px;
+  background: transparent;
+  image-rendering: auto;
+  display: block;
+  margin: 0 auto;
+  cursor: pointer;
+}
+.city-dock .resource-options {
+  grid-column: 1/-1;
+  display: flex;
+  gap: 5px;
+  margin: 1px 0 0;
+  max-height: 29px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.city-dock .resource-option {
+  flex-shrink: 0;
+  padding: 5px 7px;
+  flex-wrap: nowrap;
+  align-items: center;
+  font-size: 8px;
+  gap: 6px;
+}
+.city-dock .resource-option em {
+  display: none;
+}
+.city-dock .resource-option > span > small {
+  display: none;
+}
+.city-dock .resource-option > b {
+  white-space: nowrap;
+}
+.research-surcharge {
+  font-size: 10px !important;
+  background: #e8eddf;
+  padding: 9px;
+  border-radius: 5px;
+  color: #82916c !important;
+}
+@media (max-width: 700px) {
+  .action-panel.city-dock {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    transform: none;
+    bottom: 54px;
+    padding: 8px 28px 7px 9px;
+    max-height: 181px;
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  .city-dock .selection-body {
+    grid-column: 1;
+  }
+  .city-dock .selection-body h2 {
+    font-size: 11px;
+    margin: 0 0 2px;
+  }
+  .city-dock .selection-body p {
+    font-size: 8px;
+  }
+  .city-dock .city-growth {
+    grid-column: 1;
+  }
+  .city-dock .city-growth > span {
+    display: none;
+  }
+  .city-dock .city-growth > div {
+    margin: 2px 0;
+  }
+  .city-dock .actions {
+    grid-column: 1;
+    grid-row: auto;
+    max-width: 100%;
+    height: 62px;
+  }
+  .city-dock .actions button {
+    min-width: 49px;
+    min-height: 58px;
+    padding: 2px 5px;
+  }
+  .city-dock .resource-options {
+    grid-column: 1;
+    max-height: 27px;
+  }
+  .city-dock .resource-option {
+    padding: 4px 6px;
+  }
+  .city-dock .selection-body h2 {
+    display: inline;
+  }
+  .city-dock .selection-body p {
+    display: inline;
+    margin-left: 7px;
+  }
+}

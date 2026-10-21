@@ -590,3 +590,19 @@ export function changeVessel(u, kind, techs, gold) {
   u.boat = kind;
   return target.cost;
 }
+
+export function researchCost(tech, cities) {
+  return (
+    tech.cost +
+    2 *
+      cities
+        .filter((c) => c.owner === 0)
+        .reduce((sum, c) => sum + Math.max(0, c.level - 1), 0)
+  );
+}
+export function healthDamage(power, hp, maxHp) {
+  return power <= 0 || hp <= 0
+    ? 0
+    : Math.max(1, Math.round(power * Math.min(1, hp / maxHp)));
+}
+export const canManageCity = (city) => !!city && city.owner === 0;

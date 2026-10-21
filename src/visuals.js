@@ -530,6 +530,13 @@ export function drawVessel(c, x, y, u, nation, night) {
   c.restore();
 }
 export function drawUnit(c, x, y, u, nation, night) {
+  c.save();
+  c.translate(x, y);
+  c.scale(0.74, 0.74);
+  drawFigure(c, 0, 0, u, nation, night);
+  c.restore();
+}
+function drawFigure(c, x, y, u, nation, night) {
   if (u.boat) {
     drawVessel(c, x, y, u, nation, night);
     return;
@@ -686,7 +693,7 @@ export function drawUnit(c, x, y, u, nation, night) {
     t.trim,
     1.4,
   );
-  ellipse(c, 0, -30, 5, 6, "#d9b48b");
+  ellipse(c, 0, -30, 6, 6.4, "#d9b48b");
   p(
     c,
     [

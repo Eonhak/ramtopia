@@ -536,7 +536,7 @@ export function pickTile(view, x, y) {
     view.hit
       .filter(
         (p) =>
-          p.unit && Math.abs(px - p.x) < 14 && py > p.y - 43 && py < p.y + 8,
+          p.unit && Math.abs(px - p.x) < 11 && py > p.y - 33 && py < p.y + 8,
       )
       .sort(
         (a, b) =>

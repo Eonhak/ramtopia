@@ -284,3 +284,25 @@ test("basic fog exposes only nearby tiles; night contracts visibility and mappin
   assert.equal(w.flat().filter((t) => t.seen).length, 25);
   assert.equal(w.flat().filter((t) => t.visible).length, 5);
 });
+
+import { researchCost, healthDamage, canManageCity } from "../src/rules.js";
+test("only owned cities allow management and growth increases research prices", () => {
+  assert.equal(canManageCity({ owner: -1 }), false);
+  assert.equal(canManageCity({ owner: 1 }), false);
+  assert.equal(canManageCity({ owner: 0 }), true);
+  assert.equal(
+    researchCost({ cost: 5 }, [
+      { owner: 0, level: 2 },
+      { owner: 0, level: 3 },
+      { owner: 1, level: 9 },
+    ]),
+    11,
+  );
+});
+test("remaining health scales attack and counter damage", () => {
+  assert.equal(healthDamage(6, 10, 10), 6);
+  assert.equal(healthDamage(6, 5, 10), 3);
+  assert.equal(healthDamage(6, 1, 10), 1);
+  assert.equal(healthDamage(0, 10, 10), 0);
+  assert.equal(healthDamage(6, 0, 10), 0);
+});
