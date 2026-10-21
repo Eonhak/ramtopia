@@ -25,6 +25,6 @@ Windows 10/11 64비트용입니다. `RAMTOPIA-Windows-x64.zip`을 모두 압축 
 
 ## GitHub에서 다운로드
 
-저장소의 **Actions → Build Windows Game → 성공한 실행 → Artifacts → RAMTOPIA-Windows-x64**에서 Windows용 파일을 다운로드하세요. ZIP 전체를 압축 해제하고 `RAMTOPIA.exe`를 실행합니다. 아티팩트는 30일간 보관됩니다.
+저장소의 **Releases → 최신 릴리스 → Assets → RAMTOPIA-Windows-x64.zip**에서 Windows용 파일을 다운로드하세요. ZIP 전체를 압축 해제하고 `RAMTOPIA.exe`를 실행합니다.
 
-`v*` 태그를 푸시하면 동일한 빌드를 GitHub Releases에도 ZIP으로 게시합니다.
+`main` 푸시에서는 Windows 빌드를 검증합니다. `v*` 태그를 푸시하거나 **Actions → Build Windows Game → Run workflow**를 실행하면 Windows 빌드와 같은 작업에서 ZIP을 Releases에 직접 게시합니다. Actions 아티팩트 저장소는 사용하지 않습니다. 수동 실행의 릴리스 이름은 `build-실행번호`입니다.

@@ -12,40 +12,32 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
       - run: npm ci
       - run: npm run package:win
-      - name: Upload Windows executable and required files
-        uses: actions/upload-artifact@v4
-        with:
-          name: RAMTOPIA-Windows-x64
-          path: release/RAMTOPIA-win32-x64/
-          if-no-files-found: error
-          retention-days: 30
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: windows
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: RAMTOPIA-Windows-x64
-          path: RAMTOPIA-Windows-x64
-      - name: Create ZIP
-        run: zip -r RAMTOPIA-Windows-x64.zip RAMTOPIA-Windows-x64
-      - name: Publish release
+      - name: Create Windows ZIP
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path release/RAMTOPIA-win32-x64 -DestinationPath release/RAMTOPIA-Windows-x64.zip -Force
+      - name: Publish directly to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          RAMTOPIA-Windows-x64.zip
-          --repo "$GITHUB_REPOSITORY"
-          --title "RAMTOPIA $GITHUB_REF_NAME"
-          --notes "Windows 10/11 64비트용입니다. ZIP 전체를 압축 해제하고 RAMTOPIA.exe를 실행하세요. 동봉 파일을 함께 보관해야 합니다."
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
+        run: |
+          gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "$env:RELEASE_TAG" release/RAMTOPIA-Windows-x64.zip --clobber --repo "$env:GITHUB_REPOSITORY"
+          } else {
+            gh release create "$env:RELEASE_TAG" release/RAMTOPIA-Windows-x64.zip --target "$env:GITHUB_SHA" --repo "$env:GITHUB_REPOSITORY" --title "RAMTOPIA $env:RELEASE_TAG" --notes "Windows 10/11 64-bit. Extract the entire ZIP, then run RAMTOPIA.exe. Keep all included files together."
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release upload failed.' }
