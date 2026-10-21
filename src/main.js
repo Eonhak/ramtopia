@@ -1,32 +1,543 @@
-import './style.css';
-const $=id=>document.getElementById(id),canvas=$('map'),ctx=canvas.getContext('2d');
-const N=12,T=32;let world,units,gold,turn,selected,selectedUnit,logs,busy=false,over=false,zoom=1,view,toastTimer;
-const directions=[[1,0],[-1,0],[0,1],[0,-1]];
-const at=(x,y)=>world[y]?.[x];
-const unitAt=(x,y)=>units.find(u=>u.x===x&&u.y===y);
-const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
-function rng(x,y){return ((x*731+y*193+17)*16807%997)/997}
-function init(){gold=10;turn=1;units=[{x:3,y:7,team:0,hp:10,acted:false},{x:9,y:3,team:1,hp:10,acted:false}];logs=[];busy=false;over=false;selected={x:3,y:7};selectedUnit=null;world=Array.from({length:N},(_,y)=>Array.from({length:N},(_,x)=>{let d=((x-5.5)/5.5)**2+((y-5.5)/5.3)**2;let water=d>1.03||(x===6&&y<3)||(x===0&&y>7);let r=rng(x,y);return{x,y,type:water?'water':r<.19?'mountain':r<.48?'forest':'grass',seen:false,city:null}}));for(let [x,y,owner,name] of [[3,7,0,'숲의 수도'],[9,3,1,'붉은 수도'],[6,6,-1,'이끼 마을'],[4,3,-1,'바람 마을'],[8,8,-1,'햇살 마을']])Object.assign(at(x,y),{type:'grass',city:{owner,name,level:1}});for(let [x,y] of [[3,6],[4,7],[8,3],[9,4],[7,6],[8,6],[8,5],[8,4]])at(x,y).type='grass';reveal();addLog('초록 깃발이 올랐습니다. 모험을 시작하세요.');update();draw()}
-function reveal(){for(let u of units.filter(u=>u.team===0))for(let row of world)for(let t of row)if(distance(t,u)<=3)t.seen=true;for(let row of world)for(let t of row)if(t.city?.owner===0)for(let row2 of world)for(let v of row2)if(distance(t,v)<=3)v.seen=true}
-function addLog(s){logs.unshift({turn,s});logs=logs.slice(0,3)}
-function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2600)}
-function ownCities(){return world.flat().filter(t=>t.city?.owner===0)}
-function update(){let cities=ownCities();$('gold').textContent=gold;$('cities').textContent=cities.length;$('army').textContent=units.filter(u=>u.team===0).length;$('land').textContent=world.flat().filter(t=>t.seen&&t.type!=='water').length;$('income').textContent='+'+cities.reduce((a,t)=>a+t.city.level+2,0);$('turnLabel').innerHTML=`턴 ${String(turn).padStart(2,'0')} <span>· ${over?'게임 종료':busy?'붉은 왕국의 차례':'당신의 차례'}</span>`;$('logs').innerHTML=logs.map(l=>`<div class="log"><span>턴 ${String(l.turn).padStart(2,'0')}</span>${l.s}</div>`).join('');let t=at(selected.x,selected.y),u=unitAt(t.x,t.y),visible=t.seen;let types={grass:'초원',water:'바다',forest:'숲',mountain:'산맥'};$('terrainTag').textContent=visible?types[t.type]:'미탐험';$('tileTitle').textContent=!visible?'안개 너머의 땅':u?`${u.team===0?'숲의':'붉은'} 전사`:t.city?t.city.name:types[t.type];$('tileIcon').textContent=!visible?'☁':u?'⚔':t.city?'♜':t.type==='forest'?'♠':t.type==='mountain'?'▲':t.type==='water'?'≈':'✿';$('tileDescription').textContent=!visible?'전사를 이동해 새로운 땅을 발견하세요.':u?`체력 ${u.hp} / 10 · ${u.acted?'이번 턴 행동 완료':'이동 또는 공격 가능'}`:t.city?`도시 레벨 ${t.city.level} · 매 턴 별 ${t.city.level+2}개 생산`:t.type==='water'?'전사는 바다를 건널 수 없습니다.':'전사가 이동할 수 있는 땅입니다.';$('recruit').disabled=busy||over||!visible||t.city?.owner!==0||!!u||gold<5;$('upgrade').disabled=busy||over||!visible||t.city?.owner!==0||gold<8;$('endTurn').disabled=busy||over;$('progress').style.width=(over&&ownCities().some(t=>t.x===9&&t.y===3)?100:Math.min(85,cities.length*15))+'%'}
-function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),w,h)}
-function tree(x,y,s=0){rect(x+14,y+18,4,10,'#705e43');rect(x+8,y+17,16,6,'#426644');rect(x+6,y+12,20,7,'#527a4d');rect(x+9,y+7,14,7,'#668b50');rect(x+12,y+3,8,7,'#789b5a');rect(x+10,y+9,4,3,'#8fa966')}
-function city(x,y,owner){let c=owner===0?'#66884e':owner===1?'#b56756':'#9c956e';rect(x+5,y+24,23,5,'#71865b');rect(x+7,y+13,19,13,'#e8dbb5');rect(x+5,y+11,23,5,c);rect(x+8,y+7,17,5,c);rect(x+10,y+4,13,4,c);rect(x+13,y+18,5,8,'#6d7257');rect(x+20,y+17,3,4,'#a59b76');rect(x+6,y+15,2,9,'#c5bc97');rect(x+23,y-3,1,13,'#766448');rect(x+24,y-3,7,5,owner===0?'#cee69a':owner===1?'#e9a18a':'#e8dab2')}
-function soldier(x,y,u){let c=u.team===0?'#497c51':'#b85d51';rect(x+10,y+26,15,3,'#334c4250');rect(x+11,y+20,4,7,'#49534a');rect(x+19,y+20,4,7,'#49534a');rect(x+11,y+12,12,10,c);rect(x+13,y+6,9,8,'#f0d5a1');rect(x+12,y+3,11,5,'#e6e5d3');rect(x+11,y+7,13,3,'#c1c9b4');rect(x+19,y+10,2,2,'#39483c');rect(x+7,y+13,5,9,c);rect(x+6,y+15,6,7,'#d6d1ae');rect(x+25,y+7,2,14,'#e7e7d2');rect(x+23,y+17,6,2,'#a3996b');if(u.acted)rect(x+14,y-3,6,2,'#b8c8a0');else rect(x+15,y-3,3,3,'#f6edb1');rect(x+8,y+30,20,2,'#384c3f');rect(x+8,y+30,2*u.hp,2,u.team===0?'#c7e790':'#eab29a')}
-function canMove(t){return selectedUnit&&!selectedUnit.acted&&distance(t,selectedUnit)===1&&t.type!=='water'}
-function draw(){if(!world)return;let dpr=devicePixelRatio||1,w=canvas.clientWidth,h=canvas.clientHeight;canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.imageSmoothingEnabled=false;rect(0,0,w,h,'#a6ced0');let scale=Math.min(w/(N*T+88),h/(N*T+24))*zoom;view={scale,ox:(w-N*T*scale)/2,oy:(h-N*T*scale)/2};ctx.translate(view.ox,view.oy);ctx.scale(scale,scale);for(let y=-8;y<20;y++)for(let x=-12;x<25;x++)if(rng(x+30,y+20)>.65){rect(x*32+8,y*32+15,8,1,'#b9dcda');rect(x*32+17,y*32+16,3,1,'#b9dcda')}
-for(let row of world)for(let t of row){let x=t.x*T,y=t.y*T,r=rng(t.x,t.y);if(!t.seen){rect(x,y,T,T,'#c5d8ce');rect(x+2,y+2,28,28,r>.5?'#c8dbd0':'#c2d6cb');rect(x+10,y+13,13,2,'#d0e0d5');continue}if(t.type==='water'){rect(x,y,T,T,'#9ac5cb');rect(x+6,y+14,8,1,'#c1dfdc');continue}rect(x,y+2,T,T,'#869e60');rect(x,y,T,30,t.type==='forest'?'#a7bc79':r>.5?'#b6c984':'#b0c17d');for(let [dx,dy] of directions)if(at(t.x+dx,t.y+dy)?.type==='water'){if(dx===1)rect(x+29,y,3,30,'#ded3a0');if(dx===-1)rect(x,y,3,30,'#ded3a0');if(dy===1)rect(x,y+27,32,3,'#ded3a0');if(dy===-1)rect(x,y,32,3,'#ded3a0')}rect(x+4+r*16,y+23,2,2,'#8fa667');rect(x+20,y+8,2,1,'#d0d89b');if(t.type==='forest'){tree(x-4,y-2);tree(x+8,y+5)}if(t.type==='mountain'){for(let k=0;k<10;k++)rect(x+15-k,y+5+k*2,2*k+2,2,k<4?'#e5e4cb':'#8b9980');rect(x+17,y+15,4,9,'#788a73')}if(t.city)city(x,y,t.city.owner);if(canMove(t)){rect(x+1,y+1,30,2,'#eaf5b4');rect(x+1,y+29,30,2,'#eaf5b4');rect(x+1,y+1,2,30,'#eaf5b4');rect(x+29,y+1,2,30,'#eaf5b4');rect(x+14,y+14,4,4,unitAt(t.x,t.y)?.team===1?'#d27060':'#eef5bb')}}
-for(let u of units)if(at(u.x,u.y).seen)soldier(u.x*T,u.y*T,u);let sx=selected.x*T,sy=selected.y*T;ctx.strokeStyle='#fff7cd';ctx.lineWidth=2;ctx.strokeRect(sx+1,sy+1,30,30);ctx.setTransform(1,0,0,1,0,0)}
-function finish(win){over=true;$('statusTitle').textContent=win?'에버그린의 새로운 왕이 탄생했습니다!':'숲의 깃발이 내려갔습니다';$('status').textContent=win?'붉은 수도를 정복했습니다. 당신의 왕국에 영광을!':'새로운 왕국에서 다시 도전해 보세요.';$('objectiveText').textContent=win?'수도 점령 1 / 1':'왕국 함락';addLog(win?'붉은 수도 정복! 숲의 왕국이 승리했습니다.':'수도가 함락되었습니다.');toast(win?'✦ 승리! 에버그린은 당신의 것입니다.':'수도가 함락되었습니다.')}
-function capture(u){let t=at(u.x,u.y);if(t.city&&t.city.owner!==u.team){t.city.owner=u.team;addLog(`${u.team===0?'숲의 왕국':'붉은 왕국'}이 ${t.city.name} 점령`);if(u.team===0&&t.x===9&&t.y===3)finish(true);if(u.team===1&&t.x===3&&t.y===7)finish(false)}}
-function act(u,t){let enemy=unitAt(t.x,t.y);if(enemy&&enemy.team===u.team)return false;if(enemy){enemy.hp-=6;u.hp-=3;addLog(`${u.team===0?'숲의':'붉은'} 전사가 적과 교전했습니다.`);if(enemy.hp<=0){units=units.filter(v=>v!==enemy);u.x=t.x;u.y=t.y}if(u.hp<=0)units=units.filter(v=>v!==u)}else{u.x=t.x;u.y=t.y}u.acted=true;capture(u);reveal();return true}
-canvas.addEventListener('click',e=>{if(busy||over)return;let b=canvas.getBoundingClientRect(),x=Math.floor((e.clientX-b.left-view.ox)/(T*view.scale)),y=Math.floor((e.clientY-b.top-view.oy)/(T*view.scale)),t=at(x,y);if(!t)return;if(selectedUnit&&canMove(t)){if(act(selectedUnit,t)){selected={x,y};selectedUnit=null;update();draw();return}}selected={x,y};let u=unitAt(x,y);selectedUnit=t.seen&&u?.team===0&&!u.acted?u:null;if(selectedUnit)toast('빛나는 이웃 타일을 클릭해 이동하거나 공격하세요.');update();draw()});
-$('recruit').onclick=()=>{let t=at(selected.x,selected.y);if(gold<5||t.city?.owner!==0||unitAt(t.x,t.y)||busy||over)return;gold-=5;units.push({x:t.x,y:t.y,team:0,hp:10,acted:false});addLog('새로운 전사가 왕국에 합류했습니다.');selectedUnit=unitAt(t.x,t.y);update();draw()};
-$('upgrade').onclick=()=>{let t=at(selected.x,selected.y);if(gold<8||t.city?.owner!==0||busy||over)return;gold-=8;t.city.level++;addLog(`${t.city.name}이 레벨 ${t.city.level}로 성장했습니다.`);toast('도시 성장! 다음 턴부터 수입이 증가합니다.');update();draw()};
-function pathStep(u,goal){let queue=[{x:u.x,y:u.y,first:null}],seen=new Set([u.x+','+u.y]);while(queue.length){let p=queue.shift();if(p.x===goal.x&&p.y===goal.y)return p.first;for(let [dx,dy] of directions){let x=p.x+dx,y=p.y+dy,t=at(x,y),key=x+','+y;if(!t||t.type==='water'||seen.has(key))continue;let other=unitAt(x,y);if(other?.team===u.team)continue;seen.add(key);queue.push({x,y,first:p.first||t})}}return null}
-$('endTurn').onclick=async()=>{if(busy||over)return;busy=true;selectedUnit=null;update();for(let u of [...units.filter(u=>u.team===1)]){await new Promise(r=>setTimeout(r,250));if(over)break;let targets=units.filter(v=>v.team===0);let adjacent=targets.find(v=>distance(u,v)===1);let goal=adjacent||{x:3,y:7};let step=pathStep(u,goal);if(step)act(u,step);draw()}if(!over){turn++;gold+=ownCities().reduce((a,t)=>a+t.city.level+2,0);for(let u of units){u.acted=false;if(at(u.x,u.y).city?.owner===u.team)u.hp=Math.min(10,u.hp+2)}if(turn%3===0&&!unitAt(9,3)&&at(9,3).city.owner===1){units.push({x:9,y:3,team:1,hp:10,acted:false});addLog('붉은 수도에 지원군이 도착했습니다.')}addLog('새로운 아침. 도시에서 별을 거두었습니다.');$('statusTitle').textContent=`턴 ${turn}, 왕국의 다음 걸음`;$('status').textContent='전사를 움직이거나, 도시를 선택해 병력을 훈련하세요.'}busy=false;update();draw()};
-$('newGame').onclick=()=>{if(busy)return;if(confirm('현재 왕국을 떠나 새로운 게임을 시작할까요?')){init();$('statusTitle').textContent='당신의 이야기가 시작됩니다';$('objectiveText').textContent='수도 점령 0 / 1'}};
-$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=$('startPlay').onclick=()=>$('helpDialog').close();$('zoomIn').onclick=()=>{zoom=Math.min(1.6,zoom+.15);$('zoomLabel').textContent=Math.round(zoom*100)+'%';draw()};$('zoomOut').onclick=()=>{zoom=Math.max(.65,zoom-.15);$('zoomLabel').textContent=Math.round(zoom*100)+'%';draw()};new ResizeObserver(draw).observe(canvas);init();
+import "./style.css";
+import { renderMap, pickTile } from "./isometric.js";
+const $ = (id) => document.getElementById(id),
+  canvas = $("map"),
+  ctx = canvas.getContext("2d");
+const N = 12;
+let world,
+  units,
+  gold,
+  turn,
+  selected,
+  selectedUnit,
+  logs,
+  busy = false,
+  over = false,
+  zoom = 1,
+  view,
+  toastTimer;
+let actionMode = null,
+  selectionKind = "unit",
+  panelOpen = false;
+let pan = { x: 0, y: 0 },
+  pointerStart = null,
+  dragged = false;
+const directions = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+const at = (x, y) => world[y]?.[x];
+const unitAt = (x, y) => units.find((u) => u.x === x && u.y === y);
+const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+function rng(x, y) {
+  return (((x * 731 + y * 193 + 17) * 16807) % 997) / 997;
+}
+function init() {
+  $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
+  $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
+  $("objectiveText").textContent = "수도 점령 0 / 1";
+  actionMode = null;
+  panelOpen = false;
+  pan = { x: 0, y: 0 };
+  zoom = 1;
+  $("zoomLabel").textContent = "100%";
+  gold = 10;
+  turn = 1;
+  units = [
+    { x: 3, y: 7, team: 0, hp: 10, acted: false },
+    { x: 9, y: 3, team: 1, hp: 10, acted: false },
+  ];
+  logs = [];
+  busy = false;
+  over = false;
+  selected = { x: 3, y: 7 };
+  selectedUnit = null;
+  world = Array.from({ length: N }, (_, y) =>
+    Array.from({ length: N }, (_, x) => {
+      let d = ((x - 5.5) / 5.5) ** 2 + ((y - 5.5) / 5.3) ** 2;
+      let water = d > 1.03 || (x === 6 && y < 3) || (x === 0 && y > 7);
+      let r = rng(x, y);
+      return {
+        x,
+        y,
+        type: water
+          ? "water"
+          : r < 0.19
+            ? "mountain"
+            : r < 0.48
+              ? "forest"
+              : "grass",
+        seen: false,
+        city: null,
+      };
+    }),
+  );
+  for (let [x, y, owner, name] of [
+    [3, 7, 0, "숲의 수도"],
+    [9, 3, 1, "붉은 수도"],
+    [6, 6, -1, "이끼 마을"],
+    [4, 3, -1, "바람 마을"],
+    [8, 8, -1, "햇살 마을"],
+  ])
+    Object.assign(at(x, y), { type: "grass", city: { owner, name, level: 1 } });
+  for (let [x, y] of [
+    [3, 6],
+    [4, 7],
+    [8, 3],
+    [9, 4],
+    [7, 6],
+    [8, 6],
+    [8, 5],
+    [8, 4],
+  ])
+    at(x, y).type = "grass";
+  reveal();
+  addLog("초록 깃발이 올랐습니다. 모험을 시작하세요.");
+  update();
+  draw();
+}
+function reveal() {
+  for (let u of units.filter((u) => u.team === 0))
+    for (let row of world)
+      for (let t of row) if (distance(t, u) <= 3) t.seen = true;
+  for (let row of world)
+    for (let t of row)
+      if (t.city?.owner === 0)
+        for (let row2 of world)
+          for (let v of row2) if (distance(t, v) <= 3) v.seen = true;
+}
+function addLog(s) {
+  logs.unshift({ turn, s });
+  logs = logs.slice(0, 3);
+}
+function toast(s) {
+  $("toast").textContent = s;
+  $("toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("show"), 2600);
+}
+function ownCities() {
+  return world.flat().filter((t) => t.city?.owner === 0);
+}
+function update() {
+  const cities = ownCities();
+  $("gold").textContent = gold;
+  $("cities").textContent = cities.length;
+  $("army").textContent = units.filter((u) => u.team === 0).length;
+  $("land").textContent = world
+    .flat()
+    .filter((t) => t.seen && t.type !== "water").length;
+  $("income").textContent =
+    "+" + cities.reduce((a, t) => a + t.city.level + 2, 0);
+  $("turnLabel").innerHTML =
+    `턴 ${String(turn).padStart(2, "0")} <span>${over ? "게임 종료" : busy ? "붉은 왕국의 차례" : "당신의 차례"}</span>`;
+  $("logs").innerHTML = logs
+    .map(
+      (l) =>
+        `<div class="log"><span>턴 ${String(l.turn).padStart(2, "0")}</span>${l.s}</div>`,
+    )
+    .join("");
+  $("endTurn").disabled = busy || over;
+  $("progress").style.width =
+    (over && ownCities().some((t) => t.x === 9 && t.y === 3)
+      ? 100
+      : Math.min(85, cities.length * 15)) + "%";
+  $("actionPanel").hidden = !panelOpen;
+  const t = at(selected.x, selected.y),
+    u = t.seen ? unitAt(t.x, t.y) : null,
+    city = t.seen ? t.city : null;
+  const showUnit = !!u && (selectionKind === "unit" || !city);
+  const types = {
+    grass: "초원",
+    water: "바다",
+    forest: "숲",
+    mountain: "산맥",
+  };
+  $("terrainTag").textContent = t.seen
+    ? `${types[t.type]} · ${t.x + 1}, ${t.y + 1}`
+    : "미탐험";
+  $("tileTitle").textContent = !t.seen
+    ? "안개 너머의 땅"
+    : showUnit
+      ? `${u.team === 0 ? "숲의" : "붉은"} 전사`
+      : city
+        ? city.name
+        : types[t.type];
+  $("tileIcon").textContent = !t.seen
+    ? "☁"
+    : showUnit
+      ? "♟"
+      : city
+        ? "♜"
+        : t.type === "forest"
+          ? "♠"
+          : t.type === "mountain"
+            ? "▲"
+            : t.type === "water"
+              ? "≈"
+              : "✿";
+  $("tileDescription").textContent = !t.seen
+    ? "전사를 보내 새로운 땅을 발견하세요."
+    : showUnit
+      ? `체력 ${u.hp} / 10 · ${u.acted ? "이번 턴 행동 완료" : "행동 가능"}`
+      : city
+        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner === 1 ? "적의 도시" : "중립 마을"} · 수입 +${city.level + 2} ✦`
+        : "왕국의 지도를 넓혀 보세요.";
+  $("healthBar").hidden = !showUnit;
+  $("healthBar").firstElementChild.style.width = (u ? u.hp * 10 : 0) + "%";
+  $("actionPanel").classList.toggle(
+    "enemy",
+    showUnit ? u.team === 1 : city?.owner === 1,
+  );
+  const ownUnit = showUnit && u.team === 0,
+    ready = ownUnit && !u.acted && !busy && !over;
+  const ownCity = !showUnit && city?.owner === 0;
+  const buttons = {
+    moveUnit: ownUnit,
+    attackUnit: ownUnit,
+    restUnit: ownUnit,
+    recruit: ownCity,
+    upgrade: ownCity,
+    inspectCity: showUnit && !!city,
+    inspectUnit: !showUnit && !!u,
+    cancelAction: !!actionMode,
+  };
+  for (const [id, visible] of Object.entries(buttons)) $(id).hidden = !visible;
+  $("moveUnit").disabled =
+    !ready ||
+    !directions.some(([dx, dy]) => {
+      const v = at(u.x + dx, u.y + dy);
+      return v && v.type !== "water" && !unitAt(v.x, v.y);
+    });
+  $("attackUnit").disabled =
+    !ready || !units.some((v) => v.team === 1 && distance(v, u) === 1);
+  $("restUnit").disabled = !ready || u.hp >= 10;
+  $("recruit").disabled = busy || over || !ownCity || !!u || gold < 5;
+  $("upgrade").disabled = busy || over || !ownCity || gold < 8;
+  $("moveUnit").classList.toggle("active", actionMode === "move");
+  $("attackUnit").classList.toggle("active", actionMode === "attack");
+  $("actionHint").textContent = over
+    ? "게임이 끝났습니다. 새 왕국을 시작해 보세요."
+    : busy
+      ? "붉은 왕국이 행동하고 있습니다."
+      : actionMode === "move"
+        ? "빛나는 인접 타일을 클릭하면 이동합니다."
+        : actionMode === "attack"
+          ? "붉게 빛나는 적을 클릭하면 공격합니다."
+          : ownUnit
+            ? u.acted
+              ? "턴을 마치면 다시 행동할 수 있습니다."
+              : "아래에서 행동을 선택하세요."
+            : ownCity
+              ? u
+                ? "전사가 도시를 비우면 새 전사를 훈련할 수 있습니다."
+                : "별을 사용해 병력을 훈련하거나 수입을 늘리세요."
+              : city
+                ? "전사로 이 도시에 진입하면 점령할 수 있습니다."
+                : !t.seen
+                  ? "탐험하지 않은 땅의 정보는 아직 보이지 않습니다."
+                  : t.type === "water"
+                    ? "전사는 바다를 건널 수 없습니다."
+                    : "전사를 이동시켜 이 땅을 탐험하세요.";
+}
+function available(t) {
+  if (
+    !selectedUnit ||
+    selectedUnit.acted ||
+    busy ||
+    over ||
+    distance(t, selectedUnit) !== 1 ||
+    t.type === "water"
+  )
+    return null;
+  const occupant = unitAt(t.x, t.y);
+  if (actionMode === "move" && !occupant) return "move";
+  if (actionMode === "attack" && t.seen && occupant?.team === 1)
+    return "attack";
+  return null;
+}
+function draw() {
+  if (world)
+    view = renderMap(canvas, {
+      world,
+      units,
+      selected: panelOpen ? selected : null,
+      zoom,
+      pan,
+      available,
+      panelHeight:
+        panelOpen && canvas.clientWidth < 541
+          ? $("actionPanel").offsetHeight + 65
+          : 0,
+    });
+}
+function selectTile(t) {
+  selected = { x: t.x, y: t.y };
+  const u = t.seen ? unitAt(t.x, t.y) : null;
+  selectedUnit = u?.team === 0 ? u : null;
+  selectionKind = u ? "unit" : "city";
+  actionMode = null;
+  panelOpen = true;
+  update();
+  draw();
+}
+function cancelSelection() {
+  if (actionMode) actionMode = null;
+  else {
+    panelOpen = false;
+    selectedUnit = null;
+  }
+  update();
+  draw();
+}
+function finish(win) {
+  over = true;
+  $("statusTitle").textContent = win
+    ? "에버그린의 새로운 왕이 탄생했습니다!"
+    : "숲의 깃발이 내려갔습니다";
+  $("status").textContent = win
+    ? "붉은 수도를 정복했습니다. 당신의 왕국에 영광을!"
+    : "새로운 왕국에서 다시 도전해 보세요.";
+  $("objectiveText").textContent = win ? "수도 점령 1 / 1" : "왕국 함락";
+  addLog(
+    win
+      ? "붉은 수도 정복! 숲의 왕국이 승리했습니다."
+      : "수도가 함락되었습니다.",
+  );
+  toast(win ? "✦ 승리! 에버그린은 당신의 것입니다." : "수도가 함락되었습니다.");
+}
+function capture(u) {
+  let t = at(u.x, u.y);
+  if (t.city && t.city.owner !== u.team) {
+    t.city.owner = u.team;
+    addLog(`${u.team === 0 ? "숲의 왕국" : "붉은 왕국"}이 ${t.city.name} 점령`);
+    if (u.team === 0 && t.x === 9 && t.y === 3) finish(true);
+    if (u.team === 1 && t.x === 3 && t.y === 7) finish(false);
+  }
+}
+function act(u, t) {
+  let enemy = unitAt(t.x, t.y);
+  if (enemy && enemy.team === u.team) return false;
+  if (enemy) {
+    enemy.hp -= 6;
+    u.hp -= 3;
+    addLog(`${u.team === 0 ? "숲의" : "붉은"} 전사가 적과 교전했습니다.`);
+    if (enemy.hp <= 0) {
+      units = units.filter((v) => v !== enemy);
+      u.x = t.x;
+      u.y = t.y;
+    }
+    if (u.hp <= 0) units = units.filter((v) => v !== u);
+  } else {
+    u.x = t.x;
+    u.y = t.y;
+  }
+  u.acted = true;
+  if (units.includes(u)) capture(u);
+  reveal();
+  return true;
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  pointerStart = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+  dragged = false;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!pointerStart) return;
+  const dx = e.clientX - pointerStart.x,
+    dy = e.clientY - pointerStart.y;
+  if (Math.hypot(dx, dy) > 5) dragged = true;
+  if (dragged) {
+    pan = { x: pointerStart.panX + dx, y: pointerStart.panY + dy };
+    draw();
+  }
+});
+canvas.addEventListener("pointerup", (e) => {
+  if (!pointerStart) return;
+  pointerStart = null;
+  if (dragged || busy || over) return;
+  const b = canvas.getBoundingClientRect(),
+    t = pickTile(view, e.clientX - b.left, e.clientY - b.top);
+  if (!t) {
+    panelOpen = false;
+    actionMode = null;
+    selectedUnit = null;
+    update();
+    draw();
+    return;
+  }
+  if (actionMode) {
+    if (available(t)) {
+      const actor = selectedUnit;
+      if (act(actor, t)) {
+        selectTile(at(actor.x, actor.y));
+        return;
+      }
+    }
+    toast("빛나는 타일을 선택하거나 행동을 취소하세요.");
+    return;
+  }
+  selectTile(t);
+});
+canvas.addEventListener("pointercancel", () => {
+  pointerStart = null;
+});
+canvas.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault();
+    setZoom(zoom + (e.deltaY < 0 ? 0.1 : -0.1));
+  },
+  { passive: false },
+);
+function setZoom(value) {
+  zoom = Math.min(2.3, Math.max(0.65, value));
+  $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
+  draw();
+}
+$("moveUnit").onclick = () => {
+  if ($("moveUnit").disabled) return;
+  actionMode = "move";
+  update();
+  draw();
+};
+$("attackUnit").onclick = () => {
+  if ($("attackUnit").disabled) return;
+  actionMode = "attack";
+  update();
+  draw();
+};
+$("restUnit").onclick = () => {
+  if ($("restUnit").disabled || !selectedUnit) return;
+  selectedUnit.hp = Math.min(10, selectedUnit.hp + 3);
+  selectedUnit.acted = true;
+  actionMode = null;
+  addLog("전사가 휴식하며 체력을 회복했습니다.");
+  update();
+  draw();
+};
+$("inspectCity").onclick = () => {
+  selectionKind = "city";
+  actionMode = null;
+  update();
+  draw();
+};
+$("inspectUnit").onclick = () => {
+  selectionKind = "unit";
+  actionMode = null;
+  update();
+  draw();
+};
+$("cancelAction").onclick = cancelSelection;
+$("closePanel").onclick = () => {
+  actionMode = null;
+  panelOpen = false;
+  selectedUnit = null;
+  update();
+  draw();
+};
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("helpDialog").open) cancelSelection();
+});
+$("resetView").onclick = () => {
+  pan = { x: 0, y: 0 };
+  setZoom(1);
+};
+$("recruit").onclick = () => {
+  let t = at(selected.x, selected.y);
+  if (gold < 5 || t.city?.owner !== 0 || unitAt(t.x, t.y) || busy || over)
+    return;
+  gold -= 5;
+  units.push({ x: t.x, y: t.y, team: 0, hp: 10, acted: false });
+  addLog("새로운 전사가 왕국에 합류했습니다.");
+  selectedUnit = unitAt(t.x, t.y);
+  selectionKind = "unit";
+  actionMode = null;
+  update();
+  draw();
+};
+$("upgrade").onclick = () => {
+  let t = at(selected.x, selected.y);
+  if (gold < 8 || t.city?.owner !== 0 || busy || over) return;
+  gold -= 8;
+  t.city.level++;
+  addLog(`${t.city.name}이 레벨 ${t.city.level}로 성장했습니다.`);
+  toast("도시 성장! 다음 턴부터 수입이 증가합니다.");
+  update();
+  draw();
+};
+function pathStep(u, goal) {
+  let queue = [{ x: u.x, y: u.y, first: null }],
+    seen = new Set([u.x + "," + u.y]);
+  while (queue.length) {
+    let p = queue.shift();
+    if (p.x === goal.x && p.y === goal.y) return p.first;
+    for (let [dx, dy] of directions) {
+      let x = p.x + dx,
+        y = p.y + dy,
+        t = at(x, y),
+        key = x + "," + y;
+      if (!t || t.type === "water" || seen.has(key)) continue;
+      let other = unitAt(x, y);
+      if (other?.team === u.team) continue;
+      seen.add(key);
+      queue.push({ x, y, first: p.first || t });
+    }
+  }
+  return null;
+}
+$("endTurn").onclick = async () => {
+  if (busy || over) return;
+  busy = true;
+  actionMode = null;
+  selectedUnit = null;
+  update();
+  for (let u of [...units.filter((u) => u.team === 1)]) {
+    await new Promise((r) => setTimeout(r, 250));
+    if (over) break;
+    let targets = units.filter((v) => v.team === 0);
+    let adjacent = targets.find((v) => distance(u, v) === 1);
+    let goal = adjacent || { x: 3, y: 7 };
+    let step = pathStep(u, goal);
+    if (step) act(u, step);
+    draw();
+  }
+  if (!over) {
+    turn++;
+    gold += ownCities().reduce((a, t) => a + t.city.level + 2, 0);
+    for (let u of units) {
+      u.acted = false;
+      if (at(u.x, u.y).city?.owner === u.team) u.hp = Math.min(10, u.hp + 2);
+    }
+    if (turn % 3 === 0 && !unitAt(9, 3) && at(9, 3).city.owner === 1) {
+      units.push({ x: 9, y: 3, team: 1, hp: 10, acted: false });
+      addLog("붉은 수도에 지원군이 도착했습니다.");
+    }
+    addLog("새로운 아침. 도시에서 별을 거두었습니다.");
+    $("statusTitle").textContent = `턴 ${turn}, 왕국의 다음 걸음`;
+    $("status").textContent =
+      "전사를 움직이거나, 도시를 선택해 병력을 훈련하세요.";
+  }
+  busy = false;
+  selectedUnit = unitAt(selected.x, selected.y);
+  if (selectedUnit?.team !== 0) selectedUnit = null;
+  update();
+  draw();
+};
+$("newGame").onclick = () => {
+  if (busy) return;
+  if (confirm("현재 왕국을 떠나 새로운 게임을 시작할까요?")) {
+    init();
+    $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
+    $("objectiveText").textContent = "수도 점령 0 / 1";
+  }
+};
+$("help").onclick = () => $("helpDialog").showModal();
+$("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
+$("zoomIn").onclick = () => setZoom(zoom + 0.15);
+$("zoomOut").onclick = () => setZoom(zoom - 0.15);
+new ResizeObserver(draw).observe(canvas);
+init();
