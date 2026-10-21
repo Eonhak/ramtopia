@@ -1,4 +1,5 @@
 import "./style.css";
+import "./auth.js";
 import { NATIONS, generateWorld } from "./world.js";
 import { drawCity, drawUnit } from "./visuals.js";
 import {
@@ -315,7 +316,7 @@ function update() {
     if (icon) {
       const c = icon.getContext("2d");
       c.translate(35, 49);
-      c.scale(3, 3);
+      c.scale(2.2, 2.2);
       drawUnit(
         c,
         0,
@@ -712,9 +713,7 @@ canvas.addEventListener("pointerup", async (e) => {
       return;
     }
   }
-  const hit = view.hit.find((p) => p.t === t),
-    groundY = (e.clientY - rect.top - view.oy) / view.scale;
-  selectTile(t, t.city && Math.abs(groundY - hit.y) < 11 ? "city" : undefined);
+  selectTile(t);
   if (t.city && t.city.owner !== 0 && !unitAt(t.x, t.y))
     toast(
       t.city.owner === -1
@@ -1128,7 +1127,6 @@ $("newGame").onclick = () => {
 $("help").onclick = () => $("helpDialog").showModal();
 $("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
 $("zoomIn").onclick = () => setZoom(zoom + 0.25);
-$("zoomMax").onclick = () => setZoom(4);
 $("zoomOut").onclick = () => setZoom(zoom - 0.25);
 new ResizeObserver(draw).observe(canvas);
 openNationChoice();

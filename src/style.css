@@ -1514,3 +1514,110 @@ dialog p {
   font-size: 11px;
   font-weight: 700;
 }
+.account-button {
+  border: 1px solid #a6c5b33b;
+  border-radius: 7px;
+  background: #294657;
+  color: #e5efdc;
+  padding: 8px 11px;
+  font-size: 11px;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.account-dialog {
+  max-width: 390px;
+}
+#closeAccount {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+.account-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 20px 0;
+}
+.account-tabs button {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #c9d4bb;
+  background: transparent;
+  border-radius: 7px;
+  color: #426153;
+  cursor: pointer;
+}
+.account-tabs button[aria-pressed="true"] {
+  background: #dbe9ca;
+  border-color: #8dab7a;
+  font-weight: 700;
+}
+#accountForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 14px 0;
+  font-size: 12px;
+}
+#accountForm input {
+  padding: 12px;
+  border: 1px solid #b9c8b1;
+  border-radius: 7px;
+  background: #fff;
+  color: #1c3c36;
+  font: inherit;
+  width: 100%;
+}
+#submitAccount,
+#logoutAccount {
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #426b51;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+#accountMessage {
+  min-height: 18px;
+  color: #85582e;
+  font-size: 12px;
+}
+#accountWelcome {
+  font-weight: 700;
+}
+#accountForm button:disabled,
+#logoutAccount:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+@media (max-width: 540px) {
+  .account-button {
+    padding: 6px;
+    max-width: 60px;
+    font-size: 10px;
+  }
+  .topbar {
+    gap: 5px;
+  }
+  .resources {
+    gap: 7px;
+  }
+  .resources > div {
+    gap: 3px;
+  }
+  .brand {
+    font-size: 12px;
+  }
+  .topbar > .icon-btn {
+    width: 24px;
+    flex-shrink: 0;
+  }
+  .research-btn {
+    font-size: 10px;
+    padding: 6px;
+  }
+}

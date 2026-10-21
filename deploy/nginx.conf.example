@@ -1,0 +1,13 @@
+# Add as a NEW site. Replace the hostname. Keep existing game configuration.
+# Obtain HTTPS for this hostname before using accounts publicly.
+server {
+    listen 80;
+    server_name ramtopia.example.com;
+    location / {
+        proxy_pass http://127.0.0.1:18080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

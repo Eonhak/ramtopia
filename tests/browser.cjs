@@ -180,6 +180,13 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   assert.equal(await page.locator("#actionPanel").isVisible(), false);
   assert.equal(await page.locator("#inspectCity").isVisible(), false);
   await clickTile(3, 7, false);
+  assert.equal(
+    await page.locator("#productionDock").isVisible(),
+    false,
+    "unit has priority over occupied city",
+  );
+  assert.equal(await page.locator("#inspectCity").isVisible(), true);
+  await page.click("#inspectCity");
   assert.equal(await page.locator("#actionPanel").isVisible(), false);
   assert.equal(await page.locator("#productionDock").isVisible(), true);
   assert.equal(await page.locator(".resource-option").count(), 0);
@@ -197,7 +204,8 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
     1,
     "all production icons stay in one horizontal row",
   );
-  await page.click("#zoomMax");
+  assert.equal(await page.locator("#zoomMax").count(), 0);
+  for (let i = 0; i < 12; i++) await page.click("#zoomIn");
   assert.equal((await snapshot()).zoom, 4);
   for (let i = 0; i < 30; i++) await page.click("#zoomOut");
   assert.equal((await snapshot()).zoom, 0.25);

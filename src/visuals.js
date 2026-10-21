@@ -532,7 +532,7 @@ export function drawVessel(c, x, y, u, nation, night) {
 export function drawUnit(c, x, y, u, nation, night) {
   c.save();
   c.translate(x, y);
-  c.scale(0.3, 0.3);
+  c.scale(0.42, 0.42);
   drawFigure(c, 0, 0, u, nation, night);
   c.restore();
 }
