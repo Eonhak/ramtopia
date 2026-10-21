@@ -3,8 +3,9 @@ const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 let user = null,
   mode = "login",
   pending = false;
-let accountVersion = 0;
 const dialog = $("accountDialog");
+let onAuthenticated = () => {},
+  onSignedOut = () => {};
 function render() {
   $("accountButton").textContent = user ? user.nickname : "로그인";
   $("accountButton").title = user ? "내 계정" : "로그인 또는 회원가입";
@@ -13,6 +14,7 @@ function render() {
     : mode === "register"
       ? "새로운 왕국의 시작"
       : "왕국에 돌아오세요";
+  $("closeAccount").hidden = !user || pending;
   $("accountTabs").hidden = !!user;
   $("accountForm").hidden = !!user;
   $("accountProfile").hidden = !user;
@@ -71,12 +73,16 @@ $("accountButton").onclick = () => {
   $("accountMessage").textContent = "";
   dialog.showModal();
 };
-$("closeAccount").onclick = () => dialog.close();
+$("closeAccount").onclick = () => {
+  if (user && !pending) dialog.close();
+};
+dialog.addEventListener("cancel", (e) => {
+  if (!user || pending) e.preventDefault();
+});
 $("accountForm").onsubmit = async (e) => {
   e.preventDefault();
   if (pending) return;
   pending = true;
-  accountVersion++;
   $("accountMessage").textContent = "";
   render();
   try {
@@ -86,6 +92,8 @@ $("accountForm").onsubmit = async (e) => {
       ...(mode === "register" ? { nickname: $("accountNickname").value } : {}),
     });
     $("accountPassword").value = "";
+    dialog.close();
+    await onAuthenticated(user);
     $("accountMessage").textContent =
       mode === "register" ? "가입이 완료되었습니다." : "로그인되었습니다.";
   } catch (e) {
@@ -98,11 +106,14 @@ $("accountForm").onsubmit = async (e) => {
 $("logoutAccount").onclick = async () => {
   if (pending) return;
   pending = true;
-  accountVersion++;
   render();
   try {
     await request("logout", {});
     user = null;
+    mode = "login";
+    $("accountPassword").value = "";
+    onSignedOut();
+    if (!dialog.open) dialog.showModal();
     $("accountMessage").textContent = "로그아웃되었습니다.";
   } catch (e) {
     $("accountMessage").textContent = e.message;
@@ -111,11 +122,23 @@ $("logoutAccount").onclick = async () => {
     render();
   }
 };
-request("me")
-  .then((value) => {
-    if (accountVersion !== 0) return;
-    user = value;
+export async function requireAccount(callbacks) {
+  onAuthenticated = callbacks.onAuthenticated;
+  onSignedOut = callbacks.onSignedOut;
+  pending = true;
+  render();
+  dialog.showModal();
+  try {
+    user = await request("me");
+    if (user) {
+      dialog.close();
+      await onAuthenticated(user);
+    }
+  } catch (error) {
+    $("accountMessage").textContent = error.message;
+  } finally {
+    pending = false;
     render();
-  })
-  .catch(() => {});
+  }
+}
 render();

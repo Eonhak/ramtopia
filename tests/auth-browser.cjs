@@ -27,10 +27,19 @@ const assert = require("node:assert/strict");
       await route.fulfill({ response });
     });
     await page.goto("http://localhost:3000");
-    await page.click('[data-nation="rome"]');
-    await page.click("#startNation");
+    await page.locator("#accountDialog").waitFor({ state: "visible" });
+    assert.equal(
+      await page.locator("#nationDialog").isVisible(),
+      false,
+      "login precedes nation selection",
+    );
+    await page.keyboard.press("Escape");
+    assert.equal(
+      await page.locator("#accountDialog").isVisible(),
+      true,
+      "login cannot be skipped",
+    );
     assert.equal(await page.locator("#accountButton").textContent(), "로그인");
-    await page.click("#accountButton");
     await page.click("#registerTab");
     await page.fill("#accountNickname", "테스트왕");
     await page.fill("#accountEmail", "browser@example.com");
@@ -39,13 +48,27 @@ const assert = require("node:assert/strict");
     await page.waitForFunction(
       () => document.getElementById("accountButton").textContent === "테스트왕",
     );
-    assert.equal(await page.locator("#accountProfile").isVisible(), true);
-    assert.equal(await page.locator("#accountPassword").inputValue(), "");
-    const box = await page.locator("#accountDialog").boundingBox();
-    assert(
-      box.x >= 0 && box.x + box.width <= 390,
-      "account dialog fits mobile screen",
+    assert.equal(await page.locator("#accountDialog").isVisible(), false);
+    assert.equal(
+      await page.locator("#nationDialog").isVisible(),
+      true,
+      "signup advances to nation selection",
     );
+    assert.equal(await page.locator("#accountPassword").inputValue(), "");
+    // Logout immediately after signup, before a reload resets the form mode.
+    await page.click('[data-nation="rome"]');
+    await page.click("#startNation");
+    await page.click("#accountButton");
+    await page.click("#logoutAccount");
+    await page.waitForFunction(
+      () => document.getElementById("submitAccount").textContent === "로그인",
+    );
+    assert.equal(await page.locator("#nicknameField").isVisible(), false);
+    assert.equal(await page.locator("#nationDialog").isVisible(), false);
+    await page.fill("#accountEmail", "browser@example.com");
+    await page.fill("#accountPassword", "browser-password-123");
+    await page.click("#submitAccount");
+    await page.locator("#nationDialog").waitFor({ state: "visible" });
     await page.reload();
     await page.waitForFunction(
       () => document.getElementById("accountButton").textContent === "테스트왕",
@@ -57,6 +80,8 @@ const assert = require("node:assert/strict");
     await page.waitForFunction(
       () => document.getElementById("accountButton").textContent === "로그인",
     );
+    assert.equal(await page.locator("#accountDialog").isVisible(), true);
+    assert.equal(await page.locator("#nationDialog").isVisible(), false);
     await page.fill("#accountEmail", "browser@example.com");
     await page.fill("#accountPassword", "wrong-password");
     await page.click("#submitAccount");
@@ -69,7 +94,7 @@ const assert = require("node:assert/strict");
       () => document.getElementById("accountButton").textContent === "테스트왕",
     );
     console.log(
-      "PASS: mobile registration, cookie session across reload, logout, failed and successful login",
+      "PASS: mandatory login before nation selection, signup, session restore, logout and failed login",
     );
   } finally {
     if (browser) await browser.close();

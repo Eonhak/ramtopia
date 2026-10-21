@@ -1,5 +1,5 @@
 import "./style.css";
-import "./auth.js";
+import { requireAccount } from "./auth.js";
 import { NATIONS, generateWorld } from "./world.js";
 import { drawCity, drawUnit } from "./visuals.js";
 import {
@@ -1129,4 +1129,24 @@ $("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
 $("zoomIn").onclick = () => setZoom(zoom + 0.25);
 $("zoomOut").onclick = () => setZoom(zoom - 0.25);
 new ResizeObserver(draw).observe(canvas);
-openNationChoice();
+$("app").inert = true;
+requireAccount({
+  async onAuthenticated() {
+    // Finish any in-flight local animation before starting another account's game.
+    while (busy || animating)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    world = undefined;
+    selectedUnit = null;
+    panelOpen = false;
+    $("actionPanel").hidden = true;
+    $("productionDock").hidden = true;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    $("app").inert = false;
+    openNationChoice();
+  },
+  onSignedOut() {
+    $("app").inert = true;
+    for (const id of ["nationDialog", "researchDialog", "helpDialog"])
+      $(id).close();
+  },
+});

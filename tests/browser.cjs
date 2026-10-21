@@ -70,6 +70,11 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
  reveal();if(kind!=='fog')for(const t of world.flat()){t.visible=true;t.seen=true;}update();draw();},vision(){for(const t of world.flat())t.seen=false;reveal();update();draw();},get snapshot(){return{night:isNight(turn),visible:world.flat().filter(t=>t.visible).length,seen:world.flat().filter(t=>t.seen).length,stats:units.map(u=>stats(u)),nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],resources:world.flat().filter(t=>t.resource&&!t.developed).map(t=>({x:t.x,y:t.y,resource:t.resource})),cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
     });
   });
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: { user: { id: 1, email: "game@example.com", nickname: "테스트" } },
+    }),
+  );
   await page.goto(process.env.TEST_URL || "http://localhost:3000");
   await page.waitForFunction(() => window.__gameTest);
   const snapshot = () => page.evaluate(() => window.__gameTest.snapshot);
