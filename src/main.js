@@ -32,6 +32,18 @@ import { project, renderMap, pickTile } from "./isometric.js";
 const $ = (id) => document.getElementById(id),
   canvas = $("map"),
   ctx = canvas.getContext("2d");
+for (const id of [
+  "recruit",
+  "recruitArcher",
+  "recruitRider",
+  "recruitGuard",
+  "recruitAssassin",
+  "recruitCatapult",
+  "recruitKnight",
+  "inspectUnit",
+])
+  $("productionUnits").append($(id));
+$("productionDock").prepend($("resourceOptions"));
 const N = 12;
 let world,
   units,
@@ -168,6 +180,7 @@ function update() {
       ? 100
       : Math.min(85, cities.length * 15)) + "%";
   $("actionPanel").hidden = !panelOpen;
+  $("productionDock").hidden = true;
   const t = at(selected.x, selected.y),
     u = inSight(t) ? unitAt(t.x, t.y) : null,
     city = t.seen ? t.city : null;
@@ -227,18 +240,18 @@ function update() {
   const ownUnit = showUnit && u.team === 0,
     ready = ownUnit && !u.acted && !busy && !animating && !over;
   const ownCity = !showUnit && city?.owner === 0;
+  if (ownCity) $("actionPanel").hidden = true;
+  $("productionDock").hidden = !panelOpen || !ownCity;
   const buttons = {
     restUnit: ownUnit,
-    recruit: ownCity && canRecruit(city, "warrior", researched, Infinity),
+    recruit: ownCity,
     develop: !showUnit && t.seen && !!t.resource && !t.developed,
-    recruitRider: ownCity && canRecruit(city, "rider", researched, Infinity),
-    recruitGuard: ownCity && canRecruit(city, "guard", researched, Infinity),
-    recruitCatapult:
-      ownCity && canRecruit(city, "catapult", researched, Infinity),
-    recruitKnight: ownCity && canRecruit(city, "knight", researched, Infinity),
-    recruitArcher: ownCity && canRecruit(city, "archer", researched, Infinity),
-    recruitAssassin:
-      ownCity && canRecruit(city, "assassin", researched, Infinity),
+    recruitRider: ownCity,
+    recruitGuard: ownCity,
+    recruitCatapult: ownCity,
+    recruitKnight: ownCity,
+    recruitArcher: ownCity,
+    recruitAssassin: ownCity,
     promoteUnit: ownUnit && canPromote(u),
     upgradeScout: ownUnit && u.boat === "transport",
     upgradeWarship: ownUnit && !!u.boat && u.boat !== "warship",
@@ -284,6 +297,8 @@ function update() {
       animating ||
       over ||
       !canRecruit(city, type, researched, gold, !!u);
+    $(id).title =
+      `${spec.name} · ${spec.cost}별${missing ? " · " + TECHNOLOGIES[spec.tech].name + " 연구 필요" : ""}${city && city.level < spec.level ? " · 도시 레벨 " + spec.level + " 필요" : ""}${u ? " · 도시의 유닛을 먼저 이동하세요" : ""}`;
     $(id).innerHTML =
       `<canvas class="production-icon" width="70" height="64" aria-hidden="true"></canvas><b>${spec.name}</b><small>${missing ? TECHNOLOGIES[spec.tech].name + " 연구 필요" : city && city.level < spec.level ? "도시 레벨 " + spec.level + " 필요" : spec.cost + " ✦ · 레벨 " + spec.level}</small>`;
   }
@@ -300,7 +315,7 @@ function update() {
     if (icon) {
       const c = icon.getContext("2d");
       c.translate(35, 49);
-      c.scale(1.25, 1.25);
+      c.scale(2.1, 2.1);
       drawUnit(
         c,
         0,
@@ -733,7 +748,7 @@ canvas.addEventListener(
   { passive: false },
 );
 function setZoom(value) {
-  zoom = Math.min(2.3, Math.max(0.25, value));
+  zoom = Math.min(4, Math.max(0.25, value));
   $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
   draw();
 }

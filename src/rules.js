@@ -335,7 +335,7 @@ export const unitSpec = (u) => UNIT_TYPES[u.type || "warrior"];
 export const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 export const growthRequired = (city) => city.level + 1;
 export const cityIncome = (city, techs) =>
-  city.level + 2 + (techs.has("trade") ? 2 : 0);
+  city.level + (techs.has("trade") ? 2 : 0);
 export function canRecruit(city, type, techs, gold, occupied = false) {
   const s = UNIT_TYPES[type];
   return (

@@ -138,7 +138,7 @@ test("unit production needs both city level and research, plus stars and a vacan
   assert(!canRecruit(city, "knight", new Set(), 100));
   assert(!canRecruit(city, "rider", techs, 1));
   assert(!canRecruit(city, "rider", techs, 100, true));
-  assert.equal(cityIncome(city, new Set(["trade"])), 7);
+  assert.equal(cityIncome(city, new Set(["trade"])), 5);
 });
 test("all technology chains are three tiers with valid ordered prerequisites", () => {
   for (const branch of TECH_BRANCHES) {
@@ -305,4 +305,9 @@ test("remaining health scales attack and counter damage", () => {
   assert.equal(healthDamage(6, 1, 10), 1);
   assert.equal(healthDamage(0, 10, 10), 0);
   assert.equal(healthDamage(6, 0, 10), 0);
+});
+
+test("city income is one star per level before trade bonuses", () => {
+  for (const level of [1, 2, 3, 7])
+    assert.equal(cityIncome({ level }, new Set()), level);
 });

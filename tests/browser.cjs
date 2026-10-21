@@ -163,19 +163,31 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   assert.equal(await page.locator("#actionPanel").isVisible(), false);
   assert.equal(await page.locator("#inspectCity").isVisible(), false);
   await clickTile(3, 7, false);
-  assert(
-    await page
-      .locator("#actionPanel")
-      .evaluate((el) => el.classList.contains("city-dock")),
+  assert.equal(await page.locator("#actionPanel").isVisible(), false);
+  assert.equal(await page.locator("#productionDock").isVisible(), true);
+  assert.equal(
+    await page.locator("#productionUnits .production-icon:visible").count(),
+    7,
   );
-  assert((await page.locator("#actionPanel").boundingBox()).height < 190);
+  const rows = await page
+    .locator("#productionUnits button:visible")
+    .evaluateAll((els) =>
+      els.map((el) => Math.round(el.getBoundingClientRect().top)),
+    );
+  assert.equal(
+    new Set(rows).size,
+    1,
+    "all production icons stay in one horizontal row",
+  );
+  for (let i = 0; i < 30; i++) await page.click("#zoomIn");
+  assert.equal((await snapshot()).zoom, 4);
   for (let i = 0; i < 30; i++) await page.click("#zoomOut");
   assert.equal((await snapshot()).zoom, 0.25);
   await fixture("income");
-  assert.equal(await page.locator("#income").innerText(), "+9");
+  assert.equal(await page.locator("#income").innerText(), "+5");
   await page.click("#endTurn");
   await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
-  assert.equal((await snapshot()).gold, 19);
+  assert.equal((await snapshot()).gold, 15);
   await fixture("wounded");
   await clickTile(3, 7);
   await clickTile(4, 7);
@@ -219,7 +231,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
   assert.equal(state.cities.find((c) => c.owner === 0).level, 2);
   assert.equal(state.cities.find((c) => c.owner === 0).population, 0);
   assert.equal(state.gold, 96);
-  assert.equal(await page.locator("#income").innerText(), "+4");
+  assert.equal(await page.locator("#income").innerText(), "+2");
   await page.click("#recruit");
   state = await snapshot();
   assert.equal(state.gold, 91);
@@ -234,7 +246,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
       !window.__gameTest.snapshot.animating,
   );
   state = await snapshot();
-  assert.equal(state.gold, 95);
+  assert.equal(state.gold, 93);
   assert.equal(state.units[1].acted, false);
   assert(state.targets.length > 0);
   // Research spends stars once, enforces prerequisites, and enables real units/abilities.
@@ -647,7 +659,7 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
       r = c.getBoundingClientRect();
     return {
       x: r.left + v.ox + p.x * v.scale,
-      y: r.top + v.oy + (p.y - 23) * v.scale,
+      y: r.top + v.oy + (p.y - 16) * v.scale,
     };
   });
   await touch("touchStart", [[1, tap.x, tap.y]]);
