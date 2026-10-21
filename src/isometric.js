@@ -160,15 +160,135 @@ function house(c, x, y, city) {
     team === 0 ? "#b3f5b6" : team === 1 ? "#ffa49a" : "#eddaa0",
   );
 }
+function resourceArt(c, x, y, kind) {
+  if (kind === "game") {
+    block(c, x, y - 5, 5, 3, 5, "#e0bf8d", "#b9966c", "#947955");
+    block(c, x + 5, y - 11, 2, 2, 6, "#ebd4ae", "#bd9e75", "#9f8563");
+    c.strokeStyle = "#d6b387";
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(x + 5, y - 11);
+    c.lineTo(x + 4, y - 16);
+    c.moveTo(x + 5, y - 13);
+    c.lineTo(x + 8, y - 16);
+    c.stroke();
+  } else if (kind === "wood") {
+    block(c, x, y - 4, 6, 3, 5, "#d4af79", "#a48150", "#825f3b");
+    c.strokeStyle = "#f1d9aa";
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(x, y - 2);
+    c.lineTo(x + 5, y - 4);
+    c.stroke();
+  } else if (kind === "grain") {
+    c.strokeStyle = "#e6cb72";
+    c.lineWidth = 1.5;
+    for (const dx of [-3, 0, 3]) {
+      c.beginPath();
+      c.moveTo(x + dx, y + 2);
+      c.lineTo(x + dx, y - 10 + Math.abs(dx));
+      c.stroke();
+      poly(
+        c,
+        [
+          [x + dx, y - 9],
+          [x + dx + 2, y - 6],
+          [x + dx, y - 4],
+          [x + dx - 2, y - 7],
+        ],
+        "#f4de89",
+      );
+    }
+  } else if (kind === "fruit") {
+    for (const [dx, dy] of [
+      [-3, 0],
+      [2, -1],
+      [0, -4],
+    ]) {
+      c.fillStyle = "#eda36d";
+      c.beginPath();
+      c.arc(x + dx, y + dy, 2.5, 0, Math.PI * 2);
+      c.fill();
+    }
+  } else if (kind === "fish") {
+    poly(
+      c,
+      [
+        [x - 6, y],
+        [x, y - 3],
+        [x + 4, y],
+        [x, y + 3],
+      ],
+      "#b9eced",
+    );
+    poly(
+      c,
+      [
+        [x + 3, y],
+        [x + 7, y - 3],
+        [x + 7, y + 3],
+      ],
+      "#91cbd7",
+    );
+  } else
+    poly(
+      c,
+      [
+        [x, y - 8],
+        [x + 5, y],
+        [x, y + 3],
+        [x - 4, y],
+      ],
+      "#d3c1ed",
+    );
+}
 function warrior(c, x, y, u) {
-  if (u.type === "rider") {
+  if (u.type === "catapult") {
+    block(c, x, y - 8, 12, 7, 8, "#c6a478", "#947b59", "#6b634c");
+    for (const dx of [-10, 10]) {
+      c.fillStyle = "#415462";
+      c.beginPath();
+      c.ellipse(x + dx, y + 5, 4, 6, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.strokeStyle = "#dac498";
+    c.lineWidth = 4;
+    c.beginPath();
+    c.moveTo(x - 6, y - 6);
+    c.lineTo(x + 5, y - 30);
+    c.stroke();
+    poly(
+      c,
+      [
+        [x - 1, y - 31],
+        [x + 9, y - 34],
+        [x + 12, y - 28],
+        [x + 3, y - 25],
+      ],
+      "#747f85",
+    );
+    c.fillStyle = "#263f4e";
+    c.fillRect(x - 11, y + 13, 22, 3);
+    c.fillStyle = u.team === 0 ? "#acfac2" : "#ffa99c";
+    c.fillRect(x - 11, y + 13, (22 * Math.max(0, u.hp)) / 8, 3);
+    if (!u.acted) {
+      c.fillStyle = "#fff0ae";
+      c.beginPath();
+      c.arc(x, y - 40, 2, 0, Math.PI * 2);
+      c.fill();
+    }
+    return;
+  }
+
+  if (u.type === "rider" || u.type === "knight") {
     block(c, x, y - 2, 13, 6, 8, "#bd9971", "#8c735a", "#6b5b4b");
     for (const dx of [-9, 8])
       block(c, x + dx, y + 4, 2, 2, 8, "#bfa27a", "#675a49", "#534d44");
   }
   if (u.type === "guard")
     block(c, x - 8, y - 12, 8, 5, 13, "#d4e3de", "#87ada8", "#527f83");
-  let color = u.team === 0 ? "#64d3b4" : "#f08e81";
+  let color =
+    u.type === "knight" ? "#d4bd7d" : u.team === 0 ? "#64d3b4" : "#f08e81";
   c.fillStyle = "#183c4b55";
   c.beginPath();
   c.ellipse(x, y + 3, 11, 4, 0, 0, Math.PI * 2);
@@ -216,7 +336,8 @@ function warrior(c, x, y, u) {
   c.fillRect(
     x - 11,
     y + 9,
-    (22 * Math.max(0, u.hp)) / (u.type === "guard" ? 15 : 10),
+    (22 * Math.max(0, u.hp)) /
+      (u.type === "guard" || u.type === "knight" ? 15 : 10),
     3,
   );
   if (!u.acted) {
@@ -356,6 +477,16 @@ export function renderMap(
           "#68ac7d",
         );
     }
+    if (!fog && t.road) {
+      c.strokeStyle = "#e5d4a5";
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(p.x - 23, y);
+      c.lineTo(p.x + 23, y);
+      c.moveTo(p.x, y - 11);
+      c.lineTo(p.x, y + 11);
+      c.stroke();
+    }
     let a = available(t),
       sel = selected && selected.x === t.x && selected.y === t.y;
     if (a || sel) {
@@ -384,19 +515,23 @@ export function renderMap(
         game: "#dbb992",
         fish: "#afe2e8",
         ore: "#d7c2f0",
+        wood: "#cfa679",
+        grain: "#f4d083",
       };
       const rx = p.x + 15,
         ry = y + 4;
-      poly(
-        c,
-        [
-          [rx, ry - 5],
-          [rx + 4, ry],
-          [rx, ry + 4],
-          [rx - 4, ry],
-        ],
-        t.developed ? "#e6d39e" : colors[t.resource],
-      );
+      if (!t.developed) resourceArt(c, rx, ry, t.resource);
+      else
+        poly(
+          c,
+          [
+            [rx, ry - 5],
+            [rx + 4, ry],
+            [rx, ry + 4],
+            [rx - 4, ry],
+          ],
+          "#e6d39e",
+        );
       if (t.developed) {
         c.strokeStyle = "#a5cb8b";
         c.lineWidth = 1.5;
@@ -428,6 +563,19 @@ export function renderMap(
   if (animation && world[animation.unit.y]?.[animation.unit.x]?.seen) {
     const p = animation.position;
     warrior(c, p.x, p.y - 11, animation.unit);
+  }
+  if (animation?.projectile) {
+    const { from, to, progress: k } = animation.projectile;
+    c.fillStyle = "#354b5f";
+    c.beginPath();
+    c.arc(
+      from.x + (to.x - from.x) * k,
+      from.y + (to.y - from.y) * k - 30 - Math.sin(Math.PI * k) * 65,
+      4,
+      0,
+      Math.PI * 2,
+    );
+    c.fill();
   }
   for (const effect of effects) {
     if (!world[effect.y]?.[effect.x]?.seen) continue;

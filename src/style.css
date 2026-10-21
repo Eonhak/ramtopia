@@ -1061,3 +1061,81 @@ dialog p {
     max-height: 140px;
   }
 }
+.research-dialog {
+  max-width: 960px;
+  width: calc(100% - 32px);
+}
+#techGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.tech-branch h3 {
+  font-size: 12px;
+  color: #698672;
+  letter-spacing: 0.5px;
+  margin: 2px 0 9px;
+}
+.tech-chain {
+  display: grid;
+  grid-template-columns: 1fr 20px 1fr 20px 1fr;
+  gap: 6px;
+  align-items: stretch;
+}
+.tech-arrow {
+  align-self: center;
+  text-align: center;
+  color: #89a37f;
+  font-size: 20px;
+}
+.tech-chain .tech-card {
+  padding: 12px;
+  min-width: 0;
+}
+.tech-chain .tech-card > span {
+  font-size: 25px;
+  min-width: 25px;
+}
+.tech-chain .tech-card p {
+  font-size: 10px;
+}
+.tech-chain .tech-card small {
+  font-size: 9px;
+}
+.tech-card.learned {
+  border-color: #97bd87;
+}
+@media (max-width: 540px) {
+  .research-dialog {
+    padding: 16px;
+    width: calc(100% - 18px);
+  }
+  .tech-chain {
+    grid-template-columns: 1fr 9px 1fr 9px 1fr;
+    gap: 3px;
+  }
+  .tech-arrow {
+    font-size: 13px;
+  }
+  .tech-chain .tech-card {
+    display: block;
+    padding: 8px 5px;
+  }
+  .tech-chain .tech-card > span {
+    font-size: 20px;
+    display: block;
+    min-width: 0;
+    margin-bottom: 5px;
+  }
+  .tech-chain .tech-card b {
+    font-size: 11px;
+  }
+  .tech-chain .tech-card p {
+    font-size: 8px;
+    line-height: 1.6;
+    margin: 5px 0;
+  }
+  .tech-chain .tech-card small {
+    font-size: 8px;
+  }
+}
