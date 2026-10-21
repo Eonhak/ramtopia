@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index-DoCFrf0r.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Dcfpq4VA.css">
+    <script type="module" crossorigin src="./assets/index-BFLZOaZk.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DF69kcQ6.css">
   </head>
   <body>
     <div id="app">
@@ -45,7 +45,7 @@
             <p>탐험하고, 성장하고, 당신의 왕국을 세우세요.</p>
           </div>
           <div class="kingdom-hud">
-            <span class="kingdom-dot"></span><b>숲의 왕국</b
+            <span class="kingdom-dot"></span><b id="kingdomName">나라 선택</b
             ><span>도시 <strong id="cities">1</strong></span
             ><span>전사 <strong id="army">1</strong></span
             ><span>발견 <strong id="land">0</strong></span>
@@ -53,7 +53,7 @@
           <div class="objective">
             <span>⚑</span>
             <div>
-              <b>붉은 왕국의 수도를 점령하세요</b
+              <b id="objectiveTitle">상대의 수도를 점령하세요</b
               ><small id="objectiveText">수도 점령 0 / 1</small>
               <div class="progress"><i id="progress"></i></div>
             </div>
@@ -74,7 +74,7 @@
             <div class="selection-body">
               <div id="tileIcon" class="tile-preview">♜</div>
               <div>
-                <h2 id="tileTitle">숲의 수도</h2>
+                <h2 id="tileTitle">선택한 타일</h2>
                 <p id="tileDescription"></p>
               </div>
             </div>
@@ -93,7 +93,10 @@
               <button id="recruit">
                 <span>⚔</span><b>전사 훈련</b><small>5 ✦</small>
               </button>
-              <button id="recruitRider">
+              <button id="recruitArcher">
+                <span>➶</span><b>궁수 훈련</b
+                ><small>도시 레벨 2 · 궁술 필요</small></button
+              ><button id="recruitRider">
                 <span>♞</span><b>기병 훈련</b><small>9 ✦ · 이동 2</small>
               </button>
               <button id="recruitCatapult">
@@ -143,13 +146,26 @@
       </main>
       <div id="logs" class="event-feed" aria-live="polite"></div>
     </div>
+    <dialog id="nationDialog" class="nation-dialog">
+      <span class="eyebrow">CHOOSE YOUR CIVILIZATION</span>
+      <h2>어느 나라의 역사를 시작할까요?</h2>
+      <p>
+        역사 속 강국을 선택하세요. 각 나라의 시작 기술은 게임을 위한 특성입니다.
+      </p>
+      <div id="nationGrid"></div>
+      <p id="nationDescription"></p>
+      <div class="nation-footer">
+        <button id="cancelNation" class="icon-btn" title="돌아가기">×</button
+        ><button id="startNation">이 나라로 시작하기 →</button>
+      </div>
+    </dialog>
     <dialog id="researchDialog" class="research-dialog">
       <button id="closeResearch" class="icon-btn">×</button
       ><span class="eyebrow">KNOWLEDGE OF THE KINGDOM</span>
       <h2>왕국의 연구 <small id="researchGold"></small></h2>
       <p>
         왼쪽부터 순서대로 연구하세요. 사냥은 두 계통이 공유하며 한 번만
-        연구합니다. 도시 레벨 2는 기병·방패병, 레벨 3은 투석기·기사를
+        연구합니다. 도시 레벨 2는 궁수·기병·방패병, 레벨 3은 투석기·기사를
         생산합니다.
       </p>
       <div id="techGrid"></div>
@@ -170,13 +186,18 @@
       <p>
         도시 주변에 무작위로 배치되는 열매·동물·목재·곡물·물고기·광석을 해당
         기술 연구 후 별로 수확해 인구를 채우면 도시가 성장하고 턴 수입이
-        증가합니다. 상단의 연구에서 기병·방패병, 자원 개발 기술과 새 능력을
+        증가합니다. 상단의 연구에서 궁수·기병·방패병, 자원 개발 기술과 새 능력을
         해금하세요.
       </p>
       <p>
         중립·적 마을을 점령하면 해당 유닛의 행동이 종료됩니다. 적을 처치하면
         공격한 유닛이 그 칸으로 진입합니다. 턴을 마치면 AI가 행동하고 도시
         수입을 얻습니다. 붉은 수도를 점령하면 승리합니다.
+      </p>
+      <p>
+        이동은 대각선을 포함한 8방향입니다. 숲은 진입할 때 이동 비용이 1
+        증가하지만 기본 이동력 1인 유닛은 영향을 받지 않습니다. 궁수는 사거리
+        2이며 사냥 → 궁술 → 정밀 사격 계통으로 강화합니다.
       </p>
       <p>
         한 손가락으로 지도를 이동하고 두 손가락을 벌리거나 모아 확대·축소하세요.
