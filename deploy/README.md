@@ -65,3 +65,27 @@ Node 22.13 이상이 필요합니다. `npm ci && npm run build` 후 환경 변�
 저장소 Settings → Secrets and variables → Actions → Variables에 `VITE_API_BASE_URL=https://실제-API-서버-도메인`을 추가하고 웹 배포를 다시 실행합니다. 서버에는 `APP_ORIGIN=https://실제-API-서버-도메인`, `ALLOWED_ORIGINS=https://eonhak.github.io`를 설정합니다. 외부 사이트 쿠키를 차단하는 모바일 브라우저에서는 세션 유지가 안 될 수 있으므로, 게임과 API를 같은 HTTPS 주소에서 제공하는 구성을 권장합니다.
 
 현재 계정 시스템은 회원가입·로그인·로그아웃만 제공합니다. 게임 저장, 멀티플레이, 이메일 인증, 비밀번호 재설정은 아직 구현하지 않았습니다. 비밀번호는 scrypt 해시로 저장하고 세션 토큰은 DB에 SHA-256 해시만 저장합니다. 세션 쿠키는 HttpOnly이며 운영 HTTPS에서 Secure로 발급됩니다. 운영 서버의 DB 경로와 포트를 외부에 노출하지 않습니다.
+
+## 현재 tiny-sword 서버에 별도 DuckDNS 주소로 추가하기
+
+주소는 **https://ramtopia.duckdns.org/** 입니다. 먼저 DuckDNS에서 `ramtopia`를 등록하고 기존 Lightsail 고정 IPv4로 연결합니다. 기존 `tiny-sword.duckdns.org`는 변경하지 않습니다. 이름이 이미 사용 중이면 사용 가능한 이름을 정한 뒤 `lightsail.env`의 APP_ORIGIN과 아래 스크립트의 RAMTOPIA_DOMAIN 값을 함께 변경해야 합니다.
+
+현재 구성은 Caddy 컨테이너 `deploy-caddy-1`, 네트워크 `deploy_default`, Caddyfile `/home/ubuntu/tiny-sword/deploy/Caddyfile`입니다. DNS 연결이 완료되면 다음을 실행합니다. 새로운 IP나 공개 포트를 만들지 않습니다.
+
+```sh
+cd /home/ubuntu
+git clone https://github.com/Eonhak/ramtopia.git
+cd ramtopia
+sudo docker compose --env-file deploy/lightsail.env -f deploy/compose.yaml -f deploy/compose.lightsail.yaml up -d --build
+sudo docker compose --env-file deploy/lightsail.env -f deploy/compose.yaml -f deploy/compose.lightsail.yaml ps
+sudo bash deploy/add-caddy-route.sh
+curl -fsS https://ramtopia.duckdns.org/api/health
+```
+
+이미 `/home/ubuntu/ramtopia`를 받은 경우 clone 대신 그 디렉터리에서 `git pull --ff-only`로 업데이트합니다. 프로젝트는 별도 Compose 이름 `ramtopia`와 별도 계정 DB 볼륨을 사용합니다. 기존 Tiny Sword 컨테이너를 내리지 않습니다. `lightsail.env`는 공개 경로 설정이며 비밀번호가 없습니다.
+
+라우트 추가 스크립트는 먼저 Caddy에서 새 서버의 상태를 검사하고 기존 설정을 백업한 뒤, 파일 맨 아래에 RAMTOPIA 전용 도메인 블록을 추가합니다. 기존 파일의 inode를 유지해 bind mount에도 반영합니다. Caddy 검증 후 재시작 없이 reload하며, 검증이나 reload가 실패하면 원본을 복구합니다. 기존 도메인 블록은 변경하지 않으므로 Tiny Sword의 `/updates/`와 `api:3000` 연결이 보존됩니다. 반복 실행해도 같은 블록을 중복 추가하지 않습니다.
+
+Caddy가 새 도메인의 HTTPS 인증서를 자동 발급합니다. DNS가 아직 다른 서버를 가리키거나 이름이 등록되지 않았으면 인증서 발급과 접속이 실패하므로 DuckDNS 설정을 확인합니다. 서버 시간과 80/443 포트는 기존 Caddy가 사용하던 구성을 유지합니다.
+
+메모리 1GB 서버에서는 이미지 빌드 중 여유 메모리를 확인하세요. 빌드가 메모리 부족으로 실패하면 기존 게임을 중지하지 말고 출력된 오류를 확인한 뒤 스왑·외부 빌드·서버 증설 중 적절한 방법을 선택합니다.

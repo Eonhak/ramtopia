@@ -1,0 +1,10 @@
+# Add RAMTOPIA to the existing Caddy network without changing existing services.
+services:
+  app:
+    networks:
+      existing_caddy:
+        aliases: [ramtopia-web]
+networks:
+  existing_caddy:
+    external: true
+    name: ${CADDY_NETWORK:-deploy_default}
