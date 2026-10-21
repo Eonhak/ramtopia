@@ -1,5 +1,15 @@
 import "./style.css";
-import { renderMap, pickTile } from "./isometric.js";
+import {
+  UNIT_TYPES,
+  TECHNOLOGIES,
+  RESOURCES,
+  unitSpec,
+  cityForTile,
+  addPopulation,
+  growthRequired,
+  movementPath,
+} from "./rules.js";
+import { project, renderMap, pickTile } from "./isometric.js";
 const $ = (id) => document.getElementById(id),
   canvas = $("map"),
   ctx = canvas.getContext("2d");
@@ -16,6 +26,10 @@ let world,
   zoom = 1,
   view,
   toastTimer;
+let researched = new Set(),
+  animating = false,
+  animation = null,
+  effects = [];
 let actionMode = null,
   selectionKind = "unit",
   panelOpen = false;
@@ -41,6 +55,13 @@ function init() {
   $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
   $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
   $("objectiveText").textContent = "수도 점령 0 / 1";
+  activePointers.clear();
+  pointerStart = null;
+  pinchStart = null;
+  researched = new Set();
+  animating = false;
+  animation = null;
+  effects = [];
   actionMode = null;
   panelOpen = false;
   pan = { x: 0, y: 0 };
@@ -84,7 +105,10 @@ function init() {
     [4, 3, -1, "바람 마을"],
     [8, 8, -1, "햇살 마을"],
   ])
-    Object.assign(at(x, y), { type: "grass", city: { owner, name, level: 1 } });
+    Object.assign(at(x, y), {
+      type: "grass",
+      city: { owner, name, level: 1, population: 0 },
+    });
   for (let [x, y] of [
     [3, 6],
     [4, 7],
@@ -96,6 +120,25 @@ function init() {
     [8, 4],
   ])
     at(x, y).type = "grass";
+  for (const t of world.flat())
+    if (!t.city) {
+      t.resource =
+        t.type === "forest"
+          ? "game"
+          : t.type === "mountain"
+            ? "ore"
+            : t.type === "water"
+              ? "fish"
+              : rng(t.y, t.x) > 0.4
+                ? "fruit"
+                : null;
+      t.developed = false;
+    }
+  for (const [x, y] of [
+    [3, 6],
+    [4, 7],
+  ])
+    at(x, y).resource = "fruit";
   reveal();
   addLog("초록 깃발이 올랐습니다. 모험을 시작하세요.");
   update();
@@ -104,7 +147,9 @@ function init() {
 function reveal() {
   for (let u of units.filter((u) => u.team === 0))
     for (let row of world)
-      for (let t of row) if (distance(t, u) <= 3) t.seen = true;
+      for (let t of row)
+        if (distance(t, u) <= (researched.has("scouting") ? 5 : 3))
+          t.seen = true;
   for (let row of world)
     for (let t of row)
       if (t.city?.owner === 0)
@@ -135,14 +180,14 @@ function update() {
   $("income").textContent =
     "+" + cities.reduce((a, t) => a + t.city.level + 2, 0);
   $("turnLabel").innerHTML =
-    `턴 ${String(turn).padStart(2, "0")} <span>${over ? "게임 종료" : busy ? "붉은 왕국의 차례" : "당신의 차례"}</span>`;
+    `턴 ${String(turn).padStart(2, "0")} <span>${over ? "게임 종료" : animating ? "행동 중" : busy ? "붉은 왕국의 차례" : "당신의 차례"}</span>`;
   $("logs").innerHTML = logs
     .map(
       (l) =>
         `<div class="log"><span>턴 ${String(l.turn).padStart(2, "0")}</span>${l.s}</div>`,
     )
     .join("");
-  $("endTurn").disabled = busy || over;
+  $("endTurn").disabled = busy || animating || over;
   $("progress").style.width =
     (over && ownCities().some((t) => t.x === 9 && t.y === 3)
       ? 100
@@ -165,7 +210,7 @@ function update() {
   $("tileTitle").textContent = !t.seen
     ? "안개 너머의 땅"
     : showUnit
-      ? `${u.team === 0 ? "숲의" : "붉은"} 전사`
+      ? `${u.team === 0 ? "숲의" : "붉은"} ${unitSpec(u).name}`
       : city
         ? city.name
         : types[t.type];
@@ -185,30 +230,70 @@ function update() {
   $("tileDescription").textContent = !t.seen
     ? "전사를 보내 새로운 땅을 발견하세요."
     : showUnit
-      ? `체력 ${u.hp} / 10 · ${u.acted ? "이번 턴 행동 완료" : "행동 가능"}`
+      ? `체력 ${u.hp} / ${unitSpec(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : "행동 가능"}`
       : city
-        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner === 1 ? "적의 도시" : "중립 마을"} · 수입 +${city.level + 2} ✦`
+        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner === 1 ? "적의 도시" : "중립 마을"} · 인구 ${city.population || 0}/${growthRequired(city)} · 수입 +${city.level + 2} ✦`
         : "왕국의 지도를 넓혀 보세요.";
   $("healthBar").hidden = !showUnit;
-  $("healthBar").firstElementChild.style.width = (u ? u.hp * 10 : 0) + "%";
+  $("healthBar").firstElementChild.style.width =
+    (u ? (u.hp / unitSpec(u).hp) * 100 : 0) + "%";
   $("actionPanel").classList.toggle(
     "enemy",
     showUnit ? u.team === 1 : city?.owner === 1,
   );
   const ownUnit = showUnit && u.team === 0,
-    ready = ownUnit && !u.acted && !busy && !over;
+    ready = ownUnit && !u.acted && !busy && !animating && !over;
   const ownCity = !showUnit && city?.owner === 0;
   const buttons = {
     restUnit: ownUnit,
     recruit: ownCity,
-    upgrade: ownCity,
+    develop: !showUnit && t.seen && !!t.resource && !t.developed,
+    recruitRider: ownCity && researched.has("riding"),
+    recruitGuard: ownCity && researched.has("fortification"),
     inspectCity: showUnit && !!city,
     inspectUnit: !showUnit && !!u,
   };
   for (const [id, visible] of Object.entries(buttons)) $(id).hidden = !visible;
-  $("restUnit").disabled = !ready || u.hp >= 10;
-  $("recruit").disabled = busy || over || !ownCity || !!u || gold < 5;
-  $("upgrade").disabled = busy || over || !ownCity || gold < 8;
+  $("restUnit").disabled = !ready || u.hp >= unitSpec(u).hp;
+  for (const [id, type] of [
+    ["recruit", "warrior"],
+    ["recruitRider", "rider"],
+    ["recruitGuard", "guard"],
+  ])
+    $(id).disabled =
+      busy ||
+      animating ||
+      over ||
+      !ownCity ||
+      !!u ||
+      gold < UNIT_TYPES[type].cost;
+  const resource = t.resource && RESOURCES[t.resource],
+    owner = cityForTile(world, t);
+  $("develop").disabled =
+    busy ||
+    animating ||
+    over ||
+    !resource ||
+    t.developed ||
+    owner?.city.owner !== 0 ||
+    gold < resource.cost ||
+    (!!resource.tech && !researched.has(resource.tech));
+  if (resource) {
+    $("develop").innerHTML =
+      `<span>${resource.icon}</span><b>${resource.verb}</b><small>${resource.cost} ✦ · 인구 +${resource.population}</small>`;
+  }
+  $("cityGrowth").hidden = !ownCity;
+  if (ownCity) {
+    $("cityGrowthText").textContent =
+      `인구 ${city.population || 0} / ${growthRequired(city)} · 다음 레벨 수입 +${city.level + 3} ✦`;
+    $("cityGrowthFill").style.width =
+      ((city.population || 0) / growthRequired(city)) * 100 + "%";
+  }
+  $("resourceOptions").hidden = !ownCity;
+  if (ownCity) renderCityResources(t);
+  if (!showUnit && !city && resource && t.seen)
+    $("tileDescription").textContent =
+      `${resource.name} · ${t.developed ? "개발 완료" : `개발 ${resource.cost} ✦ / 인구 +${resource.population}`} · ${owner ? owner.city.name + " 영토" : "소유 도시 없음"}`;
   $("actionHint").textContent = over
     ? "게임이 끝났습니다. 새 왕국을 시작해 보세요."
     : busy
@@ -223,8 +308,8 @@ function update() {
               : "흰 테두리는 이동, 붉은 타일은 공격입니다."
             : ownCity
               ? u
-                ? "전사가 도시를 비우면 새 전사를 훈련할 수 있습니다."
-                : "별을 사용해 병력을 훈련하거나 수입을 늘리세요."
+                ? "훈련한 유닛은 다음 턴부터 행동합니다. 주변 자원을 개발해 도시를 성장시키세요."
+                : "주변 자원을 개발해 인구를 채우면 도시 레벨과 매 턴 수입이 증가합니다."
               : city
                 ? "전사로 이 도시에 진입하면 점령할 수 있습니다."
                 : !t.seen
@@ -232,21 +317,32 @@ function update() {
                   : t.type === "water"
                     ? "전사는 바다를 건널 수 없습니다."
                     : "전사를 이동시켜 이 땅을 탐험하세요.";
+  if (!showUnit && !city && resource && t.seen)
+    $("actionHint").textContent =
+      resource.tech && !researched.has(resource.tech)
+        ? `${TECHNOLOGIES[resource.tech].name} 연구가 필요합니다.`
+        : owner?.city.owner !== 0
+          ? "내 도시 영토 안의 자원만 개발할 수 있습니다."
+          : "개발하면 소속 도시의 인구가 증가합니다.";
 }
 function available(t) {
   if (
     !selectedUnit ||
     selectedUnit.acted ||
+    selectedUnit.bornTurn === turn ||
     busy ||
+    animating ||
     over ||
-    distance(t, selectedUnit) !== 1 ||
+    actionMode !== "unit" ||
+    selectionKind !== "unit" ||
     t.type === "water"
   )
     return null;
   const occupant = unitAt(t.x, t.y);
-  if (selectionKind === "unit" && actionMode === "unit" && !occupant)
+  if (occupant?.team === 1 && t.seen && distance(t, selectedUnit) === 1)
+    return "attack";
+  if (!occupant && movementPath(world, units, selectedUnit, t)?.length)
     return "move";
-  if (actionMode === "unit" && t.seen && occupant?.team === 1) return "attack";
   return null;
 }
 function draw() {
@@ -258,6 +354,8 @@ function draw() {
       zoom,
       pan,
       available,
+      animation,
+      effects,
       panelHeight:
         panelOpen && selectionKind !== "unit" && canvas.clientWidth < 541
           ? $("actionPanel").offsetHeight + 65
@@ -301,32 +399,93 @@ function capture(u) {
   let t = at(u.x, u.y);
   if (t.city && t.city.owner !== u.team) {
     t.city.owner = u.team;
+    u.acted = true;
     addLog(`${u.team === 0 ? "숲의 왕국" : "붉은 왕국"}이 ${t.city.name} 점령`);
     if (u.team === 0 && t.x === 9 && t.y === 3) finish(true);
     if (u.team === 1 && t.x === 3 && t.y === 7) finish(false);
   }
 }
-function act(u, t) {
-  let enemy = unitAt(t.x, t.y);
-  if (enemy && enemy.team === u.team) return false;
-  if (enemy) {
-    enemy.hp -= 6;
-    u.hp -= 3;
-    addLog(`${u.team === 0 ? "숲의" : "붉은"} 전사가 적과 교전했습니다.`);
-    if (enemy.hp <= 0) {
-      units = units.filter((v) => v !== enemy);
-      u.x = t.x;
-      u.y = t.y;
+function tween(duration, step) {
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return new Promise((resolve) => {
+    const start = performance.now();
+    function frame(now) {
+      const p = reduced ? 1 : Math.min(1, (now - start) / duration);
+      step(p);
+      draw();
+      if (p < 1) requestAnimationFrame(frame);
+      else resolve();
     }
-    if (u.hp <= 0) units = units.filter((v) => v !== u);
-  } else {
+    requestAnimationFrame(frame);
+  });
+}
+async function walk(u, path) {
+  for (const t of path) {
+    const from = project(u.x, u.y),
+      to = project(t.x, t.y);
+    animation = { unit: u, position: from };
+    await tween(220, (p) => {
+      const k = (1 - Math.cos(Math.PI * p)) / 2;
+      animation.position = {
+        x: from.x + (to.x - from.x) * k,
+        y: from.y + (to.y - from.y) * k - Math.sin(Math.PI * p) * 4,
+      };
+    });
     u.x = t.x;
     u.y = t.y;
+    animation = null;
   }
+}
+async function act(u, t) {
+  if (animating || over || !units.includes(u) || u.acted || u.bornTurn === turn)
+    return false;
+  const enemy = unitAt(t.x, t.y);
+  if (enemy?.team === u.team || t.type === "water") return false;
+  const path = enemy ? null : movementPath(world, units, u, t);
+  if (enemy ? distance(u, t) !== 1 : !path?.length) return false;
+  animating = true;
   u.acted = true;
-  if (units.includes(u)) capture(u);
-  reveal();
-  return true;
+  actionMode = null;
+  update();
+  try {
+    if (enemy) {
+      const from = project(u.x, u.y),
+        to = project(t.x, t.y);
+      animation = { unit: u, position: from };
+      await tween(240, (p) => {
+        const k = Math.sin(Math.PI * p) * 0.38;
+        animation.position = {
+          x: from.x + (to.x - from.x) * k,
+          y: from.y + (to.y - from.y) * k,
+        };
+      });
+      animation = null;
+      const damage = unitSpec(u).attack,
+        counter = unitSpec(enemy).counter;
+      enemy.hp -= damage;
+      u.hp -= counter;
+      effects = [
+        { x: t.x, y: t.y, text: "−" + damage, progress: 0 },
+        { x: u.x, y: u.y, text: "−" + counter, progress: 0 },
+      ];
+      await tween(300, (p) => effects.forEach((e) => (e.progress = p)));
+      effects = [];
+      const killed = enemy.hp <= 0;
+      if (killed) units = units.filter((v) => v !== enemy);
+      if (u.hp <= 0) units = units.filter((v) => v !== u);
+      if (killed && units.includes(u)) await walk(u, [t]);
+      addLog(`${unitSpec(u).name} 교전${killed ? " · 적 처치 후 진입" : ""}`);
+    } else await walk(u, path);
+    if (units.includes(u)) capture(u);
+    reveal();
+    return true;
+  } finally {
+    animation = null;
+    effects = [];
+    animating = false;
+    update();
+    draw();
+  }
 }
 function pointerPair() {
   const [a, b] = [...activePointers.values()];
@@ -385,7 +544,7 @@ canvas.addEventListener("pointermove", (e) => {
     draw();
   }
 });
-canvas.addEventListener("pointerup", (e) => {
+canvas.addEventListener("pointerup", async (e) => {
   if (!activePointers.has(e.pointerId)) return;
   const wasGesture = suppressTap || dragged;
   activePointers.delete(e.pointerId);
@@ -398,7 +557,7 @@ canvas.addEventListener("pointerup", (e) => {
     return;
   }
   pointerStart = null;
-  if (wasGesture || busy || over) return;
+  if (wasGesture || busy || animating || over) return;
   const rect = canvas.getBoundingClientRect(),
     t = pickTile(view, e.clientX - rect.left, e.clientY - rect.top);
   if (!t) {
@@ -407,7 +566,7 @@ canvas.addEventListener("pointerup", (e) => {
   }
   if (available(t)) {
     const actor = selectedUnit;
-    if (act(actor, t)) {
+    if (await act(actor, t)) {
       selectTile(at(actor.x, actor.y));
       return;
     }
@@ -445,7 +604,10 @@ function setZoom(value) {
 }
 $("restUnit").onclick = () => {
   if ($("restUnit").disabled || !selectedUnit) return;
-  selectedUnit.hp = Math.min(10, selectedUnit.hp + 3);
+  selectedUnit.hp = Math.min(
+    unitSpec(selectedUnit).hp,
+    selectedUnit.hp + (researched.has("medicine") ? 5 : 3),
+  );
   selectedUnit.acted = true;
   actionMode = null;
   addLog("전사가 휴식하며 체력을 회복했습니다.");
@@ -478,29 +640,124 @@ $("resetView").onclick = () => {
   pan = { x: 0, y: 0 };
   setZoom(1);
 };
-$("recruit").onclick = () => {
-  let t = at(selected.x, selected.y);
-  if (gold < 5 || t.city?.owner !== 0 || unitAt(t.x, t.y) || busy || over)
+function recruit(type) {
+  const t = at(selected.x, selected.y),
+    spec = UNIT_TYPES[type];
+  if (
+    busy ||
+    animating ||
+    over ||
+    t.city?.owner !== 0 ||
+    unitAt(t.x, t.y) ||
+    gold < spec.cost ||
+    (spec.tech && !researched.has(spec.tech))
+  )
     return;
-  gold -= 5;
-  units.push({ x: t.x, y: t.y, team: 0, hp: 10, acted: false });
-  addLog("새로운 전사가 왕국에 합류했습니다.");
-  selectedUnit = unitAt(t.x, t.y);
-  selectionKind = "unit";
-  actionMode = selectedUnit && !selectedUnit.acted ? "unit" : null;
+  gold -= spec.cost;
+  units.push({
+    x: t.x,
+    y: t.y,
+    team: 0,
+    type,
+    hp: spec.hp,
+    acted: true,
+    bornTurn: turn,
+  });
+  addLog(`${spec.name} 훈련 · 다음 턴부터 행동`);
+  selectTile(t);
+}
+$("recruit").onclick = () => recruit("warrior");
+$("recruitRider").onclick = () => recruit("rider");
+$("recruitGuard").onclick = () => recruit("guard");
+function canDevelop(t) {
+  const r = t?.resource && RESOURCES[t.resource];
+  return (
+    !!r &&
+    t.seen &&
+    !t.developed &&
+    cityForTile(world, t)?.city.owner === 0 &&
+    gold >= r.cost &&
+    (!r.tech || researched.has(r.tech)) &&
+    !busy &&
+    !animating &&
+    !over
+  );
+}
+function develop(t) {
+  if (!canDevelop(t)) return;
+  const r = RESOURCES[t.resource],
+    city = cityForTile(world, t);
+  gold -= r.cost;
+  t.developed = true;
+  const levels = addPopulation(city.city, r.population);
+  addLog(
+    `${r.name} 개발 · ${city.city.name} 인구 +${r.population}${levels ? " · 레벨 " + city.city.level + " 성장" : ""}`,
+  );
+  if (levels) {
+    toast(`${city.city.name} 성장! 다음 턴부터 +${city.city.level + 2} ✦`);
+    reveal();
+  }
   update();
   draw();
+}
+$("develop").onclick = () => develop(at(selected.x, selected.y));
+function renderCityResources(city) {
+  const tiles = world
+    .flat()
+    .filter(
+      (t) =>
+        t.seen && t.resource && !t.developed && cityForTile(world, t) === city,
+    );
+  $("resourceOptions").replaceChildren();
+  for (const t of tiles) {
+    const r = RESOURCES[t.resource],
+      button = document.createElement("button");
+    button.className = "resource-option";
+    button.disabled = !canDevelop(t);
+    button.innerHTML = `<span>${r.icon} ${r.verb} <small>(${t.x + 1}, ${t.y + 1})</small></span><b>${r.cost} ✦ <small>인구 +${r.population}</small></b>${r.tech && !researched.has(r.tech) ? `<em>${TECHNOLOGIES[r.tech].name} 연구 필요</em>` : ""}`;
+    button.onclick = () => develop(t);
+    $("resourceOptions").append(button);
+  }
+  if (!tiles.length)
+    $("resourceOptions").textContent = "현재 영토의 자원을 모두 개발했습니다.";
+}
+function renderResearch() {
+  $("researchGold").textContent = gold + " ✦";
+  $("techGrid").replaceChildren();
+  for (const [key, tech] of Object.entries(TECHNOLOGIES)) {
+    const learned = researched.has(key),
+      locked = tech.requires && !researched.has(tech.requires),
+      button = document.createElement("button");
+    button.className = "tech-card" + (learned ? " learned" : "");
+    button.disabled =
+      learned || locked || gold < tech.cost || busy || animating || over;
+    button.innerHTML = `<span>${tech.icon}</span><div><b>${tech.name}</b><p>${tech.description}</p><small>${learned ? "연구 완료" : locked ? TECHNOLOGIES[tech.requires].name + " 선행 연구 필요" : tech.cost + " ✦"}</small></div>`;
+    button.onclick = () => {
+      if (
+        researched.has(key) ||
+        gold < tech.cost ||
+        (tech.requires && !researched.has(tech.requires)) ||
+        busy ||
+        animating ||
+        over
+      )
+        return;
+      gold -= tech.cost;
+      researched.add(key);
+      addLog(`${tech.name} 연구 완료`);
+      reveal();
+      update();
+      draw();
+      renderResearch();
+    };
+    $("techGrid").append(button);
+  }
+}
+$("research").onclick = () => {
+  renderResearch();
+  $("researchDialog").showModal();
 };
-$("upgrade").onclick = () => {
-  let t = at(selected.x, selected.y);
-  if (gold < 8 || t.city?.owner !== 0 || busy || over) return;
-  gold -= 8;
-  t.city.level++;
-  addLog(`${t.city.name}이 레벨 ${t.city.level}로 성장했습니다.`);
-  toast("도시 성장! 다음 턴부터 수입이 증가합니다.");
-  update();
-  draw();
-};
+$("closeResearch").onclick = () => $("researchDialog").close();
 function pathStep(u, goal) {
   let queue = [{ x: u.x, y: u.y, first: null }],
     seen = new Set([u.x + "," + u.y]);
@@ -522,7 +779,7 @@ function pathStep(u, goal) {
   return null;
 }
 $("endTurn").onclick = async () => {
-  if (busy || over) return;
+  if (busy || animating || over) return;
   busy = true;
   actionMode = null;
   selectedUnit = null;
@@ -534,7 +791,7 @@ $("endTurn").onclick = async () => {
     let adjacent = targets.find((v) => distance(u, v) === 1);
     let goal = adjacent || { x: 3, y: 7 };
     let step = pathStep(u, goal);
-    if (step) act(u, step);
+    if (step) await act(u, step);
     draw();
   }
   if (!over) {
@@ -542,10 +799,12 @@ $("endTurn").onclick = async () => {
     gold += ownCities().reduce((a, t) => a + t.city.level + 2, 0);
     for (let u of units) {
       u.acted = false;
-      if (at(u.x, u.y).city?.owner === u.team) u.hp = Math.min(10, u.hp + 2);
+      delete u.bornTurn;
+      if (at(u.x, u.y).city?.owner === u.team)
+        u.hp = Math.min(unitSpec(u).hp, u.hp + 2);
     }
     if (turn % 3 === 0 && !unitAt(9, 3) && at(9, 3).city.owner === 1) {
-      units.push({ x: 9, y: 3, team: 1, hp: 10, acted: false });
+      units.push({ x: 9, y: 3, team: 1, hp: 10, acted: true, bornTurn: turn });
       addLog("붉은 수도에 지원군이 도착했습니다.");
     }
     addLog("새로운 아침. 도시에서 별을 거두었습니다.");
@@ -564,7 +823,7 @@ $("endTurn").onclick = async () => {
   draw();
 };
 $("newGame").onclick = () => {
-  if (busy) return;
+  if (busy || animating) return;
   if (confirm("현재 왕국을 떠나 새로운 게임을 시작할까요?")) {
     init();
     $("statusTitle").textContent = "당신의 이야기가 시작됩니다";

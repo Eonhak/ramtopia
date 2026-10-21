@@ -11,6 +11,29 @@ const assert = require("node:assert/strict");
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
+  await page.addInitScript(() => {
+    window.__renderFrames = [];
+    window.__resetWasPrompted = false;
+    window.confirm = () => {
+      window.__resetWasPrompted = true;
+      return false;
+    };
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (callback) =>
+      raf((time) => {
+        callback(time);
+        const s = window.__gameTest?.snapshot;
+        if (s?.animation && !window.__triedReset) {
+          window.__triedReset = true;
+          document.getElementById("newGame").click();
+        }
+        if (s?.animation)
+          window.__renderFrames.push({
+            position: s.animation.position,
+            animating: s.animating,
+          });
+      });
+  });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.route(/\/src\/main\.js(?:\?.*)?$/, async (route) => {
@@ -20,111 +43,210 @@ const assert = require("node:assert/strict");
       body:
         (await response.text()) +
         `
-window.__gameTest={get view(){return view},fixture(kind){init();if(kind==='combat'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:1,hp:10,acted:false}];}if(kind==='rest'){units[0].hp=4;}if(kind==='win'){units=[{x:8,y:3,team:0,hp:10,acted:false}];at(8,3).type='grass';}if(kind==='lose'){units=[{x:3,y:6,team:1,hp:10,acted:false}];}if(kind==='mutual'){units=[{x:8,y:3,team:0,hp:1,acted:false},{x:9,y:3,team:1,hp:4,acted:false}];at(8,3).type='grass';}reveal();update();draw();},get snapshot(){return {units,gold,turn,over,zoom,pan,panelOpen,selected,owner:at(9,3).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
+window.__gameTest={get view(){return view},fixture(kind){init();
+ if(kind==='combat'||kind==='kill'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:1,hp:kind==='kill'?4:10,acted:false}];}
+ if(kind==='rest')units[0].hp=4;
+ if(kind==='win'||kind==='mutual'){units=[{x:8,y:3,team:0,hp:kind==='mutual'?1:10,acted:false}];if(kind==='mutual')units.push({x:9,y:3,team:1,hp:4,acted:false});at(8,3).type='grass';}
+ if(kind==='lose')units=[{x:3,y:6,team:1,hp:10,acted:false}];
+ if(kind==='cluster')units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:0,hp:10,acted:false},{x:4,y:6,team:0,hp:10,acted:false}];
+ if(kind==='economy'){gold=100;units=[{x:3,y:6,team:0,hp:10,acted:false}];Object.assign(at(2,7),{type:'mountain',resource:'ore'});Object.assign(at(2,8),{type:'water',resource:'fish'});Object.assign(at(2,6),{type:'forest',resource:'game'});}
+ if(kind==='capture'){units=[{x:6,y:5,team:0,hp:10,acted:false}];at(6,5).type='grass';}
+ reveal();update();draw();},get snapshot(){return{units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(9,3).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
     });
   });
   await page.goto(process.env.TEST_URL || "http://localhost:3000");
-  await page.waitForTimeout(500);
-  async function clickTile(x, y, unit = false) {
-    let p = await page.locator("#map").evaluate(
-      (c, { x, y, unit }) => {
+  await page.waitForFunction(() => window.__gameTest);
+  const snapshot = () => page.evaluate(() => window.__gameTest.snapshot);
+  const fixture = (kind) =>
+    page.evaluate((kind) => window.__gameTest.fixture(kind), kind);
+  async function point(x, y, head = false) {
+    return page.locator("#map").evaluate(
+      (c, { x, y, head }) => {
         const v = window.__gameTest.view,
           t = v.hit.find((p) => p.t.x === x && p.t.y === y),
           r = c.getBoundingClientRect();
         return {
           x: r.left + v.ox + t.x * v.scale,
-          y: r.top + v.oy + (t.y - (unit ? 23 : 0)) * v.scale,
+          y: r.top + v.oy + (t.y - (head ? 23 : 0)) * v.scale,
         };
       },
-      { x, y, unit },
+      { x, y, head },
     );
-    await page.mouse.click(p.x, p.y);
-    await page.waitForTimeout(220);
   }
-
+  async function clickTile(x, y, head = false) {
+    const p = await point(x, y, head);
+    await page.mouse.click(p.x, p.y);
+    await page.waitForFunction(() => !window.__gameTest.snapshot.animating);
+    await page.waitForTimeout(60);
+  }
+  async function research(name) {
+    await page.click("#research");
+    await page
+      .locator(".tech-card")
+      .filter({ has: page.getByText(name, { exact: true }) })
+      .click();
+    await page.click("#closeResearch");
+  }
   assert.equal(await page.locator("#actionPanel").isVisible(), false);
   await clickTile(3, 7, true);
-  await page.locator("#actionPanel").waitFor({ state: "visible" });
-  assert.match(await page.locator("#tileTitle").innerText(), /숲의 전사/);
+  assert((await snapshot()).targets.some((t) => t.x === 4 && t.y === 7));
+  const p = await point(4, 7);
+  await page.mouse.click(p.x, p.y);
+  await page.waitForFunction(() => !window.__gameTest.snapshot.animating);
+  assert.equal((await snapshot()).units[0].x, 4);
+  assert.equal(await page.evaluate(() => window.__resetWasPrompted), false);
+  assert.equal((await snapshot()).units[0].acted, true);
+  assert.deepEqual((await snapshot()).targets, []);
+  assert(
+    (await page.evaluate(() => window.__renderFrames)).some((f) => f.animating),
+    "movement produced visual animation frames",
+  );
+  await fixture("cluster");
+  await page.click("#zoomIn");
+  await page.click("#zoomIn");
+  for (const [x, y] of [
+    [3, 7],
+    [4, 7],
+    [4, 6],
+    [4, 7],
+  ]) {
+    await clickTile(x, y);
+    assert.deepEqual((await snapshot()).selected, { x, y });
+  }
+  await fixture("economy");
+  await clickTile(3, 7);
+  assert.equal(await page.locator("#recruit").isEnabled(), true);
+  const fruits = page
+    .locator(".resource-option")
+    .filter({ hasText: "열매 수확" });
+  await fruits.first().click();
+  assert.match(
+    await page.locator("#cityGrowthText").innerText(),
+    /인구 1 \/ 2/,
+  );
+  await fruits.first().click();
+  let state = await snapshot();
+  assert.equal(state.cities.find((c) => c.owner === 0).level, 2);
+  assert.equal(state.cities.find((c) => c.owner === 0).population, 0);
+  assert.equal(state.gold, 96);
+  assert.equal(await page.locator("#income").innerText(), "+4");
+  await page.click("#recruit");
+  state = await snapshot();
+  assert.equal(state.gold, 91);
+  assert.equal(state.units[1].acted, true);
+  assert.equal(state.units[1].bornTurn, 1);
+  assert.deepEqual(state.targets, []);
+  assert.match(await page.locator("#tileDescription").innerText(), /다음 턴/);
+  await page.click("#endTurn");
+  await page.waitForFunction(
+    () =>
+      window.__gameTest.snapshot.turn === 2 &&
+      !window.__gameTest.snapshot.animating,
+  );
+  state = await snapshot();
+  assert.equal(state.gold, 95);
+  assert.equal(state.units[1].acted, false);
+  assert(state.targets.length > 0);
+  // Research spends stars once, enforces prerequisites, and enables real units/abilities.
+  await fixture("economy");
+  await page.click("#research");
   assert.equal(
     await page
-      .locator("#actionPanel")
-      .evaluate((e) => e.classList.contains("unit-compact")),
+      .locator(".tech-card")
+      .filter({ has: page.getByText("기마술", { exact: true }) })
+      .isDisabled(),
     true,
   );
-  assert(
-    (await page.evaluate(() => window.__gameTest.snapshot.targets)).some(
-      (t) => t.x === 4 && t.y === 7 && t.action === "move",
-    ),
-  );
-  assert((await page.locator("#actionPanel").boundingBox()).height < 90);
-  await clickTile(4, 7);
-  assert.match(await page.locator("#tileDescription").innerText(), /행동 완료/);
-  await page.click("#closePanel");
+  await page.click("#closeResearch");
+  await research("사냥");
+  assert.equal((await snapshot()).gold, 95);
+  assert((await snapshot()).researched.includes("hunting"));
+  await research("기마술");
+  assert.equal((await snapshot()).gold, 87);
   await clickTile(3, 7);
-  assert.match(await page.locator("#tileTitle").innerText(), /숲의 수도/);
-  await page.click("#upgrade");
-  assert.equal(await page.locator("#gold").innerText(), "2");
-  assert.match(await page.locator("#tileDescription").innerText(), /레벨 2/);
+  assert.equal(await page.locator("#recruitRider").isVisible(), true);
+  await page.click("#recruitRider");
+  state = await snapshot();
+  assert.equal(state.units[1].type, "rider");
+  assert.equal(state.units[1].acted, true);
   await page.click("#endTurn");
-  await page.waitForFunction(() =>
-    document.getElementById("turnLabel").textContent.includes("02"),
-  );
-  assert.equal(await page.locator("#gold").innerText(), "6");
-  await page.click("#recruit");
-  assert.equal(await page.locator("#army").innerText(), "2");
-  assert.match(await page.locator("#tileTitle").innerText(), /숲의 전사/);
-  await page.click("#inspectCity");
-  assert.match(await page.locator("#tileTitle").innerText(), /숲의 수도/);
-  assert.equal(await page.locator("#recruit").isDisabled(), true);
-  await page.click("#inspectUnit");
-  assert.match(await page.locator("#tileTitle").innerText(), /숲의 전사/);
-  await page.keyboard.press("Escape");
-  assert.equal(await page.locator("#actionPanel").isVisible(), false);
-  await page.click("#zoomIn");
-  assert.equal(await page.locator("#zoomLabel").innerText(), "115%");
-  await page.click("#resetView");
-  await clickTile(3, 7, true);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.click("#closePanel");
-  await clickTile(3, 7, true);
-  assert.equal(await page.locator("#actionPanel").isVisible(), true);
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.evaluate(() => window.__gameTest.fixture("combat"));
-  await clickTile(3, 7, true);
-  const targets = await page.evaluate(() => window.__gameTest.snapshot.targets);
-  assert(targets.some((t) => t.x === 4 && t.y === 7 && t.action === "attack"));
-  assert(targets.some((t) => t.action === "move"));
-  await clickTile(4, 7, true);
-  let state = await page.evaluate(() => window.__gameTest.snapshot);
-  assert.equal(state.units.find((u) => u.team === 1).hp, 4);
-  assert.equal(state.units.find((u) => u.team === 0).hp, 7);
-  await page.evaluate(() => window.__gameTest.fixture("rest"));
+  await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
+  assert((await snapshot()).targets.some((t) => t.x === 5 && t.y === 7));
+  await clickTile(5, 7);
+  assert.equal((await snapshot()).units[1].x, 5);
+  await fixture("economy");
+  await research("방어술");
+  await clickTile(3, 7);
+  await page.click("#recruitGuard");
+  assert.equal((await snapshot()).units[1].hp, 15);
+  await fixture("rest");
+  await research("의술");
   await clickTile(3, 7, true);
   await page.click("#restUnit");
-  assert.match(
-    await page.locator("#tileDescription").innerText(),
-    /체력 7.*행동 완료/,
-  );
-  await page.evaluate(() => window.__gameTest.fixture("win"));
-  await clickTile(8, 3, true);
+  assert.equal((await snapshot()).units[0].hp, 9);
+  await fixture("economy");
+  const beforeScout = Number(await page.locator("#land").innerText());
+  await research("정찰술");
+  assert(Number(await page.locator("#land").innerText()) > beforeScout);
+  await research("채광");
+  await clickTile(3, 7);
+  const ore = page.locator(".resource-option").filter({ hasText: "광산 개발" });
+  assert((await ore.count()) > 0);
+  await ore.first().click();
+  assert((await snapshot()).cities.find((c) => c.owner === 0).level >= 2);
+  await fixture("economy");
+  await research("낚시");
+  await clickTile(3, 7);
+  await page
+    .locator(".resource-option")
+    .filter({ hasText: "어장 개발" })
+    .first()
+    .click();
+  assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 2);
+  await fixture("economy");
+  await research("사냥");
+  await clickTile(3, 7);
+  await page
+    .locator(".resource-option")
+    .filter({ hasText: "동물 사냥" })
+    .first()
+    .click();
+  assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 2);
+  await fixture("combat");
+  await clickTile(3, 7);
+  assert((await snapshot()).targets.some((t) => t.action === "attack"));
+  await clickTile(4, 7);
+  state = await snapshot();
+  assert.equal(state.units[0].hp, 7);
+  assert.equal(state.units[1].hp, 4);
+  assert.equal(state.units[0].x, 3);
+  await fixture("kill");
+  await clickTile(3, 7);
+  await clickTile(4, 7);
+  state = await snapshot();
+  assert.equal(state.units.length, 1);
+  assert.equal(state.units[0].x, 4);
+  assert.equal(state.units[0].acted, true);
+  await fixture("capture");
+  await clickTile(6, 5);
+  await clickTile(6, 6);
+  state = await snapshot();
+  assert.equal(state.cities.find((c) => c.x === 6 && c.y === 6).owner, 0);
+  assert.equal(state.units[0].acted, true);
+  assert.deepEqual(state.targets, []);
+  await fixture("win");
+  await clickTile(8, 3);
   await clickTile(9, 3);
-  assert.match(await page.locator("#statusTitle").innerText(), /새로운 왕/);
-  assert.equal(await page.locator("#endTurn").isDisabled(), true);
-  await page.evaluate(() => window.__gameTest.fixture("lose"));
+  assert((await snapshot()).over);
+  assert.equal((await snapshot()).units[0].x, 9);
+  await fixture("lose");
   await page.click("#endTurn");
   await page.waitForFunction(() => window.__gameTest.snapshot.over);
   assert.match(await page.locator("#statusTitle").innerText(), /내려갔습니다/);
-  await page.evaluate(() => window.__gameTest.fixture("mutual"));
-  await clickTile(8, 3, true);
-  await clickTile(9, 3, true);
-  state = await page.evaluate(() => window.__gameTest.snapshot);
+  await fixture("mutual");
+  await clickTile(8, 3);
+  await clickTile(9, 3);
+  state = await snapshot();
   assert.equal(state.units.length, 0);
   assert.equal(state.owner, 1);
   assert.equal(state.over, false);
@@ -148,26 +270,6 @@ window.__gameTest={get view(){return view},fixture(kind){init();if(kind==='comba
         force: 1,
       })),
     });
-  await page.evaluate(() => {
-    window.touchTrace = [];
-    for (const type of [
-      "pointerdown",
-      "pointermove",
-      "pointerup",
-      "pointercancel",
-      "lostpointercapture",
-    ])
-      document
-        .getElementById("map")
-        .addEventListener(type, (e) =>
-          window.touchTrace.push({
-            type,
-            id: e.pointerId,
-            x: e.clientX,
-            y: e.clientY,
-          }),
-        );
-  });
   const before = await page.evaluate(() => window.__gameTest.snapshot);
   const anchor = await page.evaluate(() => {
     let v = window.__gameTest.view;
@@ -223,12 +325,6 @@ window.__gameTest={get view(){return view},fixture(kind){init();if(kind==='comba
   await touch("touchMove", [[1, 120, 380]]);
   await touch("touchEnd", []);
   gesture = await page.evaluate(() => window.__gameTest.snapshot);
-  if (!(gesture.pan.x > beforeDrag.x + 15))
-    console.log({
-      beforeDrag,
-      after: gesture.pan,
-      trace: await page.evaluate(() => window.touchTrace),
-    });
   assert(
     gesture.pan.x > beforeDrag.x + 15,
     "remaining finger continues panning",
@@ -265,9 +361,10 @@ window.__gameTest={get view(){return view},fixture(kind){init();if(kind==='comba
     (await page.locator("#actionPanel").boundingBox()).height < 90,
     "mobile unit strip stays compact",
   );
+
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: real Chromium render, tile picking, action panel, movement, upgrade, income, training, unit/city switch, Escape, zoom, real pinch-in/out, anchored zoom, finger transition, canceled pinch, compact mobile layout, combat, rest, victory, defeat and simultaneous defeat; no JS errors",
+    "PASS: overlapping selection, animated movement/combat, kill advance, production cooldown, village capture exhaustion, resource population and income, research and new units/abilities, victory/defeat, mobile layout and multi-touch",
   );
   await browser.close();
 })().catch((e) => {

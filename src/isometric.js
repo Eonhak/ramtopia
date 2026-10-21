@@ -161,6 +161,13 @@ function house(c, x, y, city) {
   );
 }
 function warrior(c, x, y, u) {
+  if (u.type === "rider") {
+    block(c, x, y - 2, 13, 6, 8, "#bd9971", "#8c735a", "#6b5b4b");
+    for (const dx of [-9, 8])
+      block(c, x + dx, y + 4, 2, 2, 8, "#bfa27a", "#675a49", "#534d44");
+  }
+  if (u.type === "guard")
+    block(c, x - 8, y - 12, 8, 5, 13, "#d4e3de", "#87ada8", "#527f83");
   let color = u.team === 0 ? "#64d3b4" : "#f08e81";
   c.fillStyle = "#183c4b55";
   c.beginPath();
@@ -206,7 +213,12 @@ function warrior(c, x, y, u) {
   c.fillStyle = "#284958";
   c.fillRect(x - 11, y + 9, 22, 3);
   c.fillStyle = u.team === 0 ? "#acfac2" : "#ffa99c";
-  c.fillRect(x - 11, y + 9, (22 * u.hp) / 10, 3);
+  c.fillRect(
+    x - 11,
+    y + 9,
+    (22 * Math.max(0, u.hp)) / (u.type === "guard" ? 15 : 10),
+    3,
+  );
   if (!u.acted) {
     c.fillStyle = "#fff0ae";
     c.beginPath();
@@ -216,7 +228,17 @@ function warrior(c, x, y, u) {
 }
 export function renderMap(
   canvas,
-  { world, units, selected, zoom, pan, available, panelHeight = 0 },
+  {
+    world,
+    units,
+    selected,
+    zoom,
+    pan,
+    available,
+    panelHeight = 0,
+    animation = null,
+    effects = [],
+  },
 ) {
   let c = canvas.getContext("2d"),
     w = canvas.clientWidth,
@@ -355,12 +377,42 @@ export function renderMap(
       }
     }
     let u = t.seen && units.find((u) => u.x === t.x && u.y === t.y);
-    if (u) warrior(c, p.x, y - 3, u);
+    if (u && animation?.unit !== u) warrior(c, p.x, y - 3, u);
+    if (!fog && t.resource && !t.city) {
+      const colors = {
+        fruit: "#f3aa74",
+        game: "#dbb992",
+        fish: "#afe2e8",
+        ore: "#d7c2f0",
+      };
+      const rx = p.x + 15,
+        ry = y + 4;
+      poly(
+        c,
+        [
+          [rx, ry - 5],
+          [rx + 4, ry],
+          [rx, ry + 4],
+          [rx - 4, ry],
+        ],
+        t.developed ? "#e6d39e" : colors[t.resource],
+      );
+      if (t.developed) {
+        c.strokeStyle = "#a5cb8b";
+        c.lineWidth = 1.5;
+        c.beginPath();
+        c.moveTo(rx - 3, ry);
+        c.lineTo(rx, ry + 3);
+        c.lineTo(rx + 5, ry - 4);
+        c.stroke();
+      }
+    }
     hit.push({
       t,
       x: p.x,
       y,
       unit: !!u,
+      available: a,
       feature:
         !fog && !water
           ? t.city
@@ -373,18 +425,51 @@ export function renderMap(
           : 0,
     });
   }
+  if (animation && world[animation.unit.y]?.[animation.unit.x]?.seen) {
+    const p = animation.position;
+    warrior(c, p.x, p.y - 11, animation.unit);
+  }
+  for (const effect of effects) {
+    if (!world[effect.y]?.[effect.x]?.seen) continue;
+    const p = project(effect.x, effect.y),
+      k = effect.progress;
+    c.save();
+    c.globalAlpha = 1 - k;
+    c.fillStyle = effect.color || "#ffb3a3";
+    c.font = "bold 14px sans-serif";
+    c.textAlign = "center";
+    c.fillText(effect.text, p.x, p.y - 44 - k * 25);
+    c.strokeStyle = effect.color || "#ffd9ad";
+    c.lineWidth = 2;
+    c.beginPath();
+    c.arc(p.x, p.y - 6, 8 + k * 20, 0, Math.PI * 2);
+    c.stroke();
+    c.restore();
+  }
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   return { ...view, hit };
 }
 export function pickTile(view, x, y) {
   if (!view) return null;
-  let px = (x - view.ox) / view.scale,
+  const px = (x - view.ox) / view.scale,
     py = (y - view.oy) / view.scale;
-  for (let i = view.hit.length - 1; i >= 0; i--) {
-    let p = view.hit[i];
-    if (p.unit && Math.abs(px - p.x) < 14 && py > p.y - 43 && py < p.y + 8)
-      return p.t;
-    if (Math.abs(px - p.x) / 30 + Math.abs(py - p.y) / 15 <= 1) return p.t;
-  }
-  return null;
+  const ground = view.hit
+    .filter((p) => Math.abs(px - p.x) / 30 + Math.abs(py - p.y) / 15 <= 1)
+    .at(-1);
+  // Ground and actionable tiles win over a neighbouring unit's tall sprite hitbox.
+  if (ground && (ground.available || ground.unit)) return ground.t;
+  return (
+    view.hit
+      .filter(
+        (p) =>
+          p.unit && Math.abs(px - p.x) < 14 && py > p.y - 43 && py < p.y + 8,
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(px - a.x, py - a.y + 20) -
+          Math.hypot(px - b.x, py - b.y + 20),
+      )[0]?.t ||
+    ground?.t ||
+    null
+  );
 }
