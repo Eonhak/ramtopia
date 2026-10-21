@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index-CheIeT2h.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-J2dWjZ0y.css">
+    <script type="module" crossorigin src="./assets/index-fL-hV3zx.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CCwljfgz.css">
   </head>
   <body>
     <div id="app">
@@ -164,6 +164,7 @@
           <div class="turn-badge">
             <span id="phaseIcon">☀</span><b id="turnLabel">턴 01</b>
           </div>
+          <span id="turnClock" class="turn-clock">무한</span>
           <div class="turn-message">
             <b id="statusTitle">당신의 이야기가 시작됩니다</b>
             <p id="status">전사나 도시를 클릭해 가능한 행동을 확인하세요.</p>
@@ -173,6 +174,82 @@
       </main>
       <div id="logs" class="event-feed" aria-live="polite"></div>
     </div>
+    <dialog id="modeDialog" class="mode-dialog" aria-labelledby="modeTitle">
+      <span class="eyebrow">RAMTOPIA</span>
+      <h2 id="modeTitle">어떤 모험을 시작할까요?</h2>
+      <section class="mode-section">
+        <h3>싱글플레이</h3>
+        <p>AI 왕국과 혼자 플레이합니다.</p>
+        <label
+          >내 턴 제한 시간
+          <select id="singleTimer">
+            <option value="300">5분</option>
+            <option value="600">10분</option>
+            <option value="0" selected>무한</option>
+          </select></label
+        ><button id="singleMode" class="lobby-primary">나라 선택 →</button>
+      </section>
+      <section class="mode-section">
+        <h3>멀티플레이 · 2~4명</h3>
+        <p>방을 만들고 친구에게 초대 링크를 보내세요.</p>
+        <label
+          >방 이름
+          <input
+            id="newRoomTitle"
+            maxlength="40"
+            placeholder="함께하는 왕국" /></label
+        ><label
+          >플레이어별 턴 제한
+          <select id="newRoomTimer">
+            <option value="300">5분</option>
+            <option value="600">10분</option>
+            <option value="0">무한</option>
+          </select></label
+        ><button id="createRoom" class="lobby-primary">초대 방 만들기</button>
+        <form id="joinRoom">
+          <label
+            >초대 코드
+            <input
+              id="joinCode"
+              required
+              minlength="10"
+              maxlength="10"
+              placeholder="초대 코드 10자리"
+              autocomplete="off" /></label
+          ><button type="submit">방 참가</button>
+        </form>
+      </section>
+      <p id="lobbyMessage" class="lobby-message" role="status"></p>
+    </dialog>
+    <dialog id="roomDialog" class="room-dialog" aria-labelledby="roomTitle">
+      <span class="eyebrow">INVITE YOUR FRIENDS</span>
+      <h2 id="roomTitle">함께하는 왕국</h2>
+      <p><b id="roomCount"></b> · 코드 <strong id="roomCode"></strong></p>
+      <div class="invite-share">
+        <input id="inviteLink" readonly aria-label="초대 링크" /><button
+          id="copyInvite"
+        >
+          초대 링크 복사
+        </button>
+      </div>
+      <label
+        >플레이어별 턴 제한
+        <select id="roomTimer">
+          <option value="300">5분</option>
+          <option value="600">10분</option>
+          <option value="0">무한</option>
+        </select></label
+      >
+      <div id="roomPlayers"></div>
+      <p id="roomHelp"></p>
+      <div class="room-buttons">
+        <button id="readyRoom" class="lobby-primary">준비 완료</button
+        ><button id="startRoom" class="lobby-primary">게임 시작</button
+        ><button id="resumeRoom" hidden>게임으로 돌아가기</button>
+        <button id="leaveRoom">방 나가기</button>
+      </div>
+      <p id="roomMessage" class="lobby-message" role="status"></p>
+    </dialog>
     <dialog id="nationDialog" class="nation-dialog">
       <span class="eyebrow">CHOOSE YOUR CIVILIZATION</span>
       <h2>어느 나라의 역사를 시작할까요?</h2>
