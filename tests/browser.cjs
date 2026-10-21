@@ -43,7 +43,7 @@ const assert = require("node:assert/strict");
       body:
         (await response.text()) +
         `
-window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture(kind){init();
+window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNationChoice(),get view(){return view},fixture(kind){init();
  world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',seen:false,city:null,resource:null,developed:false,road:false})));
  homeCapital={x:3,y:7};enemyCapital={x:9,y:3};for(const [x,y,owner]of [[3,7,0],[9,3,1],[6,6,-1],[4,3,-1],[8,8,-1]])at(x,y).city={owner,name:'테스트 마을',level:1,population:0,isCapital:owner!==-1};units=[{x:3,y:7,team:0,hp:10,acted:false},{x:9,y:3,team:1,hp:10,acted:false}];researched=new Set();selected={x:3,y:7};
 
@@ -74,6 +74,9 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
     route.fulfill({
       json: { user: { id: 1, email: "game@example.com", nickname: "테스트" } },
     }),
+  );
+  await page.route("**/api/rooms/current", (route) =>
+    route.fulfill({ json: { room: null } }),
   );
   await page.goto(process.env.TEST_URL || "http://localhost:3000");
   await page.waitForFunction(() => window.__gameTest);
@@ -136,6 +139,8 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
       .click();
     await page.click("#closeResearch");
   }
+  await page.selectOption("#singleTimer", "300");
+  await page.click("#singleMode");
   assert.equal(await page.locator("#nationDialog").isVisible(), true);
   assert.equal(await page.locator(".nation-card").count(), 8);
   await page.keyboard.press("Escape");
@@ -644,6 +649,14 @@ window.__gameTest={choose:()=>openNationChoice(),get view(){return view},fixture
     "mobile unit strip stays compact",
   );
 
+  await fixture("base");
+  await page.evaluate(() => window.__gameTest.expireTurn());
+  await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
+  assert.equal(
+    (await snapshot()).gold,
+    11,
+    "single-player timeout ends the turn and pays city income",
+  );
   assert.deepEqual(errors, []);
   console.log(
     "PASS: eight unique nation art previews, sailing and ship upgrades, kill promotion, day/night assassins and fog, nation selection, movement/combat, research, victory/defeat and multi-touch",

@@ -1,3 +1,4 @@
+import { createRooms } from "./rooms.js";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -37,6 +38,7 @@ export function createApp({
     CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, nickname TEXT NOT NULL, salt TEXT NOT NULL, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);`);
+  const rooms = createRooms(db);
   const allowed = new Set(
     allowedOrigins
       .split(",")
@@ -177,6 +179,37 @@ export function createApp({
       if (req.method === "GET" && url.pathname === "/api/auth/me") {
         const user = current(req);
         return send(200, { user: user ? profile(user) : null });
+      }
+      if (
+        url.pathname === "/api/rooms" ||
+        url.pathname.startsWith("/api/rooms/")
+      ) {
+        const user = current(req);
+        if (!user) return send(401, { error: "로그인이 필요합니다." });
+        if (req.method === "GET") {
+          if (url.pathname === "/api/rooms/current")
+            return send(200, { room: rooms.current(user) });
+          const match = url.pathname.match(/^\/api\/rooms\/([A-Fa-f0-9]{10})$/);
+          if (match)
+            return send(200, {
+              room: rooms.get(user, match[1], url.searchParams.get("since")),
+            });
+        }
+        if (req.method === "POST") {
+          const data = await body(req);
+          if (limited("room-action:" + user.id, 180, 60000))
+            return send(429, { error: "잠시 후 다시 시도하세요." });
+          if (url.pathname === "/api/rooms")
+            return send(201, { room: rooms.create(user, data) });
+          if (url.pathname === "/api/rooms/join")
+            return send(200, { room: rooms.join(user, data) });
+          const match = url.pathname.match(
+            /^\/api\/rooms\/([A-Fa-f0-9]{10})\/action$/,
+          );
+          if (match)
+            return send(200, { room: rooms.action(user, match[1], data) });
+        }
+        return send(404, { error: "방 API가 없습니다." });
       }
       if (req.method !== "POST") return send(404, { error: "API가 없습니다." });
       const data = await body(req);

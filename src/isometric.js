@@ -225,6 +225,7 @@ export function renderMap(
     night = false,
     nation,
     enemyNation,
+    teamNations = null,
   },
 ) {
   let c = canvas.getContext("2d"),
@@ -245,11 +246,15 @@ export function renderMap(
   bg.addColorStop(1, night ? "#182a43" : "#436476");
   c.fillStyle = bg;
   c.fillRect(0, 0, w, h);
-  let scale = Math.max(0.2, Math.min((w - 50) / 720, (h - 130) / 360)) * zoom;
+  let scale =
+    Math.max(
+      0.2,
+      Math.min((w - 50) / (world.length * 60), (h - 130) / (world.length * 30)),
+    ) * zoom;
   let view = {
     scale,
     ox: w / 2 + pan.x,
-    oy: (h - panelHeight - 330 * scale) / 2 + 40 + pan.y,
+    oy: (h - panelHeight - (world.length - 1) * 30 * scale) / 2 + 40 + pan.y,
   };
   c.translate(view.ox, view.oy);
   c.scale(scale, scale);
@@ -332,7 +337,14 @@ export function renderMap(
       }
       if (t.type === "mountain") mountain(c, p.x, y);
       if (t.city)
-        drawCity(c, p.x, y, t.city, t.city.owner === 0 ? nation : enemyNation);
+        drawCity(
+          c,
+          p.x,
+          y,
+          t.city,
+          teamNations?.[t.city.owner] ||
+            (t.city.owner === 0 ? nation : enemyNation),
+        );
       if (t.type === "grass" && !t.city)
         poly(
           c,
@@ -379,7 +391,14 @@ export function renderMap(
     let u =
       (t.visible ?? t.seen) && units.find((u) => u.x === t.x && u.y === t.y);
     if (u && animation?.unit !== u)
-      drawUnit(c, p.x, y - 3, u, u.team === 0 ? nation : enemyNation, night);
+      drawUnit(
+        c,
+        p.x,
+        y - 3,
+        u,
+        teamNations?.[u.team] || (u.team === 0 ? nation : enemyNation),
+        night,
+      );
     hit.push({
       t,
       x: p.x,
@@ -435,13 +454,13 @@ export function renderMap(
             ? t.city.isCapital
               ? "★ 내 수도"
               : "⚑ 내 도시"
-            : owner === 1
+            : owner > 0
               ? t.city.isCapital
                 ? "⚔ 적 수도"
                 : "⚔ 적 도시"
               : "◇ 중립 마을";
       c.fillStyle =
-        owner === 0 ? "#123e43ed" : owner === 1 ? "#743a48ed" : "#f4e4bbf5";
+        owner === 0 ? "#123e43ed" : owner > 0 ? "#743a48ed" : "#f4e4bbf5";
       c.fillRect(p.x - 25, y + 15, 50, 12);
       c.fillStyle = owner === -1 ? "#5d503c" : "#ffffff";
       c.font = "bold 7px sans-serif";
@@ -460,7 +479,8 @@ export function renderMap(
       p.x,
       p.y - 11,
       animation.unit,
-      animation.unit.team === 0 ? nation : enemyNation,
+      teamNations?.[animation.unit.team] ||
+        (animation.unit.team === 0 ? nation : enemyNation),
       night,
     );
   }

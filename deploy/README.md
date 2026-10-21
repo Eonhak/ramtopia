@@ -64,7 +64,7 @@ Node 22.13 이상이 필요합니다. `npm ci && npm run build` 후 환경 변�
 
 저장소 Settings → Secrets and variables → Actions → Variables에 `VITE_API_BASE_URL=https://실제-API-서버-도메인`을 추가하고 웹 배포를 다시 실행합니다. 서버에는 `APP_ORIGIN=https://실제-API-서버-도메인`, `ALLOWED_ORIGINS=https://eonhak.github.io`를 설정합니다. 외부 사이트 쿠키를 차단하는 모바일 브라우저에서는 세션 유지가 안 될 수 있으므로, 게임과 API를 같은 HTTPS 주소에서 제공하는 구성을 권장합니다.
 
-현재 계정 시스템은 회원가입·로그인·로그아웃만 제공합니다. 게임 저장, 멀티플레이, 이메일 인증, 비밀번호 재설정은 아직 구현하지 않았습니다. 비밀번호는 scrypt 해시로 저장하고 세션 토큰은 DB에 SHA-256 해시만 저장합니다. 세션 쿠키는 HttpOnly이며 운영 HTTPS에서 Secure로 발급됩니다. 운영 서버의 DB 경로와 포트를 외부에 노출하지 않습니다.
+계정 시스템은 회원가입·로그인·로그아웃과 멀티 초대 방을 제공합니다. 멀티 게임은 같은 SQLite 볼륨에 저장하며 재접속할 수 있습니다. 싱글 게임 저장, 이메일 인증, 비밀번호 재설정은 아직 구현하지 않았습니다. 비밀번호는 scrypt 해시로 저장하고 세션 토큰은 DB에 SHA-256 해시만 저장합니다. 세션 쿠키는 HttpOnly이며 운영 HTTPS에서 Secure로 발급됩니다. 운영 서버의 DB 경로와 포트를 외부에 노출하지 않습니다.
 
 ## 현재 tiny-sword 서버에 별도 DuckDNS 주소로 추가하기
 

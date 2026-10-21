@@ -12,6 +12,7 @@ WORKDIR /app
 ENV NODE_ENV=production PORT=8080 DATABASE_PATH=/app/data/ramtopia.sqlite
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY src/rules.js src/world.js ./src/
 COPY package.json ./
 RUN mkdir -p /app/data && chown -R node:node /app
 USER node

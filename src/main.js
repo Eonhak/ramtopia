@@ -1,4 +1,5 @@
 import "./style.css";
+import { lobby } from "./lobby.js";
 import { requireAccount } from "./auth.js";
 import { NATIONS, generateWorld } from "./world.js";
 import { drawCity, drawUnit } from "./visuals.js";
@@ -45,6 +46,15 @@ for (const id of [
 ])
   $("productionUnits").append($(id));
 
+let gameMode = "single",
+  multiGame = null,
+  multiRoom = null,
+  mpSending = false,
+  singleTimeLimit = 0,
+  turnDeadline = null;
+let accountGameId = 0;
+let teamNations = null,
+  mpAnimation = 0;
 const N = 12;
 let world,
   units,
@@ -104,6 +114,7 @@ function init() {
   $("zoomLabel").textContent = "100%";
   gold = 10;
   turn = 1;
+  turnDeadline = singleTimeLimit ? Date.now() + singleTimeLimit * 1000 : null;
   const generated = generateWorld(N);
   world = generated.world;
   homeCapital = generated.home;
@@ -175,6 +186,24 @@ function update() {
     )
     .join("");
   $("endTurn").disabled = busy || animating || over;
+  if (multiGame) {
+    const active = multiGame.players[multiGame.activeSeat];
+    $("turnLabel").replaceChildren(
+      document.createTextNode(`라운드 ${turn} · ${active.nickname}의 차례`),
+    );
+    $("objectiveTitle").textContent = "다른 왕국의 수도를 점령하세요";
+    $("statusTitle").textContent = over
+      ? multiGame.winner === multiGame.selfSeat
+        ? "승리했습니다!"
+        : "왕국이 함락되었습니다."
+      : busy
+        ? `${active.nickname}의 차례입니다`
+        : "당신의 차례입니다";
+    $("status").textContent = over
+      ? "방 메뉴에서 나가 새 게임을 시작할 수 있습니다."
+      : "서버에서 차례와 행동을 동기화하고 있습니다.";
+  }
+  updateTurnClock();
   $("progress").style.width =
     (over &&
     ownCities().some((t) => t.x === enemyCapital.x && t.y === enemyCapital.y)
@@ -204,7 +233,7 @@ function update() {
   $("tileTitle").textContent = !t.seen
     ? "안개 너머의 땅"
     : showUnit
-      ? `${u.team === 0 ? selectedNation.name : enemyNation.name} ${stats(u).name}`
+      ? `${(u.team === 0 ? selectedNation : teamNations?.[u.team] || enemyNation).name} ${stats(u).name}`
       : city
         ? city.name
         : types[t.type];
@@ -226,7 +255,7 @@ function update() {
     : showUnit
       ? `체력 ${u.hp} / ${stats(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : u.moved ? "이동 완료 · 공격 가능" : "이동·공격 가능"}`
       : city
-        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner === 1 ? "적의 도시" : "중립 마을"} · 인구 ${city.population || 0}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
+        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner > 0 ? "적의 도시" : "중립 마을"} · 인구 ${city.population || 0}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
         : "왕국의 지도를 넓혀 보세요.";
   if (showUnit)
     $("tileDescription").textContent +=
@@ -236,7 +265,7 @@ function update() {
     (u ? (u.hp / stats(u).hp) * 100 : 0) + "%";
   $("actionPanel").classList.toggle(
     "enemy",
-    showUnit ? u.team === 1 : city?.owner === 1,
+    showUnit ? u.team > 0 : city?.owner > 0,
   );
   const ownUnit = showUnit && u.team === 0,
     ready = ownUnit && !u.acted && !busy && !animating && !over;
@@ -411,7 +440,8 @@ function available(t) {
     return null;
   const occupant = unitAt(t.x, t.y);
   if (
-    occupant?.team === 1 &&
+    occupant?.team > 0 &&
+    stats(selectedUnit).attack > 0 &&
     inSight(t) &&
     !selectedUnit.attacked &&
     distance(t, selectedUnit) <= stats(selectedUnit).range
@@ -448,6 +478,7 @@ function draw() {
       night: isNight(turn),
       nation: selectedNation,
       enemyNation,
+      teamNations,
       panelHeight:
         panelOpen && selectionKind !== "unit" && canvas.clientWidth < 541
           ? $("actionPanel").offsetHeight + 65
@@ -536,6 +567,8 @@ async function walk(u, path) {
   }
 }
 async function act(u, t) {
+  if (multiGame)
+    return sendMulti({ type: "act", unitId: u.id, x: t.x, y: t.y });
   if (animating || over || !units.includes(u) || u.acted || u.bornTurn === turn)
     return false;
   const enemy = unitAt(t.x, t.y);
@@ -707,9 +740,16 @@ canvas.addEventListener("pointerup", async (e) => {
     return;
   }
   if (available(t)) {
-    const actor = selectedUnit;
-    if (await act(actor, t)) {
-      selectTile(at(actor.x, actor.y));
+    const actor = selectedUnit,
+      session = accountGameId;
+    const succeeded = await act(actor, t);
+    if (session !== accountGameId) return;
+    if (succeeded) {
+      const currentActor = multiGame
+        ? units.find((u) => u.id === actor.id)
+        : actor;
+      if (currentActor) selectTile(at(currentActor.x, currentActor.y));
+      else cancelSelection();
       return;
     }
   }
@@ -751,6 +791,7 @@ function setZoom(value) {
   draw();
 }
 $("restUnit").onclick = () => {
+  if (multiGame) return sendMulti({ type: "rest", unitId: selectedUnit?.id });
   if ($("restUnit").disabled || !selectedUnit) return;
   selectedUnit.hp = Math.min(
     stats(selectedUnit).hp,
@@ -797,6 +838,13 @@ $("resetView").onclick = () => {
   setZoom(1);
 };
 function recruit(type) {
+  if (multiGame)
+    return sendMulti({
+      type: "recruit",
+      unitType: type,
+      x: selected.x,
+      y: selected.y,
+    });
   const t = at(selected.x, selected.y),
     spec = UNIT_TYPES[type];
   if (
@@ -827,6 +875,8 @@ $("recruitKnight").onclick = () => recruit("knight");
 $("recruitArcher").onclick = () => recruit("archer");
 $("recruitAssassin").onclick = () => recruit("assassin");
 $("promoteUnit").onclick = () => {
+  if (multiGame)
+    return sendMulti({ type: "promote", unitId: selectedUnit?.id });
   if (busy || animating || over || !selectedUnit || !promote(selectedUnit))
     return;
   addLog("3킬 진급 · 최대 체력 +5, 체력 완전 회복");
@@ -838,6 +888,8 @@ for (const [id, kind] of [
   ["upgradeWarship", "warship"],
 ])
   $(id).onclick = () => {
+    if (multiGame)
+      return sendMulti({ type: "vessel", unitId: selectedUnit?.id, kind });
     if (busy || animating || over || !selectedUnit) return;
     const spent = changeVessel(selectedUnit, kind, researched, gold);
     if (!spent) return;
@@ -848,6 +900,8 @@ for (const [id, kind] of [
     draw();
   };
 $("buildRoad").onclick = () => {
+  if (multiGame)
+    return sendMulti({ type: "road", x: selected.x, y: selected.y });
   const t = at(selected.x, selected.y);
   if (
     busy ||
@@ -881,6 +935,7 @@ function canDevelop(t) {
   );
 }
 function develop(t) {
+  if (multiGame) return sendMulti({ type: "develop", x: t.x, y: t.y });
   if (!canDevelop(t)) return;
   const r = RESOURCES[t.resource],
     city = cityForTile(world, t);
@@ -936,6 +991,7 @@ function renderResearch() {
         learned || locked || gold < price || busy || animating || over;
       button.innerHTML = `<span>${tech.icon}</span><div><b>${tech.name}</b><p>${tech.description}</p><small>${learned ? "연구 완료" : locked ? TECHNOLOGIES[tech.requires].name + " 선행 필요" : price + " ✦"}</small></div>`;
       button.onclick = () => {
+        if (multiGame) return sendMulti({ type: "research", tech: key });
         const price = researchCost(
           tech,
           ownCities().map((t) => t.city),
@@ -998,6 +1054,7 @@ function pathStep(u, goal) {
   return null;
 }
 $("endTurn").onclick = async () => {
+  if (multiGame) return sendMulti({ type: "endTurn" });
   if (busy || animating || over) return;
   busy = true;
   actionMode = null;
@@ -1021,6 +1078,7 @@ $("endTurn").onclick = async () => {
   }
   if (!over) {
     turn++;
+    turnDeadline = singleTimeLimit ? Date.now() + singleTimeLimit * 1000 : null;
     const earnings = ownCities().reduce(
       (a, t) => a + cityIncome(t.city, researched),
       0,
@@ -1108,7 +1166,7 @@ function openNationChoice() {
     );
   }
   $("nationDescription").textContent = pendingNation.description;
-  $("cancelNation").hidden = !world;
+  $("cancelNation").hidden = false;
   $("nationDialog").showModal();
 }
 $("startNation").onclick = () => {
@@ -1116,13 +1174,17 @@ $("startNation").onclick = () => {
   init();
   $("nationDialog").close();
 };
-$("cancelNation").onclick = () => $("nationDialog").close();
+$("cancelNation").onclick = () => {
+  $("nationDialog").close();
+  if (!world) lobby.showMode();
+};
 $("nationDialog").addEventListener("cancel", (e) => {
   if (!world) e.preventDefault();
 });
 $("newGame").onclick = () => {
+  if (multiGame) return lobby.returnToRoom();
   if (busy || animating) return;
-  if (confirm("새로운 나라와 지도로 시작할까요?")) openNationChoice();
+  if (confirm("새로운 나라와 지도로 시작할까요?")) lobby.showMode();
 };
 $("help").onclick = () => $("helpDialog").showModal();
 $("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
@@ -1130,21 +1192,201 @@ $("zoomIn").onclick = () => setZoom(zoom + 0.25);
 $("zoomOut").onclick = () => setZoom(zoom - 0.25);
 new ResizeObserver(draw).observe(canvas);
 $("app").inert = true;
+function updateTurnClock() {
+  const deadline = multiGame ? multiGame.deadline : turnDeadline;
+  const remaining =
+    deadline === null
+      ? null
+      : Math.max(
+          0,
+          Math.ceil((deadline - (multiGame ? lobby.now() : Date.now())) / 1000),
+        );
+  $("turnClock").textContent =
+    remaining === null
+      ? "무한"
+      : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
+  $("turnClock").classList.toggle(
+    "urgent",
+    remaining !== null && remaining <= 30,
+  );
+}
+setInterval(() => {
+  if (!world) return;
+  updateTurnClock();
+  if (
+    !multiGame &&
+    !$("modeDialog").open &&
+    !$("roomDialog").open &&
+    !$("nationDialog").open &&
+    turnDeadline &&
+    Date.now() >= turnDeadline &&
+    !busy &&
+    !animating &&
+    !over
+  )
+    $("endTurn").onclick();
+}, 500);
+async function sendMulti(command) {
+  if (!multiGame || busy || mpSending || over) return false;
+  mpSending = true;
+  busy = true;
+  update();
+  try {
+    await lobby.command(command);
+    return true;
+  } catch (error) {
+    toast(error.message);
+    return false;
+  } finally {
+    mpSending = false;
+    if (multiGame) {
+      busy =
+        multiGame.activeSeat !== multiGame.selfSeat || multiGame.eliminated;
+      actionMode = selectedUnit && !busy && !over ? "unit" : null;
+      update();
+      draw();
+      if ($("researchDialog").open) renderResearch();
+    }
+  }
+}
+async function loadMulti(game, room) {
+  if (multiRoom?.code === room.code && multiRoom.version >= room.version)
+    return;
+  const previous = units || [];
+  const epoch = ++mpAnimation;
+  animation = null;
+  effects = [];
+  animating = false;
+  const first = gameMode !== "multi" || multiRoom?.code !== room.code;
+  const selectedId = selectedUnit?.id;
+  gameMode = "multi";
+  multiGame = game;
+  multiRoom = room;
+  world = game.world;
+  units = game.units;
+  gold = game.gold;
+  researched = new Set(game.researched);
+  turn = game.round;
+  logs = game.logs.slice(0, 3);
+  selectedNation = NATIONS.find(
+    (n) => n.id === game.players[game.selfSeat].nation,
+  );
+  teamNations = Object.fromEntries(
+    game.players.map((p) => [p.team, NATIONS.find((n) => n.id === p.nation)]),
+  );
+  enemyNation = teamNations[1] || NATIONS[1];
+  homeCapital = game.homeCapital;
+  enemyCapital = { x: 0, y: 0 };
+  busy = mpSending || game.activeSeat !== game.selfSeat || game.eliminated;
+  over = game.finished || game.eliminated;
+  if (first) {
+    selected = { ...homeCapital };
+    panelOpen = false;
+    zoom = 1;
+    pan = { x: 0, y: 0 };
+    $("zoomLabel").textContent = "100%";
+  }
+  selectedUnit = units.find((u) => u.id === selectedId && u.team === 0) || null;
+  if (selectedUnit) selected = { x: selectedUnit.x, y: selectedUnit.y };
+  actionMode = selectedUnit && !busy && !over ? "unit" : null;
+  $("kingdomName").textContent = selectedNation.name;
+  update();
+  draw();
+  if ($("researchDialog").open) renderResearch();
+  if (!first) {
+    const moved = units.find((u) => {
+      const old = previous.find((v) => v.id === u.id);
+      return old && (old.x !== u.x || old.y !== u.y);
+    });
+    effects = units.flatMap((u) => {
+      const old = previous.find((v) => v.id === u.id);
+      return old && old.hp > u.hp
+        ? [{ x: u.x, y: u.y, text: "−" + (old.hp - u.hp), progress: 0 }]
+        : [];
+    });
+    if (moved || effects.length) {
+      const old = moved && previous.find((v) => v.id === moved.id),
+        from = old && project(old.x, old.y),
+        to = moved && project(moved.x, moved.y);
+      const visual = moved ? { unit: moved, position: from } : null;
+      animation = visual;
+      animating = true;
+      update();
+      await tween(260, (p) => {
+        if (epoch !== mpAnimation) return;
+        if (visual)
+          visual.position = {
+            x: from.x + (to.x - from.x) * p,
+            y: from.y + (to.y - from.y) * p - Math.sin(Math.PI * p) * 3,
+          };
+        effects.forEach((e) => (e.progress = p));
+      });
+      if (epoch === mpAnimation) {
+        animation = null;
+        effects = [];
+        animating = false;
+        update();
+        draw();
+      }
+    }
+  }
+}
 requireAccount({
-  async onAuthenticated() {
-    // Finish any in-flight local animation before starting another account's game.
-    while (busy || animating)
-      await new Promise((resolve) => setTimeout(resolve, 50));
+  async onAuthenticated(user) {
+    accountGameId++;
+    if (!multiGame)
+      while (busy || animating)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    lobby.stop();
     world = undefined;
+    multiGame = null;
+    multiRoom = null;
+    busy = false;
     selectedUnit = null;
     panelOpen = false;
     $("actionPanel").hidden = true;
     $("productionDock").hidden = true;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     $("app").inert = false;
-    openNationChoice();
+    await lobby.open(user, {
+      onSingle(limit) {
+        gameMode = "single";
+        multiGame = null;
+        teamNations = null;
+        singleTimeLimit = limit;
+        openNationChoice();
+      },
+      onGame: loadMulti,
+      onLeave() {
+        accountGameId++;
+        mpAnimation++;
+        animation = null;
+        effects = [];
+        animating = false;
+        multiGame = null;
+        multiRoom = null;
+        world = undefined;
+        busy = false;
+        panelOpen = false;
+        $("actionPanel").hidden = true;
+        $("productionDock").hidden = true;
+      },
+      onConnection(text) {
+        if (world) $("status").textContent = text;
+      },
+    });
   },
   onSignedOut() {
+    accountGameId++;
+    lobby.stop();
+    if (multiGame) {
+      mpAnimation++;
+      animation = null;
+      effects = [];
+      animating = false;
+      multiGame = null;
+      busy = false;
+    }
     $("app").inert = true;
     for (const id of ["nationDialog", "researchDialog", "helpDialog"])
       $(id).close();

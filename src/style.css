@@ -1621,3 +1621,164 @@ dialog p {
     padding: 6px;
   }
 }
+.mode-dialog,
+.room-dialog {
+  max-width: 570px;
+}
+.mode-section {
+  padding: 14px;
+  background: #edf1e3;
+  border-radius: 9px;
+  margin: 12px 0;
+}
+.mode-section h3 {
+  margin: 0 0 6px;
+}
+.mode-section p {
+  margin: 5px 0 12px;
+}
+.mode-dialog label,
+.room-dialog label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  margin: 10px 0;
+}
+.mode-dialog input,
+.mode-dialog select,
+.room-dialog input,
+.room-dialog select {
+  max-width: 65%;
+  min-width: 0;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #bac8b1;
+  border-radius: 6px;
+  color: #294c3f;
+}
+.mode-dialog button,
+.room-dialog button {
+  padding: 9px 12px;
+  border: 1px solid #adc19e;
+  border-radius: 7px;
+  background: #eef2e5;
+  color: #31513c;
+  cursor: pointer;
+}
+.mode-dialog .lobby-primary,
+.room-dialog .lobby-primary {
+  background: #416b4d;
+  color: #fff;
+}
+.mode-dialog button:disabled,
+.room-dialog button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#joinRoom {
+  border-top: 1px solid #ccd6bf;
+  margin-top: 14px;
+  padding-top: 6px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#joinRoom label {
+  flex: 1;
+}
+#joinCode {
+  text-transform: uppercase;
+}
+.invite-share {
+  display: flex;
+  gap: 7px;
+}
+.invite-share input {
+  flex: 1;
+  max-width: none;
+  font-size: 11px;
+}
+.invite-share button {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.room-player {
+  display: grid;
+  grid-template-columns: 1fr 130px 70px;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #d4dcc8;
+  font-size: 12px;
+}
+.room-player select {
+  max-width: 100%;
+  width: 100%;
+  font-size: 11px;
+}
+.room-player span {
+  font-size: 10px;
+  color: #7c826f;
+}
+.room-player .ready {
+  color: #3d7f3f;
+  font-weight: bold;
+}
+.room-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 15px;
+}
+.lobby-message {
+  font-size: 12px;
+  color: #916a3e;
+  min-height: 15px;
+}
+.turn-clock {
+  font-variant-numeric: tabular-nums;
+  color: #d7e9bf;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.turn-clock.urgent {
+  color: #ff9f7a;
+}
+@media (max-width: 540px) {
+  .mode-dialog,
+  .room-dialog {
+    padding: 20px;
+    max-height: 90dvh;
+  }
+  .room-player {
+    grid-template-columns: 1fr 100px 55px;
+    gap: 5px;
+    font-size: 11px;
+  }
+  .turn-clock {
+    font-size: 11px;
+    margin-left: auto;
+  }
+  .mode-section {
+    padding: 10px;
+  }
+  .invite-share {
+    flex-wrap: wrap;
+  }
+  .invite-share input {
+    flex-basis: 100%;
+  }
+  .turnbar {
+    gap: 8px;
+  }
+}
+
+#joinRoom button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#joinRoom label {
+  min-width: 0;
+}

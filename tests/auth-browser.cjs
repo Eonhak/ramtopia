@@ -22,7 +22,7 @@ const assert = require("node:assert/strict");
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
       const response = await route.fetch({
-        url: `http://127.0.0.1:${server.address().port}${url.pathname}`,
+        url: `http://127.0.0.1:${server.address().port}${url.pathname}${url.search}`,
       });
       await route.fulfill({ response });
     });
@@ -50,12 +50,13 @@ const assert = require("node:assert/strict");
     );
     assert.equal(await page.locator("#accountDialog").isVisible(), false);
     assert.equal(
-      await page.locator("#nationDialog").isVisible(),
+      await page.locator("#modeDialog").isVisible(),
       true,
-      "signup advances to nation selection",
+      "signup advances to mode selection",
     );
     assert.equal(await page.locator("#accountPassword").inputValue(), "");
     // Logout immediately after signup, before a reload resets the form mode.
+    await page.click("#singleMode");
     await page.click('[data-nation="rome"]');
     await page.click("#startNation");
     await page.click("#accountButton");
@@ -68,11 +69,12 @@ const assert = require("node:assert/strict");
     await page.fill("#accountEmail", "browser@example.com");
     await page.fill("#accountPassword", "browser-password-123");
     await page.click("#submitAccount");
-    await page.locator("#nationDialog").waitFor({ state: "visible" });
+    await page.locator("#modeDialog").waitFor({ state: "visible" });
     await page.reload();
     await page.waitForFunction(
       () => document.getElementById("accountButton").textContent === "테스트왕",
     );
+    await page.click("#singleMode");
     await page.click('[data-nation="rome"]');
     await page.click("#startNation");
     await page.click("#accountButton");
@@ -94,7 +96,7 @@ const assert = require("node:assert/strict");
       () => document.getElementById("accountButton").textContent === "테스트왕",
     );
     console.log(
-      "PASS: mandatory login before nation selection, signup, session restore, logout and failed login",
+      "PASS: mandatory login before game mode and nation selection, signup, session restore, logout and failed login",
     );
   } finally {
     if (browser) await browser.close();
