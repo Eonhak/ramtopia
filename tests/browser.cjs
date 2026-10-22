@@ -232,8 +232,8 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
     "all production icons stay in one horizontal row",
   );
   assert.equal(await page.locator("#zoomMax").count(), 0);
-  for (let i = 0; i < 12; i++) await page.click("#zoomIn");
-  assert.equal((await snapshot()).zoom, 4);
+  for (let i = 0; i < 24; i++) await page.click("#zoomIn");
+  assert.equal((await snapshot()).zoom, 6);
   for (let i = 0; i < 30; i++) await page.click("#zoomOut");
   assert.equal((await snapshot()).zoom, 0.25);
   await fixture("income");
