@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NATIONS } from "../src/world.js";
 import {
   createMatch,
+  upgradeMatch,
   applyCommand,
   expireTurn,
   matchView,
@@ -23,6 +24,10 @@ export function createRooms(db, clock = Date.now) {
       .get(String(code).toUpperCase());
     if (!row) fail("초대 코드를 확인하세요.", 404);
     const r = JSON.parse(row.state);
+    if (r.game && upgradeMatch(r.game)) {
+      r.version++;
+      save(r);
+    }
     if (r.phase === "playing" && expireTurn(r.game, clock())) {
       r.version++;
       if (r.game.finished) r.phase = "finished";

@@ -155,7 +155,7 @@ const assert = require("node:assert/strict");
         () => window.__multiView().multiGame.activeSeat === 1,
       );
     assert.equal(await pages[1].locator("#endTurn").isDisabled(), false);
-    assert.equal(await host.locator("#gold").textContent(), "11");
+    assert.equal(await host.locator("#gold").textContent(), "6");
     await host.click("#newGame");
     assert.equal(await host.locator("#roomDialog").isVisible(), true);
     await host.click("#resumeRoom");

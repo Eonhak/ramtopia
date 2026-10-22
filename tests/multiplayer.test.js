@@ -1,3 +1,4 @@
+import { assignTerritories } from "../src/rules.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
@@ -56,6 +57,8 @@ function fixture() {
     { id: 1, x: 3, y: 7, team: 0, hp: 10, type: "warrior", acted: false },
     { id: 2, x: 5, y: 7, team: 1, hp: 10, type: "warrior", acted: false },
   ];
+  for (const t of g.world.flat()) delete t.territory;
+  assignTerritories(g.world);
   g.nextUnit = 3;
   g.knowledge = g.players.map(() => Array(256).fill(null));
   return g;
@@ -73,7 +76,7 @@ test("four players get distinct capitals, fog and starting nation technology", (
     assert.equal(v.units.filter((u) => u.team === 0).length, 1);
     assert(v.world.flat().filter((t) => t.seen).length < 30);
     assert.equal(v.players[s].team, 0);
-    assert.equal(v.gold, 10);
+    assert.equal(v.gold, 3);
     assert(!Object.hasOwn(v.players[(s + 1) % 4], "gold"));
   }
 });
@@ -154,7 +157,7 @@ test("server timers, unlimited turns, income, rounds and resignations", () => {
   assert.equal(expireTurn(g, 300999), false);
   assert.equal(expireTurn(g, 301000), true);
   assert.equal(g.activeSeat, 1);
-  assert.equal(g.players[0].gold, 11);
+  assert.equal(g.players[0].gold, 6);
   assert.equal(g.deadline, 601000);
   for (let i = 0; i < 3; i++) advanceTurn(g, 400000 + i);
   assert.equal(g.activeSeat, 0);

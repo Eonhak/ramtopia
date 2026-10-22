@@ -26,7 +26,14 @@ import {
   RESOURCES,
   unitSpec,
   cityForTile,
-  addPopulation,
+  addCityExperience,
+  normalizeCity,
+  assignTerritories,
+  cityRewardOptions,
+  claimCityReward,
+  giantSpawnTile,
+  hasWallDefence,
+  battleDamage,
   growthRequired,
   movementPath,
 } from "./rules.js";
@@ -55,6 +62,7 @@ let gameMode = "single",
 let accountGameId = 0;
 let teamNations = null,
   mpAnimation = 0;
+$("productionDock").prepend($("cityGrowth"));
 const N = 12;
 let world,
   units,
@@ -99,7 +107,6 @@ const inSight = (t) => t.visible ?? t.seen;
 function init() {
   $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
   $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
-  $("objectiveText").textContent = "수도 점령 0 / 1";
   activePointers.clear();
   pointerStart = null;
   pinchStart = null;
@@ -112,7 +119,7 @@ function init() {
   pan = { x: 0, y: 0 };
   zoom = 1;
   $("zoomLabel").textContent = "100%";
-  gold = 10;
+  gold = 3;
   turn = 1;
   turnDeadline = singleTimeLimit ? Date.now() + singleTimeLimit * 1000 : null;
   const generated = generateWorld(N);
@@ -125,7 +132,6 @@ function init() {
   at(homeCapital.x, homeCapital.y).city.name = selectedNation.capital;
   at(enemyCapital.x, enemyCapital.y).city.name = enemyNation.capital;
   $("kingdomName").textContent = selectedNation.name;
-  $("objectiveTitle").textContent = enemyNation.name + "의 수도를 점령하세요";
   units = [
     { ...homeCapital, team: 0, hp: 10, acted: false },
     { ...enemyCapital, team: 1, hp: 10, acted: false },
@@ -163,6 +169,7 @@ function ownCities() {
   return world.flat().filter((t) => t.city?.owner === 0);
 }
 function update() {
+  for (const t of ownCities()) normalizeCity(t.city);
   document.body.classList.toggle("night", isNight(turn));
   $("phaseIcon").textContent = isNight(turn) ? "☾" : "☀";
   $("phaseBadge").textContent = isNight(turn)
@@ -191,7 +198,6 @@ function update() {
     $("turnLabel").replaceChildren(
       document.createTextNode(`라운드 ${turn} · ${active.nickname}의 차례`),
     );
-    $("objectiveTitle").textContent = "다른 왕국의 수도를 점령하세요";
     $("statusTitle").textContent = over
       ? multiGame.winner === multiGame.selfSeat
         ? "승리했습니다!"
@@ -204,11 +210,6 @@ function update() {
       : "서버에서 차례와 행동을 동기화하고 있습니다.";
   }
   updateTurnClock();
-  $("progress").style.width =
-    (over &&
-    ownCities().some((t) => t.x === enemyCapital.x && t.y === enemyCapital.y)
-      ? 100
-      : Math.min(85, cities.length * 15)) + "%";
   $("actionPanel").hidden = !panelOpen;
   $("productionDock").hidden = true;
   const t = at(selected.x, selected.y),
@@ -255,11 +256,11 @@ function update() {
     : showUnit
       ? `체력 ${u.hp} / ${stats(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : u.moved ? "이동 완료 · 공격 가능" : "이동·공격 가능"}`
       : city
-        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner > 0 ? "적의 도시" : "중립 마을"} · 인구 ${city.population || 0}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
+        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner > 0 ? "적의 도시" : "중립 마을"} · 인구 ${city.population} · 경험치 ${city.experience}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
         : "왕국의 지도를 넓혀 보세요.";
   if (showUnit)
     $("tileDescription").textContent +=
-      ` · ${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${healthDamage(stats(u).attack, u.hp, stats(u).hp)}`;
+      ` · ${hasWallDefence(world, u) ? "성곽 방어 +50% · " : ""}${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${healthDamage(stats(u).attack, u.hp, stats(u).hp)}`;
   $("healthBar").hidden = !showUnit;
   $("healthBar").firstElementChild.style.width =
     (u ? (u.hp / stats(u).hp) * 100 : 0) + "%";
@@ -377,19 +378,19 @@ function update() {
     (!!resource.tech && !researched.has(resource.tech));
   if (resource) {
     $("develop").innerHTML =
-      `<span>${resource.icon}</span><b>${resource.verb}</b><small>${resource.cost} ✦ · 인구 +${resource.population}</small>`;
+      `<span>${resource.icon}</span><b>${resource.verb}</b><small>${resource.cost} ✦ · 경험치 +${resource.experience}</small>`;
   }
   $("cityGrowth").hidden = !ownCity;
   if (ownCity) {
     $("cityGrowthText").textContent =
-      `인구 ${city.population || 0} / ${growthRequired(city)} · 다음 레벨 수입 +${cityIncome(city, researched) + 1} ✦`;
+      `${city.name} · 경험치 ${city.experience} / ${growthRequired(city)} · 인구 ${city.population} · 레벨 ${city.level}`;
     $("cityGrowthFill").style.width =
-      ((city.population || 0) / growthRequired(city)) * 100 + "%";
+      ((city.experience || 0) / growthRequired(city)) * 100 + "%";
   }
 
   if (!showUnit && !city && resource && t.seen)
     $("tileDescription").textContent =
-      `${resource.name} · ${t.developed ? "개발 완료" : `개발 ${resource.cost} ✦ / 인구 +${resource.population}`} · ${owner ? owner.city.name + " 영토" : "소유 도시 없음"}`;
+      `${resource.name} · ${t.developed ? "개발 완료" : `개발 ${resource.cost} ✦ / 경험치 +${resource.experience}`} · ${owner ? owner.city.name + ` · 경험치 ${owner.city.experience || 0}/${growthRequired(owner.city)}` : "소유 도시 없음"}`;
   $("actionHint").textContent = over
     ? "게임이 끝났습니다. 새 왕국을 시작해 보세요."
     : busy
@@ -405,7 +406,7 @@ function update() {
             : ownCity
               ? u
                 ? "훈련한 유닛은 다음 턴부터 행동합니다. 주변 자원을 개발해 도시를 성장시키세요."
-                : "주변 자원을 개발해 인구를 채우면 도시 레벨과 매 턴 수입이 증가합니다."
+                : "영역 안에서 자원을 수확해 경험치를 채우면 도시가 성장합니다."
               : city
                 ? "전사로 이 도시에 진입하면 점령할 수 있습니다."
                 : !t.seen
@@ -423,8 +424,62 @@ function update() {
         ? `${TECHNOLOGIES[resource.tech].name} 연구가 필요합니다.`
         : owner?.city.owner !== 0
           ? "내 도시 영토 안의 자원만 개발할 수 있습니다."
-          : "개발하면 소속 도시의 인구가 증가합니다.";
+          : "수확하면 도시 경험치가 쌓이고, 레벨업할 때 인구가 늘어납니다.";
+  showCityReward();
 }
+function showCityReward() {
+  const t =
+    world &&
+    !busy &&
+    !animating &&
+    !over &&
+    ownCities().find((t) => t.city.pendingRewards?.length);
+  const dialog = $("cityRewardDialog");
+  if (!t) {
+    dialog.close();
+    return;
+  }
+  $("cityRewardTitle").textContent =
+    `${t.city.name} · 레벨 ${t.city.pendingRewards[0]} 성장 보상`;
+  $("cityRewardInfo").textContent =
+    `인구 ${t.city.population} · 경험치 ${t.city.experience}/${growthRequired(t.city)} · 영역 확장 ${t.city.expansions}/2 · 성곽 ${t.city.walls ? "건설 완료" : "미건설"}`;
+  $("cityRewardChoices").replaceChildren();
+  for (const option of cityRewardOptions(t.city)) {
+    const button = document.createElement("button");
+    button.dataset.reward = option.key;
+    const title = document.createElement("b"),
+      description = document.createElement("small");
+    title.textContent = option.name;
+    description.textContent = option.description;
+    button.append(title, description);
+    button.disabled =
+      option.key === "giant" && !giantSpawnTile(world, t, units);
+    button.onclick = () => {
+      if (multiGame)
+        return sendMulti({
+          type: "cityReward",
+          x: t.x,
+          y: t.y,
+          choice: option.key,
+        });
+      try {
+        const result = claimCityReward(world, t, option.key, units, 0);
+        gold += result.gold;
+        if (result.unit) units.push({ ...result.unit, bornTurn: turn });
+        reveal();
+        update();
+        draw();
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+    $("cityRewardChoices").append(button);
+  }
+  if (!dialog.open) dialog.showModal();
+}
+$("cityRewardDialog").addEventListener("cancel", (event) =>
+  event.preventDefault(),
+);
 function available(t) {
   if (
     !selectedUnit ||
@@ -511,7 +566,6 @@ function finish(win) {
   $("status").textContent = win
     ? enemyNation.name + "의 수도를 정복했습니다. 당신의 왕국에 영광을!"
     : "새로운 왕국에서 다시 도전해 보세요.";
-  $("objectiveText").textContent = win ? "수도 점령 1 / 1" : "왕국 함락";
   addLog(
     win
       ? selectedNation.name + "이 상대 수도를 정복해 승리했습니다."
@@ -622,10 +676,22 @@ async function act(u, t) {
         }
       });
       animation = null;
-      const damage = healthDamage(stats(u).attack, u.hp, stats(u).hp),
+      const damage = battleDamage(
+          stats(u).attack,
+          u.hp,
+          stats(u).hp,
+          world,
+          enemy,
+        ),
         counter =
           distance(u, t) <= stats(enemy).range
-            ? healthDamage(stats(enemy).counter, enemy.hp, stats(enemy).hp)
+            ? battleDamage(
+                stats(enemy).counter,
+                enemy.hp,
+                stats(enemy).hp,
+                world,
+                u,
+              )
             : 0;
       enemy.hp -= damage;
       u.hp -= counter;
@@ -941,9 +1007,9 @@ function develop(t) {
     city = cityForTile(world, t);
   gold -= r.cost;
   t.developed = true;
-  const levels = addPopulation(city.city, r.population);
+  const levels = addCityExperience(city.city, r.experience);
   addLog(
-    `${r.name} 개발 · ${city.city.name} 인구 +${r.population}${levels ? " · 레벨 " + city.city.level + " 성장" : ""}`,
+    `${r.name} 개발 · ${city.city.name} 경험치 +${r.experience}${levels ? " · 레벨 " + city.city.level + " 성장" : ""}`,
   );
   if (levels) {
     toast(
@@ -1388,7 +1454,12 @@ requireAccount({
       busy = false;
     }
     $("app").inert = true;
-    for (const id of ["nationDialog", "researchDialog", "helpDialog"])
+    for (const id of [
+      "nationDialog",
+      "researchDialog",
+      "helpDialog",
+      "cityRewardDialog",
+    ])
       $(id).close();
   },
 });

@@ -1,3 +1,4 @@
+import { cityForTile } from "./rules.js";
 import { drawCity, drawUnit } from "./visuals.js";
 export const project = (x, y) => ({ x: (x - y) * 30, y: (x + y) * 15 });
 function poly(c, p, color) {
@@ -246,6 +247,16 @@ export function renderMap(
   bg.addColorStop(1, night ? "#182a43" : "#436476");
   c.fillStyle = bg;
   c.fillRect(0, 0, w, h);
+  const territoryCities = new Map(
+    world
+      .flat()
+      .filter((t) => t.city)
+      .map((t) => [`${t.x},${t.y}`, t]),
+  );
+  const territoryOwner = (t) =>
+    Object.hasOwn(t, "territory")
+      ? territoryCities.get(t.territory)
+      : cityForTile(world, t);
   let scale =
     Math.max(
       0.2,
@@ -365,6 +376,31 @@ export function renderMap(
       c.moveTo(p.x, y - 11);
       c.lineTo(p.x, y + 11);
       c.stroke();
+    }
+    if (t.seen) {
+      const owner = territoryOwner(t);
+      if (owner?.city.owner >= 0) {
+        const team = owner.city.owner,
+          color =
+            (teamNations?.[team] || (team === 0 ? nation : enemyNation))
+              ?.color || (team === 0 ? "#a6e9b2" : "#ed9292");
+        diamond(c, p.x, y, color + "20");
+        c.strokeStyle = color;
+        c.lineWidth = 1.8;
+        for (const [dx, dy, a, b] of [
+          [1, 0, [30, 0], [0, 15]],
+          [-1, 0, [-30, 0], [0, -15]],
+          [0, 1, [-30, 0], [0, 15]],
+          [0, -1, [0, -15], [30, 0]],
+        ]) {
+          const neighbour = world[t.y + dy]?.[t.x + dx];
+          if (neighbour?.seen && territoryOwner(neighbour) === owner) continue;
+          c.beginPath();
+          c.moveTo(p.x + a[0], y + a[1]);
+          c.lineTo(p.x + b[0], y + b[1]);
+          c.stroke();
+        }
+      }
     }
     let a = available(t),
       sel = selected && selected.x === t.x && selected.y === t.y;

@@ -132,6 +132,8 @@ export function drawCity(c, x, y, city, nation) {
     id = nation?.id;
   c.save();
   c.translate(x, y);
+  const growth = 1 + Math.min(4, Math.max(0, city.level - 1)) * 0.045;
+  c.scale(growth, growth);
   ellipse(c, 0, 5, 23, 9, "#183d4650");
   p(
     c,
@@ -342,9 +344,56 @@ export function drawCity(c, x, y, city, nation) {
     }
   }
   if (city.level >= 2) {
-    for (const dx of [-22, 22]) wall(c, dx, 9, 4, 5, t);
+    for (const dx of [-22, 22]) {
+      wall(c, dx, 9, 5, 7 + Math.min(city.level, 5), t);
+      roof(c, dx, 1 - city.level, 6, 6, t.roof);
+    }
   }
-  if (city.level >= 3) ellipse(c, 0, -51, 2.2, 2.2, "#f5dca0");
+  if (city.level >= 3) {
+    wall(c, -26, -7, 3, 18, t);
+    ellipse(c, -26, -26, 3, 2, t.trim);
+  }
+  if (city.level >= 4) {
+    wall(c, 20, -12, 5, 25, t);
+    roof(c, 20, -37, 7, 10, t.roof);
+  }
+  if (city.level >= 5) {
+    p(
+      c,
+      [
+        [-8, -48],
+        [-6, -58],
+        [0, -53],
+        [6, -58],
+        [8, -48],
+      ],
+      "#f4cf6e",
+    );
+    ellipse(c, 0, -60, 2.5, 2.5, "#fff1a6");
+  }
+  if (city.walls) {
+    line(
+      c,
+      [
+        [-29, 0],
+        [-29, 13],
+        [0, 27],
+        [29, 13],
+        [29, 0],
+      ],
+      t.stone,
+      5,
+    );
+    for (const [dx, dy] of [
+      [-29, 0],
+      [-29, 11],
+      [0, 25],
+      [29, 11],
+      [29, 0],
+    ]) {
+      wall(c, dx, dy, 3, 9, { ...t, stone: "#e4dcc3" });
+    }
+  }
   const flag = city.owner === 1 ? "#d8767d" : t.cloth;
   line(
     c,
@@ -532,7 +581,7 @@ export function drawVessel(c, x, y, u, nation, night) {
 export function drawUnit(c, x, y, u, nation, night) {
   c.save();
   c.translate(x, y);
-  c.scale(0.42, 0.42);
+  c.scale(u.type === "giant" ? 0.58 : 0.42, u.type === "giant" ? 0.58 : 0.42);
   drawFigure(c, 0, 0, u, nation, night);
   c.restore();
 }
@@ -547,6 +596,13 @@ function drawFigure(c, x, y, u, nation, night) {
   c.save();
   c.translate(x, y);
   ellipse(c, 0, 4, 12, 4, "#112f4260");
+  if (u.type === "giant") {
+    ellipse(c, 0, -20, 17, 22, "#efcf6c55");
+    c.fillStyle = "#ffd871";
+    c.font = "bold 14px serif";
+    c.textAlign = "center";
+    c.fillText("★", 0, -40);
+  }
   if (u.type === "catapult") {
     p(
       c,

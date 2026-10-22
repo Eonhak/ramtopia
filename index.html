@@ -19,11 +19,11 @@
         </div>
         <div class="resources">
           <div>
-            <span class="star">✦</span><strong id="gold">10</strong
+            <span class="star">✦</span><strong id="gold">3</strong
             ><small>별</small>
           </div>
           <div>
-            <span>↗</span><strong id="income">+1</strong><small>턴 수입</small>
+            <span>↗</span><strong id="income">+3</strong><small>턴 수입</small>
           </div>
         </div>
         <button
@@ -56,14 +56,6 @@
             ><span>전사 <strong id="army">1</strong></span
             ><span>발견 <strong id="land">0</strong></span>
           </div>
-          <div class="objective">
-            <span>⚑</span>
-            <div>
-              <b id="objectiveTitle">상대의 수도를 점령하세요</b
-              ><small id="objectiveText">수도 점령 0 / 1</small>
-              <div class="progress"><i id="progress"></i></div>
-            </div>
-          </div>
           <section
             id="actionPanel"
             class="action-panel"
@@ -89,7 +81,7 @@
             <div id="cityGrowth" class="city-growth" hidden>
               <span id="cityGrowthText"></span>
               <div><i id="cityGrowthFill"></i></div>
-              <small>주변 자원을 개발하면 인구가 증가합니다.</small>
+              <small>영역 안의 자원을 수확하면 도시 경험치가 쌓입니다.</small>
             </div>
 
             <div class="actions">
@@ -97,15 +89,15 @@
                 <span>★</span><b>정예 진급</b
                 ><small>3킬 · 최대체력 +5 · 완전 회복</small></button
               ><button id="upgradeScout">
-                <span>⚑</span><b>정찰선 개조</b><small>5 ✦</small></button
+                <span>⚑</span><b>정찰선 개조</b><small>3 ✦</small></button
               ><button id="upgradeWarship">
                 <span>⚓</span><b>전투함 개조</b
-                ><small>10 ✦ · 해전술</small></button
+                ><small>5 ✦ · 해전술</small></button
               ><button id="restUnit" title="행동을 사용해 체력 3 회복">
                 <span>✚</span><b>휴식</b><small>체력 +3</small>
               </button>
               <button id="recruit">
-                <span>⚔</span><b>전사 훈련</b><small>5 ✦</small>
+                <span>⚔</span><b>보병 훈련</b><small>2 ✦</small>
               </button>
               <button id="recruitAssassin">
                 <span>☾</span><b>암살자 훈련</b
@@ -128,7 +120,7 @@
                 <span>⛨</span><b>방패병 훈련</b><small>8 ✦ · 체력 15</small>
               </button>
               <button id="develop">
-                <span>●</span><b>자원 개발</b><small>인구 증가</small>
+                <span>●</span><b>자원 개발</b><small>도시 경험치 증가</small>
               </button>
               <button id="inspectCity">
                 <span>⚑</span><b>도시 관리</b><small>도시 행동 보기</small>
@@ -172,6 +164,16 @@
       </main>
       <div id="logs" class="event-feed" aria-live="polite"></div>
     </div>
+    <dialog
+      id="cityRewardDialog"
+      class="city-reward-dialog"
+      aria-labelledby="cityRewardTitle"
+    >
+      <span class="eyebrow">CITY LEVEL UP</span>
+      <h2 id="cityRewardTitle">도시 성장 보상</h2>
+      <p id="cityRewardInfo"></p>
+      <div id="cityRewardChoices"></div>
+    </dialog>
     <dialog id="modeDialog" class="mode-dialog" aria-labelledby="modeTitle">
       <span class="eyebrow">RAMTOPIA</span>
       <h2 id="modeTitle">어떤 모험을 시작할까요?</h2>
@@ -284,14 +286,20 @@
       </p>
       <p>
         도시 바닥을 누르면 하단에 병종 아이콘이 한 줄로 표시됩니다. 자원 수확은
-        아이콘 위의 자원 버튼을 사용하세요. 빈 도시에서 별 5개로 전사를 훈련할
+        지도에서 자원 타일을 직접 선택하세요. 빈 도시에서 별 2개로 보병을 훈련할
         수 있습니다. 생산된 유닛은 다음 턴부터 행동합니다.
       </p>
       <p>
         도시 주변에 무작위로 배치되는 열매·동물·목재·곡물·물고기·광석을 해당
-        기술 연구 후 별로 수확해 인구를 채우면 도시가 성장하고 턴 수입이
+        기술 연구 후 별로 수확해 경험치를 채우면 도시가 성장하고 턴 수입이
         증가합니다. 상단의 연구에서 궁수·기병·방패병, 자원 개발 기술과 새 능력을
         해금하세요.
+      </p>
+      <p>
+        도시는 중심을 포함한 3×3 영역으로 시작합니다. 경험치가 차면 레벨과
+        인구가 증가하고 도시 외형이 커집니다. 성장 보상으로 별 +5, 성곽(방어
+        +50%, 1회), 영역 확장(최대 2회)을 고릅니다. 레벨 5부터는 왕국 거인도
+        선택할 수 있습니다.
       </p>
       <p>
         중립·적 마을을 점령하면 해당 유닛의 행동이 종료됩니다. 적을 처치하면
@@ -314,8 +322,8 @@
         암살자는 낮 이동1·공격1, 밤 이동3·공격10입니다.
       </p>
       <p>
-        항해 후 바다에 들어가면 공격 불가 수송선에 승선합니다. 5별로 정찰선,
-        해전술 후 10별로 전투함 개조가 가능합니다. 상륙하면 배는 해제됩니다. 3킬
+        항해 후 바다에 들어가면 공격 불가 수송선에 승선합니다. 3별로 정찰선,
+        해전술 후 5별로 전투함 개조가 가능합니다. 상륙하면 배는 해제됩니다. 3킬
         유닛은 한 번 무료 진급해 최대 체력 +5와 완전 회복을 얻습니다.
       </p>
       <button id="startPlay">모험 시작하기 →</button>

@@ -11,7 +11,11 @@ import {
   canEnter,
   canRecruit,
   cityForTile,
-  addPopulation,
+  addCityExperience,
+  assignTerritories,
+  normalizeCity,
+  claimCityReward,
+  battleDamage,
   cityIncome,
   researchCost,
   seedResources,
@@ -40,10 +44,11 @@ export function createMatch(members, timeLimit, now = Date.now()) {
     settlements = world.flat().filter((t) => t.city);
   const g = {
     world,
+    rulesVersion: 3,
     players: members.map((p, seat) => ({
       ...p,
       seat,
-      gold: 10,
+      gold: 3,
       researched: [nation(p.nation).tech],
       eliminated: false,
     })),
@@ -192,6 +197,17 @@ export function applyCommand(g, s, c, now = Date.now()) {
     p.gold -= price;
     p.researched.push(c.tech);
     log(g, `${nation(p.nation).name}: ${t.name} 연구`);
+  } else if (c.type === "cityReward") {
+    if (!target || target.city?.owner !== s) fail("내 도시를 선택하세요.", 403);
+    let reward;
+    try {
+      reward = claimCityReward(g.world, target, c.choice, g.units, s);
+    } catch (error) {
+      fail(error.message);
+    }
+    p.gold += reward.gold;
+    if (reward.unit)
+      g.units.push({ ...reward.unit, id: g.nextUnit++, bornTurn: g.round });
   } else if (c.type === "recruit") {
     if (
       !target ||
@@ -243,7 +259,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
         fail("수확 조건이 맞지 않습니다.");
       p.gold -= r.cost;
       target.developed = true;
-      addPopulation(cityForTile(g.world, target).city, r.population);
+      addCityExperience(cityForTile(g.world, target).city, r.experience);
     }
   } else {
     const u = g.units.find((u) => u.id === c.unitId && u.team === s);
@@ -274,13 +290,21 @@ export function applyCommand(g, s, c, now = Date.now()) {
             gridDistance(u, target) > stats(g, u).range
           )
             fail("공격할 수 없습니다.");
-          const damage = healthDamage(stats(g, u).attack, u.hp, stats(g, u).hp),
+          const damage = battleDamage(
+              stats(g, u).attack,
+              u.hp,
+              stats(g, u).hp,
+              g.world,
+              enemy,
+            ),
             counter =
               gridDistance(u, target) <= stats(g, enemy).range
-                ? healthDamage(
+                ? battleDamage(
                     stats(g, enemy).counter,
                     enemy.hp,
                     stats(g, enemy).hp,
+                    g.world,
+                    u,
                   )
                 : 0;
           enemy.hp -= damage;
@@ -376,4 +400,18 @@ export function matchView(g, s) {
       eliminated: p.eliminated,
     })),
   };
+}
+
+export function upgradeMatch(g) {
+  if (g.rulesVersion === 3) return false;
+  for (const t of g.world.flat()) if (t.city) normalizeCity(t.city);
+  assignTerritories(g.world);
+  for (const knowledge of g.knowledge)
+    for (const t of knowledge)
+      if (t) {
+        if (t.city) normalizeCity(t.city);
+        t.territory = g.world[t.y][t.x].territory;
+      }
+  g.rulesVersion = 3;
+  return true;
 }

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  addPopulation,
+  addCityExperience,
   growthRequired,
   cityForTile,
   movementPath,
@@ -31,14 +31,20 @@ test("overlapping unit sprites cannot steal actionable ground or another unit ba
   view.hit[0].available = "attack";
   assert.equal(pickTile(view, 0, 0), target);
 });
-test("population grows cities at thresholds and retains overflow", () => {
-  const c = { level: 1, population: 0 };
-  assert.equal(addPopulation(c, 1), 0);
-  assert.equal(addPopulation(c, 1), 1);
-  assert.deepEqual(c, { level: 2, population: 0 });
+test("harvest grants XP; population increases only on city level-up", () => {
+  const c = { level: 1, population: 1, experience: 0 };
+  assert.equal(addCityExperience(c, 1), 0);
+  assert.equal(c.population, 1);
+  assert.equal(c.experience, 1);
+  assert.equal(addCityExperience(c, 1), 1);
+  assert.equal(c.population, 2);
+  assert.equal(c.experience, 0);
+  assert.deepEqual(c.pendingRewards, [2]);
   assert.equal(growthRequired(c), 3);
-  assert.equal(addPopulation(c, 4), 1);
-  assert.deepEqual(c, { level: 3, population: 1 });
+  assert.equal(addCityExperience(c, 4), 1);
+  assert.equal(c.population, 3);
+  assert.equal(c.experience, 1);
+  assert.deepEqual(c.pendingRewards, [2, 3]);
 });
 test("resource ownership follows nearest city and cannot borrow enemy territory", () => {
   const w = grid();
@@ -138,7 +144,7 @@ test("unit production needs both city level and research, plus stars and a vacan
   assert(!canRecruit(city, "knight", new Set(), 100));
   assert(!canRecruit(city, "rider", techs, 1));
   assert(!canRecruit(city, "rider", techs, 100, true));
-  assert.equal(cityIncome(city, new Set(["trade"])), 5);
+  assert.equal(cityIncome(city, new Set(["trade"])), 7);
 });
 test("all technology chains are three tiers with valid ordered prerequisites", () => {
   for (const branch of TECH_BRANCHES) {
@@ -252,11 +258,11 @@ test("transport ships cannot attack, upgrades cost stars and require research", 
   assert.equal(combatStats(u).counter, 0);
   assert.equal(combatStats(u).range, 0);
   assert.equal(changeVessel(u, "scout", new Set(), 100), false);
-  assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 4), false);
-  assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 5), 5);
+  assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 2), false);
+  assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 3), 3);
   assert.equal(combatStats(u).attack, 3);
   assert.equal(changeVessel(u, "warship", new Set(["navigation"]), 100), false);
-  assert.equal(changeVessel(u, "warship", new Set(["navalwarfare"]), 10), 10);
+  assert.equal(changeVessel(u, "warship", new Set(["navalwarfare"]), 5), 5);
   assert.equal(combatStats(u).attack, 7);
   assert.equal(changeVessel(u, "scout", new Set(["navigation"]), 100), false);
 });
@@ -307,7 +313,7 @@ test("remaining health scales attack and counter damage", () => {
   assert.equal(healthDamage(6, 0, 10), 0);
 });
 
-test("city income is one star per level before trade bonuses", () => {
+test("city income starts at three stars and gains one per city level", () => {
   for (const level of [1, 2, 3, 7])
-    assert.equal(cityIncome({ level }, new Set()), level);
+    assert.equal(cityIncome({ level }, new Set()), level + 2);
 });

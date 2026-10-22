@@ -128,6 +128,11 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
     assert(t, "resource exists: " + name);
     await clickTile(t.x, t.y, false);
     await page.click("#develop");
+    while (await page.locator("#cityRewardDialog").isVisible()) {
+      const expand = page.locator('[data-reward="expand"]');
+      if (await expand.count()) await expand.click();
+      else await page.locator('[data-reward="stars"]').click();
+    }
     await clickTile(3, 7, false);
   }
   async function research(name) {
@@ -220,10 +225,10 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   for (let i = 0; i < 30; i++) await page.click("#zoomOut");
   assert.equal((await snapshot()).zoom, 0.25);
   await fixture("income");
-  assert.equal(await page.locator("#income").innerText(), "+5");
+  assert.equal(await page.locator("#income").innerText(), "+9");
   await page.click("#endTurn");
   await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
-  assert.equal((await snapshot()).gold, 15);
+  assert.equal((await snapshot()).gold, 19);
   await fixture("wounded");
   await clickTile(3, 7);
   await clickTile(4, 7);
@@ -258,17 +263,17 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   await harvest("열매 수확");
   assert.match(
     await page.locator("#cityGrowthText").innerText(),
-    /인구 1 \/ 2/,
+    /경험치 1 \/ 2/,
   );
   await harvest("열매 수확");
   let state = await snapshot();
   assert.equal(state.cities.find((c) => c.owner === 0).level, 2);
-  assert.equal(state.cities.find((c) => c.owner === 0).population, 0);
+  assert.equal(state.cities.find((c) => c.owner === 0).population, 2);
   assert.equal(state.gold, 96);
-  assert.equal(await page.locator("#income").innerText(), "+2");
+  assert.equal(await page.locator("#income").innerText(), "+4");
   await page.click("#recruit");
   state = await snapshot();
-  assert.equal(state.gold, 91);
+  assert.equal(state.gold, 94);
   assert.equal(state.units[1].acted, true);
   assert.equal(state.units[1].bornTurn, 1);
   assert.deepEqual(state.targets, []);
@@ -280,7 +285,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
       !window.__gameTest.snapshot.animating,
   );
   state = await snapshot();
-  assert.equal(state.gold, 93);
+  assert.equal(state.gold, 98);
   assert.equal(state.units[1].acted, false);
   assert(state.targets.length > 0);
   // Research spends stars once, enforces prerequisites, and enables real units/abilities.
@@ -496,10 +501,10 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   assert.equal(state.stats[0].attack, 0);
   await page.click("#upgradeScout");
   assert.equal((await snapshot()).units[0].boat, "scout");
-  assert.equal((await snapshot()).gold, 95);
+  assert.equal((await snapshot()).gold, 97);
   await page.click("#upgradeWarship");
   assert.equal((await snapshot()).units[0].boat, "warship");
-  assert.equal((await snapshot()).gold, 85);
+  assert.equal((await snapshot()).gold, 92);
   assert.equal((await snapshot()).stats[0].attack, 7);
   await fixture("thirdkill");
   await clickTile(3, 7);
@@ -654,7 +659,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
   assert.equal(
     (await snapshot()).gold,
-    11,
+    6,
     "single-player timeout ends the turn and pays city income",
   );
   assert.deepEqual(errors, []);

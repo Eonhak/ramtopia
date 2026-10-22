@@ -1782,3 +1782,62 @@ dialog p {
 #joinRoom label {
   min-width: 0;
 }
+.production-dock .city-growth {
+  pointer-events: auto;
+  align-self: stretch;
+  background: #183c49e8;
+  border: 1px solid #c1dca638;
+  padding: 7px 10px;
+  margin: 0;
+  border-radius: 7px;
+  max-width: 100%;
+}
+.production-dock .city-growth small {
+  display: none;
+}
+.production-dock .city-growth > span {
+  color: #ebf2dc;
+  font-size: 10px;
+}
+.production-dock .city-growth > div {
+  margin: 5px 0 0;
+  height: 4px;
+}
+.city-reward-dialog {
+  max-width: 440px;
+}
+#cityRewardChoices {
+  display: grid;
+  gap: 9px;
+  margin-top: 18px;
+}
+#cityRewardChoices button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #b0c49b;
+  border-radius: 8px;
+  background: #edf3e1;
+  color: #2b503b;
+  cursor: pointer;
+}
+#cityRewardChoices button:hover {
+  background: #dcebc9;
+}
+#cityRewardChoices button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#cityRewardChoices small {
+  font-size: 11px;
+  color: #627b58;
+}
+
+.production-dock .city-growth > div {
+  background: #42616a;
+}
+.production-dock .city-growth i {
+  background: #b9df8c;
+}

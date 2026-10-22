@@ -1,3 +1,4 @@
+import { assignTerritories } from "./rules.js";
 export const NATIONS = [
   {
     id: "rome",
@@ -129,7 +130,11 @@ export function generateWorld(size = 12, random = Math.random) {
             ? "적의 수도"
             : ["이끼 마을", "바람 마을", "햇살 마을"][i - 2],
       level: 1,
-      population: 0,
+      population: 1,
+      experience: 0,
+      expansions: 0,
+      walls: false,
+      pendingRewards: [],
       isCapital: i < 2,
     };
     const near = world
@@ -170,6 +175,7 @@ export function generateWorld(size = 12, random = Math.random) {
       }
     }
   }
+  assignTerritories(world);
   return {
     world,
     home: { x: home.x, y: home.y },

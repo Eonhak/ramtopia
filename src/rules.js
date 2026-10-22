@@ -11,10 +11,22 @@ export const NEIGHBORS = [
 export const gridDistance = (a, b) =>
   Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 export const UNIT_TYPES = {
+  giant: {
+    name: "왕국 거인",
+    icon: "★",
+    cost: 0,
+    hp: 30,
+    attack: 12,
+    counter: 6,
+    moves: 1,
+    level: 5,
+    range: 1,
+    rewardOnly: true,
+  },
   assassin: {
     name: "암살자",
     icon: "☾",
-    cost: 10,
+    cost: 4,
     hp: 10,
     attack: 1,
     counter: 1,
@@ -26,7 +38,7 @@ export const UNIT_TYPES = {
   archer: {
     name: "궁수",
     icon: "➶",
-    cost: 7,
+    cost: 3,
     hp: 8,
     attack: 5,
     counter: 2,
@@ -36,9 +48,9 @@ export const UNIT_TYPES = {
     tech: "archery",
   },
   warrior: {
-    name: "전사",
+    name: "보병",
     icon: "⚔",
-    cost: 5,
+    cost: 2,
     hp: 10,
     attack: 6,
     counter: 3,
@@ -49,7 +61,7 @@ export const UNIT_TYPES = {
   rider: {
     name: "기병",
     icon: "♞",
-    cost: 9,
+    cost: 3,
     hp: 10,
     attack: 7,
     counter: 3,
@@ -61,7 +73,7 @@ export const UNIT_TYPES = {
   guard: {
     name: "방패병",
     icon: "⛨",
-    cost: 8,
+    cost: 3,
     hp: 15,
     attack: 5,
     counter: 4,
@@ -73,7 +85,7 @@ export const UNIT_TYPES = {
   catapult: {
     name: "투석기",
     icon: "◉",
-    cost: 12,
+    cost: 5,
     hp: 8,
     attack: 9,
     counter: 1,
@@ -85,7 +97,7 @@ export const UNIT_TYPES = {
   knight: {
     name: "기사",
     icon: "♘",
-    cost: 14,
+    cost: 6,
     hp: 15,
     attack: 10,
     counter: 4,
@@ -287,7 +299,7 @@ export const RESOURCES = {
     verb: "열매 수확",
     icon: "●",
     cost: 2,
-    population: 1,
+    experience: 1,
     tech: "gathering",
   },
   game: {
@@ -295,7 +307,7 @@ export const RESOURCES = {
     verb: "동물 사냥",
     icon: "♠",
     cost: 3,
-    population: 2,
+    experience: 2,
     tech: "hunting",
   },
   wood: {
@@ -303,7 +315,7 @@ export const RESOURCES = {
     verb: "목재 수확",
     icon: "♣",
     cost: 4,
-    population: 2,
+    experience: 2,
     tech: "lumber",
   },
   grain: {
@@ -311,7 +323,7 @@ export const RESOURCES = {
     verb: "곡물 수확",
     icon: "♧",
     cost: 3,
-    population: 2,
+    experience: 2,
     tech: "farming",
   },
   fish: {
@@ -319,7 +331,7 @@ export const RESOURCES = {
     verb: "어장 개발",
     icon: "≈",
     cost: 3,
-    population: 2,
+    experience: 2,
     tech: "fishing",
   },
   ore: {
@@ -327,7 +339,7 @@ export const RESOURCES = {
     verb: "광산 개발",
     icon: "◆",
     cost: 5,
-    population: 3,
+    experience: 3,
     tech: "smelting",
   },
 };
@@ -335,11 +347,12 @@ export const unitSpec = (u) => UNIT_TYPES[u.type || "warrior"];
 export const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 export const growthRequired = (city) => city.level + 1;
 export const cityIncome = (city, techs) =>
-  city.level + (techs.has("trade") ? 2 : 0);
+  city.level + 2 + (techs.has("trade") ? 2 : 0);
 export function canRecruit(city, type, techs, gold, occupied = false) {
   const s = UNIT_TYPES[type];
   return (
     !!city &&
+    !s.rewardOnly &&
     city.owner === 0 &&
     !occupied &&
     city.level >= s.level &&
@@ -354,30 +367,148 @@ export function canEnter(t, u, techs = new Set()) {
     (t.type !== "mountain" || techs.has("climbing"))
   );
 }
+export const territoryRadius = (city) => 1 + Math.min(2, city.expansions || 0);
+export function normalizeCity(city) {
+  if (city.experience === undefined) {
+    city.experience = city.population || 0;
+    city.population = city.level;
+  }
+  city.population = Math.max(city.level, city.population || 1);
+  city.expansions = Math.min(2, city.expansions || 0);
+  city.walls = !!city.walls;
+  city.pendingRewards ||= [];
+  return city;
+}
+export const cityKey = (t) => `${t.x},${t.y}`;
+export function assignTerritories(world) {
+  const cities = world.flat().filter((t) => t.city),
+    keys = new Set(cities.map(cityKey));
+  for (const t of world.flat()) if (!keys.has(t.territory)) t.territory = null;
+  for (const t of cities) {
+    normalizeCity(t.city);
+    t.territory = cityKey(t);
+  }
+  // Existing territory never changes hands merely because a neighbouring city expands.
+  for (let distance = 1; distance <= 3; distance++)
+    for (const c of cities)
+      if (territoryRadius(c.city) >= distance)
+        for (const t of world.flat())
+          if (t.territory === null && gridDistance(t, c) === distance)
+            t.territory = cityKey(c);
+}
 export function cityForTile(world, t) {
+  if (Object.hasOwn(t, "territory"))
+    return (
+      world.flat().find((c) => c.city && cityKey(c) === t.territory) || null
+    );
   return (
     world
       .flat()
-      .filter(
-        (c) =>
-          c.city &&
-          Math.max(Math.abs(c.x - t.x), Math.abs(c.y - t.y)) <=
-            Math.min(3, c.city.level),
-      )
+      .filter((c) => c.city && gridDistance(c, t) <= territoryRadius(c.city))
       .sort(
         (a, b) => manhattan(a, t) - manhattan(b, t) || a.y - b.y || a.x - b.x,
       )[0] || null
   );
 }
-export function addPopulation(city, amount) {
-  city.population = (city.population || 0) + amount;
+export function addCityExperience(city, amount) {
+  normalizeCity(city);
+  city.experience += amount;
   let levels = 0;
-  while (city.population >= growthRequired(city)) {
-    city.population -= growthRequired(city);
+  while (city.experience >= growthRequired(city)) {
+    city.experience -= growthRequired(city);
     city.level++;
+    city.population++;
+    city.pendingRewards.push(city.level);
     levels++;
   }
   return levels;
+}
+export function cityRewardOptions(city) {
+  normalizeCity(city);
+  if (!city.pendingRewards.length) return [];
+  return [
+    { key: "stars", name: "별 받기", description: "별 +5" },
+    ...(!city.walls
+      ? [
+          {
+            key: "walls",
+            name: "성곽 건설",
+            description: "도시 위 아군 방어 +50% · 1회",
+          },
+        ]
+      : []),
+    ...(city.expansions < 2
+      ? [
+          {
+            key: "expand",
+            name: "영역 확장",
+            description: `주위 한 칸 확장 · ${city.expansions}/2회 사용`,
+          },
+        ]
+      : []),
+    ...(city.pendingRewards[0] >= 5
+      ? [
+          {
+            key: "giant",
+            name: "왕국 거인",
+            description: "체력 30 · 공격 12 · 다음 내 턴부터 행동",
+          },
+        ]
+      : []),
+  ];
+}
+export function giantSpawnTile(world, cityTile, units) {
+  return (
+    world
+      .flat()
+      .filter(
+        (t) =>
+          cityForTile(world, t) === cityTile &&
+          t.type !== "water" &&
+          t.type !== "mountain" &&
+          !units.some((u) => u.x === t.x && u.y === t.y),
+      )
+      .sort(
+        (a, b) =>
+          gridDistance(a, cityTile) - gridDistance(b, cityTile) ||
+          a.y - b.y ||
+          a.x - b.x,
+      )[0] || null
+  );
+}
+export function claimCityReward(world, t, choice, units, team) {
+  if (
+    t?.city?.owner !== team ||
+    !cityRewardOptions(t.city).some((o) => o.key === choice)
+  )
+    throw new Error("선택할 수 없는 성장 보상입니다.");
+  let unit = null;
+  if (choice === "giant") {
+    const spawn = giantSpawnTile(world, t, units);
+    if (!spawn)
+      throw new Error("도시 영역 안에 거인을 배치할 빈 육지가 필요합니다.");
+    unit = { x: spawn.x, y: spawn.y, team, type: "giant", hp: 30, acted: true };
+  }
+  if (choice === "walls") t.city.walls = true;
+  if (choice === "expand") {
+    t.city.expansions++;
+    assignTerritories(world);
+  }
+  t.city.pendingRewards.shift();
+  return { gold: choice === "stars" ? 5 : 0, unit };
+}
+export const hasWallDefence = (world, u) => {
+  const c = world[u.y]?.[u.x]?.city;
+  return !!c?.walls && c.owner === u.team;
+};
+export function battleDamage(power, hp, maxHp, world, defender) {
+  const damage = healthDamage(power, hp, maxHp);
+  return damage
+    ? Math.max(
+        1,
+        Math.round(damage / (hasWallDefence(world, defender) ? 1.5 : 1)),
+      )
+    : 0;
 }
 const aroundTiles = (world, city) =>
   world.flat().filter((t) => !t.city && gridDistance(t, city) === 1);
@@ -520,7 +651,7 @@ export const VESSELS = {
     range: 2,
     moves: 3,
     sight: 3,
-    cost: 5,
+    cost: 3,
     tech: "navigation",
   },
   warship: {
@@ -530,7 +661,7 @@ export const VESSELS = {
     range: 3,
     moves: 2,
     sight: 2,
-    cost: 10,
+    cost: 5,
     tech: "navalwarfare",
   },
 };
@@ -555,7 +686,11 @@ export function refreshVisibility(world, units, night, techs, team = 0) {
     .filter((u) => u.team === team)
     .map((u) => ({ ...u, radius: visionRadius(u, night, techs) }));
   for (const t of world.flat())
-    if (t.city?.owner === team) sources.push({ ...t, radius: night ? 0 : 1 });
+    if (t.city?.owner === team)
+      sources.push({
+        ...t,
+        radius: Math.max(0, territoryRadius(t.city) - (night ? 1 : 0)),
+      });
   for (const t of world.flat()) {
     if (techs.has("cartography")) t.seen = true;
     t.visible = sources.some(
