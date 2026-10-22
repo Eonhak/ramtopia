@@ -229,6 +229,7 @@ export function renderMap(
     enemyNation,
     teamNations = null,
     allies = [],
+    showIdleUnit = false,
   },
 ) {
   let c = canvas.getContext("2d"),
@@ -512,6 +513,21 @@ export function renderMap(
     const p = project(u.x,u.y), t = world[u.y][u.x];
     drawUnit(c,p.x,p.y-(t.type === "water"?3:11),u,teamNations?.[u.team] || (u.team === 0?nation:enemyNation),night);
   }
+  // Only one untouched friendly unit receives a reminder at a time.
+  const idleUnit = showIdleUnit && units.find(u =>
+    u.team === 0 && u.hp > 0 && !u.acted && !u.moved && !u.attacked &&
+    (world[u.y]?.[u.x]?.visible ?? world[u.y]?.[u.x]?.seen));
+  if (idleUnit) {
+    const p = project(idleUnit.x, idleUnit.y);
+    const x = p.x + 13, y = p.y - (idleUnit.type === "catapult" || idleUnit.type === "giant" ? 62 : 48);
+    c.save();
+    c.beginPath(); c.arc(x, y, 7, 0, Math.PI * 2);
+    c.fillStyle = "#ffe28a"; c.fill();
+    c.strokeStyle = "#725522"; c.lineWidth = 1.5; c.stroke();
+    c.fillStyle = "#493619"; c.font = "bold 11px sans-serif";
+    c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("!", x, y + .5);
+    c.restore();
+  }
   if (
     animation &&
     (world[animation.unit.y]?.[animation.unit.x]?.visible ??
@@ -613,7 +629,7 @@ export function renderMap(
     c.restore();
   }
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { ...view, hit, selected, panLimits };
+  return { ...view, hit, selected, panLimits, idleUnit: idleUnit || null };
 }
 export function pickTile(view, x, y) {
   if (!view) return null;

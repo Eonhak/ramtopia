@@ -10,10 +10,15 @@ const assert=require('node:assert/strict');
     await page.route(/\/src\/main\.js(?:\?.*)?$/,async r=>{
       const response=await r.fetch();
       await r.fulfill({response,body:await response.text()+`
-window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',seen:false,visible:false,city:null})));homeCapital={x:1,y:1};enemyCapital={x:10,y:10};at(1,1).city={owner:0,name:'수도',level:1,population:1,experience:0};at(10,10).city={owner:1,name:'적',level:1,population:1,experience:0};assignTerritories(world);units=[{x:6,y:6,team:0,hp:10,acted:false}];researched=new Set();gold=100;selected={x:1,y:1};reveal();update();draw();},camera(x,y,z){pan={x,y};zoom=z;draw();},get visible(){return world.flat().filter(t=>t.visible).map(t=>[t.x,t.y]);},get cameraView(){return view;}};`});
+window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',seen:false,visible:false,city:null})));homeCapital={x:1,y:1};enemyCapital={x:10,y:10};at(1,1).city={owner:0,name:'수도',level:1,population:1,experience:0};at(10,10).city={owner:1,name:'적',level:1,population:1,experience:0};assignTerritories(world);units=[{x:6,y:6,team:0,hp:10,acted:false}];researched=new Set();gold=100;selected={x:1,y:1};reveal();update();draw();},idleFixture(state){units=[{id:1,x:6,y:6,team:0,hp:10,acted:state===3,moved:state===1},{id:2,x:6,y:7,team:0,hp:10,acted:state>=2},{id:3,x:7,y:6,team:1,hp:10,acted:false}];busy=state===4;draw();return view.idleUnit?.id??null;},camera(x,y,z){pan={x,y};zoom=z;draw();},get visible(){return world.flat().filter(t=>t.visible).map(t=>[t.x,t.y]);},get cameraView(){return view;}};`});
     });
     await page.goto(process.env.TEST_URL||'http://localhost:3000');
     await page.click('#singleMode');await page.click('#startNation');
+    await page.evaluate(()=>window.__mapTest.setup());
+    assert.equal(await page.evaluate(()=>window.__mapTest.idleFixture(0)),1);
+    assert.equal(await page.evaluate(()=>window.__mapTest.idleFixture(1)),2);
+    assert.equal(await page.evaluate(()=>window.__mapTest.idleFixture(3)),null);
+    assert.equal(await page.evaluate(()=>window.__mapTest.idleFixture(4)),null);
     await page.evaluate(()=>window.__mapTest.setup());
     assert.equal(await page.locator('#turnBanner').textContent(),'내 턴입니다');
     assert.equal(await page.locator('#logs').isVisible(),false);

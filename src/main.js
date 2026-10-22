@@ -588,6 +588,7 @@ function draw() {
       enemyNation,
       teamNations,
       allies: multiGame?.allies || [],
+      showIdleUnit: !busy && !animating && !over && !multiGame?.turnLocked,
       panelHeight:
         panelOpen && selectionKind !== "unit" && canvas.clientWidth < 541
           ? $("actionPanel").offsetHeight + 65
