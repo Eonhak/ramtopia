@@ -1895,3 +1895,11 @@ dialog p {
   line-height: 34px;
   color: #a67e39;
 }
+
+.research-dialog { padding: 0; overflow: hidden; }
+.research-header { position: relative; padding: 20px 76px 12px 22px; background: #f8f7ed; border-bottom: 1px solid #d5ddc8; }
+.research-header h2 { margin: 8px 0; font-size: 22px; }
+.research-header h2 small { color: #a78c4f; font-size: 16px; margin-left: 14px; }
+#closeResearch { position: absolute; right: 14px; top: 16px; float: none; width: 48px; height: 48px; min-width: 48px; font-size: 32px; color: #294f51; background: #e6eddf; border: 1px solid #becdb4; border-radius: 12px; }
+.research-content { padding: 12px 22px 24px; max-height: calc(90dvh - 112px); overflow-y: auto; overscroll-behavior: contain; }
+.production-dock .city-growth { display: none; }

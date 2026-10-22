@@ -50,7 +50,7 @@ export const UNIT_TYPES = {
   warrior: {
     name: "보병",
     icon: "⚔",
-    cost: 2,
+    cost: 3,
     hp: 10,
     attack: 6,
     counter: 3,

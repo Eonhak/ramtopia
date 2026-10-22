@@ -569,14 +569,16 @@ export function drawVessel(c, x, y, u, nation, night) {
   health(c, u, s);
   c.restore();
 }
-export function drawUnit(c, x, y, u, nation, night) {
+export function drawUnit(c, x, y, u, nation, night, pose) {
   c.save();
   c.translate(x, y);
-  c.scale(u.type === "giant" ? 0.58 : 0.42, u.type === "giant" ? 0.58 : 0.42);
-  drawFigure(c, 0, 0, u, nation, night);
+  const scale = u.type === "catapult" && !u.boat ? 0.72 : u.type === "giant" ? 0.58 : 0.42;
+  c.scale(scale, scale);
+  if (pose && u.type === "archer") c.rotate(-Math.sin(pose.progress*Math.PI)*0.12);
+  drawFigure(c, 0, 0, u, nation, night, pose);
   c.restore();
 }
-function drawFigure(c, x, y, u, nation, night) {
+function drawFigure(c, x, y, u, nation, night, pose) {
   if (u.boat) {
     drawVessel(c, x, y, u, nation, night);
     return;
@@ -595,39 +597,29 @@ function drawFigure(c, x, y, u, nation, night) {
     c.fillText("★", 0, -40);
   }
   if (u.type === "catapult") {
-    p(
-      c,
-      [
-        [-13, 1],
-        [0, 8],
-        [14, 0],
-        [0, -8],
-      ],
-      "#b99a68",
-    );
-    for (const dx of [-10, 10]) {
-      ellipse(c, dx, 5, 3, 5, "#3b4d51");
-      ellipse(c, dx, 5, 1, 2, "#b5a17a");
+    ellipse(c, 0, 6, 23, 8, "#152b4266");
+    p(c, [[-22,-3],[0,9],[24,-3],[1,-16]], "#775239");
+    p(c, [[-22,-3],[-22,3],[0,15],[0,9]], "#4d3830");
+    p(c, [[0,9],[0,15],[24,3],[24,-3]], "#a17a4c");
+    for (const [wx,wy] of [[-17,5],[15,6],[-8,-7],[22,-6]]) {
+      ellipse(c,wx,wy,5,7,"#263e4c"); ellipse(c,wx,wy,3,5,"#a58d64");
+      line(c,[[wx,wy-4],[wx,wy+4]],"#4d5358",1.5);
+      ellipse(c,wx,wy,1.5,1.5,t.trim);
     }
-    line(
-      c,
-      [
-        [-6, 1],
-        [5, -25],
-      ],
-      "#d2bb8b",
-      3,
-    );
-    p(
-      c,
-      [
-        [1, -25],
-        [8, -29],
-        [12, -24],
-        [5, -19],
-      ],
-      "#7a8787",
-    );
+    line(c,[[-13,1],[-5,-28],[8,1]],"#b28a54",5);
+    line(c,[[4,0],[12,-28],[21,0]],"#76583c",4);
+    line(c,[[-5,-28],[12,-28]],"#d0b77d",5);
+    p(c,[[-12,-14],[-2,-9],[-2,-1],[-12,-6]],t.cloth);
+    line(c,[[-11,-13],[-3,-9]],t.trim,1.5);
+    const shot = pose?.progress || 0;
+    const swing = shot < .28 ? shot/.28*.4 : .4-Math.min(1,(shot-.28)/.18)*1.4;
+    c.save(); c.translate(4,-27); c.rotate(swing);
+    line(c,[[-16,18],[10,-16]],"#403c34",7);
+    line(c,[[-16,18],[10,-16]],"#d8b77c",4);
+    p(c,[[6,-17],[12,-21],[18,-17],[12,-12]],"#554e43");
+    if (!pose || shot < .28) { ellipse(c,12,-20,6,5,"#8a98a4"); ellipse(c,10,-22,3,2,"#bfccd0"); }
+    p(c,[[-20,14],[-11,18],[-11,26],[-20,22]],"#5c6871");
+    c.restore();
     health(c, u, s);
     c.restore();
     return;
@@ -944,6 +936,7 @@ function drawFigure(c, x, y, u, nation, night) {
       c,
       [
         [11, -30],
+        [11 - (pose ? Math.sin(Math.min(1,pose.progress/.28)*Math.PI/2)*7*(pose.progress<.28?1:0) : 0), -19],
         [11, -8],
       ],
       "#e4dcc2",

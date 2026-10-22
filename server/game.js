@@ -314,6 +314,11 @@ export function applyCommand(g, s, c, now = Date.now()) {
                     u,
                   )
                 : 0;
+          g.lastAttack = {
+            id: (g.lastAttack?.id || 0) + 1,
+            unitId:u.id, team:u.team, unit:{...u},
+            from:{x:u.x,y:u.y}, to:{x:enemy.x,y:enemy.y},
+          };
           enemy.hp -= damage;
           u.hp -= counter;
           u.acted = true;
@@ -386,6 +391,9 @@ export function matchView(g, s) {
     units: g.units
       .filter((u) => u.team === s || visible[u.y][u.x].visible)
       .map((u) => ({ ...u, team: mapTeam(u.team) })),
+    attackId: g.lastAttack?.id || 0,
+    lastAttack: g.lastAttack && visible[g.lastAttack.from.y]?.[g.lastAttack.from.x]?.visible && visible[g.lastAttack.to.y]?.[g.lastAttack.to.x]?.visible
+      ? {...copy(g.lastAttack), team:mapTeam(g.lastAttack.team), unit:{...copy(g.lastAttack.unit),team:mapTeam(g.lastAttack.team)}} : null,
     gold: g.players[s].gold,
     researched: g.players[s].researched,
     round: g.round,

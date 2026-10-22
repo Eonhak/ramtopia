@@ -1,4 +1,4 @@
-import { cityForTile } from "./rules.js";
+import { cityForTile, growthRequired } from "./rules.js";
 import { drawCity, drawUnit } from "./visuals.js";
 export const project = (x, y) => ({ x: (x - y) * 30, y: (x + y) * 15 });
 function poly(c, p, color) {
@@ -427,7 +427,7 @@ export function renderMap(
       diamond(c, p.x, y, night ? "#0b183b99" : "#132b4266");
     let u =
       (t.visible ?? t.seen) && units.find((u) => u.x === t.x && u.y === t.y);
-    if (u && animation?.unit !== u)
+    if (u && animation?.unit !== u && !(u.id !== undefined && animation?.unit?.id === u.id))
       drawUnit(
         c,
         p.x,
@@ -485,24 +485,22 @@ export function renderMap(
       }
     }
     if (t.city) {
-      const owner = t.city.owner,
-        label =
-          owner === 0
-            ? t.city.isCapital
-              ? "★ 내 수도"
-              : "⚑ 내 도시"
-            : owner > 0
-              ? t.city.isCapital
-                ? "⚔ 적 수도"
-                : "⚔ 적 도시"
-              : "◇ 중립 마을";
-      c.fillStyle =
-        owner === 0 ? "#123e43ed" : owner > 0 ? "#743a48ed" : "#f4e4bbf5";
-      c.fillRect(p.x - 25, y + 15, 50, 12);
-      c.fillStyle = owner === -1 ? "#5d503c" : "#ffffff";
-      c.font = "bold 7px sans-serif";
-      c.textAlign = "center";
-      c.fillText(label, p.x, y + 24);
+      const owner = t.city.owner;
+      if (owner === 0) {
+        const required = growthRequired(t.city), ratio = Math.min(1, (t.city.experience || 0) / required);
+        c.fillStyle = "#123e43ed"; c.fillRect(p.x - 28, y + 15, 56, 14);
+        c.fillStyle = "#3d6264"; c.fillRect(p.x - 24, y + 20, 32, 4);
+        c.fillStyle = "#ecd58a"; c.fillRect(p.x - 24, y + 20, 32 * ratio, 4);
+        c.fillStyle = "#ffffff"; c.font = "bold 7px sans-serif"; c.textAlign = "left";
+        c.fillText(`Lv.${t.city.level}`, p.x + 11, y + 25);
+      } else {
+        const label = owner > 0 ? (t.city.isCapital ? "⚔ 적 수도" : "⚔ 적 도시") : "◇ 중립 마을";
+        c.fillStyle = owner > 0 ? "#743a48ed" : "#f4e4bbf5";
+        c.fillRect(p.x - 25, y + 15, 50, 12);
+        c.fillStyle = owner === -1 ? "#5d503c" : "#ffffff";
+        c.font = "bold 7px sans-serif"; c.textAlign = "center";
+        c.fillText(label, p.x, y + 24);
+      }
     }
   }
   if (
@@ -519,6 +517,7 @@ export function renderMap(
       teamNations?.[animation.unit.team] ||
         (animation.unit.team === 0 ? nation : enemyNation),
       night,
+      animation.pose,
     );
   }
   if (animation?.projectile) {
@@ -532,7 +531,7 @@ export function renderMap(
     if (animation.projectile.arrow) {
       c.save();
       c.translate(x, y);
-      c.rotate(Math.atan2(to.y - from.y, to.x - from.x));
+      c.rotate(Math.atan2(to.y - from.y - Math.PI * 15 * Math.cos(Math.PI*k), to.x - from.x));
       c.strokeStyle = "#f6e6ba";
       c.lineWidth = 2;
       c.beginPath();
@@ -550,13 +549,21 @@ export function renderMap(
       );
       c.restore();
     } else {
-      c.fillStyle = "#354b5f";
-      c.beginPath();
-      c.arc(x, y, 4, 0, Math.PI * 2);
-      c.fill();
+      c.save(); c.translate(x, y); c.rotate(k * Math.PI * 3);
+      c.shadowColor = "#102a45aa"; c.shadowBlur = 6;
+      poly(c, [[-7,-4],[-2,-8],[6,-5],[8,2],[2,7],[-6,5]], "#4b5869");
+      poly(c, [[-7,-4],[-2,-8],[6,-5],[1,0]], "#99a6ae");
+      c.restore();
     }
   }
 
+  if (animation?.impact) {
+    const {to, progress:k, arrow} = animation.impact;
+    c.save(); c.globalAlpha=1-k; c.strokeStyle=arrow?"#fff1b0":"#d7c8a7"; c.lineWidth=2;
+    c.beginPath(); c.ellipse(to.x,to.y-10,5+k*20,3+k*10,0,0,Math.PI*2); c.stroke();
+    for(let i=0;i<8;i++){const a=i*Math.PI/4; c.fillStyle=arrow?"#ffe9a1":"#9f9c8c"; c.fillRect(to.x+Math.cos(a)*k*24,to.y-14+Math.sin(a)*k*16-k*10,3,3);}
+    c.restore();
+  }
   for (const effect of growthEffects) {
     if (!world[effect.y]?.[effect.x]?.visible) continue;
     const p = project(effect.x, effect.y), k = Math.min(1, effect.progress);

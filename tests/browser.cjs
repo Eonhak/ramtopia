@@ -30,6 +30,8 @@ const assert = require("node:assert/strict");
         if (s?.animation)
           window.__renderFrames.push({
             position: s.animation.position,
+            projectile: s.animation.projectile,
+            pose: s.animation.pose,
             animating: s.animating,
           });
       });
@@ -67,7 +69,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
  if(kind==='assassin'){gold=100;researched=new Set(['scouting','stealth','assassination']);units=[{x:3,y:7,team:0,type:'assassin',hp:10,acted:false}];}
  if(kind==='fog'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:5,y:7,team:1,hp:10,acted:false}];}
  if(kind==='capture'){units=[{x:6,y:5,team:0,hp:10,acted:false}];at(6,5).type='grass';}
- reveal();if(kind!=='fog')for(const t of world.flat()){t.visible=true;t.seen=true;}update();draw();},vision(){for(const t of world.flat())t.seen=false;reveal();update();draw();},get snapshot(){return{night:isNight(turn),visible:world.flat().filter(t=>t.visible).length,seen:world.flat().filter(t=>t.seen).length,stats:units.map(u=>stats(u)),nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position},effects,researched:[...researched],resources:world.flat().filter(t=>t.resource&&!t.developed).map(t=>({x:t.x,y:t.y,resource:t.resource})),cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
+ reveal();if(kind!=='fog')for(const t of world.flat()){t.visible=true;t.seen=true;}update();draw();},vision(){for(const t of world.flat())t.seen=false;reveal();update();draw();},get snapshot(){return{night:isNight(turn),visible:world.flat().filter(t=>t.visible).length,seen:world.flat().filter(t=>t.seen).length,stats:units.map(u=>stats(u)),nation:selectedNation.id,homeCapital,enemyCapital,map:world.flat().map(t=>t.type).join(),units,gold,turn,over,zoom,pan,panelOpen,selected,animating,animation:animation&&{position:animation.position,projectile:animation.projectile,pose:animation.pose},effects,researched:[...researched],resources:world.flat().filter(t=>t.resource&&!t.developed).map(t=>({x:t.x,y:t.y,resource:t.resource})),cities:world.flat().filter(t=>t.city).map(t=>({x:t.x,y:t.y,...t.city})),developed:world.flat().filter(t=>t.developed).map(t=>({x:t.x,y:t.y})),owner:at(enemyCapital.x,enemyCapital.y).city.owner,targets:world.flat().filter(t=>available(t)).map(t=>({x:t.x,y:t.y,action:available(t)}))}}};`,
     });
   });
   await page.route("**/api/auth/me", (route) =>
@@ -273,7 +275,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   assert.equal(await page.locator("#income").innerText(), "+4");
   await page.click("#recruit");
   state = await snapshot();
-  assert.equal(state.gold, 94);
+  assert.equal(state.gold, 93);
   assert.equal(state.units[1].acted, true);
   assert.equal(state.units[1].bornTurn, 1);
   assert.deepEqual(state.targets, []);
@@ -285,7 +287,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
       !window.__gameTest.snapshot.animating,
   );
   state = await snapshot();
-  assert.equal(state.gold, 98);
+  assert.equal(state.gold, 97);
   assert.equal(state.units[1].acted, false);
   assert(state.targets.length > 0);
   // Research spends stars once, enforces prerequisites, and enables real units/abilities.
@@ -298,6 +300,11 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
       .isDisabled(),
     true,
   );
+  const closeBefore = await page.locator("#closeResearch").boundingBox();
+  assert(closeBefore.width >= 44 && closeBefore.height >= 44);
+  await page.locator(".research-content").evaluate(el => el.scrollTop = el.scrollHeight);
+  const closeAfter = await page.locator("#closeResearch").boundingBox();
+  assert.equal(closeAfter.y, closeBefore.y);
   await page.click("#closeResearch");
   await research("사냥");
   assert.equal((await snapshot()).gold, 95);
@@ -432,6 +439,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   assert.equal((await snapshot()).cities.find((c) => c.owner === 0).level, 3);
   await page.click("#recruitKnight");
   assert.equal((await snapshot()).units[1].type, "knight");
+  await page.evaluate(() => window.__renderFrames = []);
   await fixture("siege");
   await clickTile(3, 7);
   assert(
@@ -441,6 +449,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   );
   await clickTile(5, 7);
   state = await snapshot();
+  assert(await page.evaluate(() => window.__renderFrames.some(f => f.projectile && !f.projectile.arrow)));
   assert.equal(state.units.length, 1);
   assert.equal(state.units[0].x, 3);
   assert.equal(state.units[0].hp, 8);
@@ -497,6 +506,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   await clickTile(3, 7);
   await clickTile(5, 7);
   state = await snapshot();
+  assert(await page.evaluate(() => window.__renderFrames.some(f => f.projectile?.arrow)));
   assert.equal(state.units[1].hp, 3);
   assert.equal(state.units[0].hp, 8);
   assert.equal(state.units[0].x, 3);

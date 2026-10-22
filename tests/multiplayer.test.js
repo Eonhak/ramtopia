@@ -111,6 +111,7 @@ test("research, harvest and recruitment use server stars and next-turn activatio
   assert.equal(g.players[0].gold, 98);
   assert.equal(g.world[7][3].city.population, 1);
   applyCommand(g, 0, { type: "recruit", x: 3, y: 7, unitType: "warrior" });
+  assert.equal(g.players[0].gold, 95);
   const recruit = g.units.at(-1);
   assert.equal(recruit.acted, true);
   assert.throws(
@@ -356,4 +357,17 @@ test("neutral villages require an explicit claim on the next own turn and pay th
   const before = g.players[0].gold;
   advanceTurn(g);
   assert.equal(g.players[0].gold - before, 5); // capital 3 + level-two village 2
+});
+
+test("attack events include projectile source and target only when visible", () => {
+  const g = fixture();
+  g.units[0].x = 4; g.units[0].type = "archer";
+  applyCommand(g,0,{type:"act",unitId:1,x:5,y:7});
+  const shot = matchView(g,0).lastAttack;
+  assert.equal(shot.unit.type,"archer");
+  assert.deepEqual(shot.from,{x:4,y:7});
+  assert.deepEqual(shot.to,{x:5,y:7});
+  g.units[0].x = 0; g.units[0].y = 0;
+  g.world[7][3].city = null;
+  assert.equal(matchView(g,0).lastAttack,null);
 });

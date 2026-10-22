@@ -106,8 +106,8 @@ test("a blocked giant reward preserves the choice and cannot displace a unit", (
   assert.throws(() => claimCityReward(world, t, "giant", units, 0), /빈 육지/);
   assert.deepEqual(t.city.pendingRewards, [5]);
 });
-test("new economy starts at three, infantry costs two and other prices scale from it", () => {
-  assert.equal(UNIT_TYPES.warrior.cost, 2);
+test("new economy starts at three, infantry costs three and other prices scale from it", () => {
+  assert.equal(UNIT_TYPES.warrior.cost, 3);
   assert.equal(UNIT_TYPES.archer.cost, 3);
   assert.equal(UNIT_TYPES.rider.cost, 3);
   assert.equal(UNIT_TYPES.guard.cost, 3);

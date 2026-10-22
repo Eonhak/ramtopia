@@ -589,7 +589,7 @@ function finish(win) {
       ? selectedNation.name + "이 상대 수도를 정복해 승리했습니다."
       : "수도가 함락되었습니다.",
   );
-  toast(win ? "✦ 승리! 에버그린은 당신의 것입니다." : "수도가 함락되었습니다.");
+  toast(win ? "✦ 승리! 상대 수도를 정복했습니다." : "수도가 함락되었습니다.");
 }
 function capture(u, claim = false) {
   let t = at(u.x, u.y);
@@ -639,6 +639,23 @@ async function walk(u, path) {
     animation = null;
   }
 }
+async function attackVisual(u, from, to, current = () => true) {
+  const ranged = stats(u).range > 1;
+  const visual = {unit:u, position:from};
+  animation = visual;
+  await tween(ranged ? 850 : 300, p => {
+    if (!current()) return;
+    visual.pose = {progress:p};
+    if (ranged) {
+      const flight = (p-.28)/.55;
+      visual.projectile = flight >= 0 && flight <= 1 ? {from,to,progress:flight,arrow:u.type === "archer" && !u.boat} : null;
+      visual.impact = p > .83 ? {to,progress:(p-.83)/.17,arrow:u.type === "archer" && !u.boat} : null;
+    } else {
+      const k = Math.sin(Math.PI*p)*.38;
+      visual.position = {x:from.x+(to.x-from.x)*k, y:from.y+(to.y-from.y)*k};
+    }
+  });
+}
 async function act(u, t) {
   if (multiGame)
     return sendMulti({ type: "act", unitId: u.id, x: t.x, y: t.y });
@@ -677,23 +694,7 @@ async function act(u, t) {
     if (enemy) {
       const from = project(u.x, u.y),
         to = project(t.x, t.y);
-      animation = { unit: u, position: from };
-      await tween(300, (p) => {
-        if (stats(u).range > 1) {
-          animation.projectile = {
-            from,
-            to,
-            progress: p,
-            arrow: u.type === "archer",
-          };
-        } else {
-          const k = Math.sin(Math.PI * p) * 0.38;
-          animation.position = {
-            x: from.x + (to.x - from.x) * k,
-            y: from.y + (to.y - from.y) * k,
-          };
-        }
-      });
+      await attackVisual(u, from, to);
       animation = null;
       const damage = battleDamage(
           stats(u).attack,
@@ -1346,6 +1347,7 @@ async function loadMulti(game, room) {
   if (multiRoom?.code === room.code && multiRoom.version >= room.version)
     return;
   const previous = units || [];
+  const previousAttack = multiGame?.attackId;
   const epoch = ++mpAnimation;
   animation = null;
   effects = [];
@@ -1392,6 +1394,14 @@ async function loadMulti(game, room) {
   draw();
   if ($("researchDialog").open) renderResearch();
   if (!first) {
+    const shot = game.lastAttack;
+    if (shot && shot.id !== previousAttack) {
+      const shooter = previous.find(u => u.id === shot.unitId) || {...shot.unit, team:shot.team};
+      animating = true; update();
+      await attackVisual(shooter, project(shot.from.x,shot.from.y), project(shot.to.x,shot.to.y), () => epoch === mpAnimation);
+      if (epoch !== mpAnimation) return;
+      animation = null;
+    }
     const moved = units.find((u) => {
       const old = previous.find((v) => v.id === u.id);
       return old && (old.x !== u.x || old.y !== u.y);
@@ -1402,7 +1412,7 @@ async function loadMulti(game, room) {
         ? [{ x: u.x, y: u.y, text: "−" + (old.hp - u.hp), progress: 0 }]
         : [];
     });
-    if (moved || effects.length) {
+    if (moved || effects.length || animating) {
       const old = moved && previous.find((v) => v.id === moved.id),
         from = old && project(old.x, old.y),
         to = moved && project(moved.x, moved.y);
