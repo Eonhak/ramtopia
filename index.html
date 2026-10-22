@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA</title>
-    <script type="module" crossorigin src="./assets/index-BxMwcBLW.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CsjoCLgG.css">
+    <script type="module" crossorigin src="./assets/index-BjibI_fk.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BExRAxw7.css">
   </head>
   <body>
     <div id="app">
@@ -47,11 +47,6 @@
             aria-label="입체 왕국 지도. 유닛이나 타일을 클릭해 행동을 선택하세요."
           ></canvas>
           <div id="phaseBadge" class="phase-badge">낮 · 탐험 시간</div>
-          <div class="map-caption">
-            <span class="eyebrow">RAMTOPIA</span>
-            <h1>한 걸음 너머의 세계</h1>
-            <p>탐험하고, 성장하고, 당신의 왕국을 세우세요.</p>
-          </div>
           <div class="kingdom-hud">
             <span class="kingdom-dot"></span><b id="kingdomName">나라 선택</b
             ><span>도시 <strong id="cities">1</strong></span
@@ -122,6 +117,9 @@
               ><button id="recruitGuard">
                 <span>⛨</span><b>방패병 훈련</b><small>8 ✦ · 체력 15</small>
               </button>
+              <button id="lumberForest">
+                <span>♣</span><b>숲 벌목</b><small>4 ✦ · 경험치 +2</small>
+              </button>
               <button id="develop">
                 <span>●</span><b>자원 개발</b><small>도시 경험치 증가</small>
               </button>
@@ -141,6 +139,7 @@
           >
             <div id="productionUnits" class="production-units"></div>
           </nav>
+          <div id="turnBanner" role="status" aria-live="polite" hidden></div>
           <div id="toast" role="status"></div>
           <div class="map-controls">
             <button id="zoomOut" title="축소">−</button
@@ -165,7 +164,7 @@
           <button id="endTurn">턴 마치기 <span>→</span></button>
         </footer>
       </main>
-      <div id="logs" class="event-feed" aria-live="polite"></div>
+      <div id="logs" class="event-feed" hidden aria-live="polite"></div>
     </div>
     <section hidden
       id="cityRewardDialog"
@@ -182,10 +181,15 @@
       <div class="unit-info-content"><canvas id="unitInfoArt" width="140" height="130" aria-hidden="true"></canvas>
       <p id="unitInfoDescription"></p><dl id="unitInfoStats"></dl><p id="unitInfoNote"></p></div>
     </dialog>
+    <dialog id="diplomacyDialog" aria-labelledby="diplomacyTitle">
+<header class="unit-info-header"><h2 id="diplomacyTitle">동맹 · 외교</h2><button id="closeDiplomacy" class="icon-btn" aria-label="외교 닫기">×</button></header>
+<div class="diplomacy-content"><p id="diplomacyHelp"></p><div id="diplomacyPlayers"></div><p class="diplomacy-warning">동맹 해제 시 상대 영토 안의 내 유닛 1기가 삭제되고, 이번 턴의 남은 모든 행동을 잃습니다. 해당 영토에 유닛이 없으면 유닛 삭제는 없습니다.</p><p id="diplomacyMessage" role="status"></p></div>
+</dialog>
     <dialog id="gameMenu" aria-labelledby="gameMenuTitle">
       <button id="closeGameMenu" class="icon-btn" aria-label="메뉴 닫기">×</button>
       <h2 id="gameMenuTitle">메뉴</h2>
       <button id="menuMain" class="lobby-primary">메인 화면</button>
+      <button id="menuDiplomacy" class="lobby-secondary">동맹 · 외교</button>
       <button id="menuRoom" class="lobby-secondary" hidden>멀티플레이 방</button>
       <p>멀티플레이는 방을 나가지 않으면 서버에 유지됩니다.</p>
     </dialog>
@@ -196,7 +200,10 @@
       <button id="recoverMatch" class="lobby-secondary">진행 중인 게임 다시 찾기</button>
       <section class="mode-section">
         <h3>싱글플레이</h3>
-        <p>AI 왕국과 혼자 플레이합니다.</p>
+        <p>AI 왕국과 혼자 플레이합니다.</p><div class="game-options">
+<label>맵 크기<select id="singleSize"><option value="12" selected>소형 · 12×12</option><option value="16" >중형 · 16×16</option><option value="20">대형 · 20×20</option><option value="24">초대형 · 24×24</option></select></label>
+<label>지형<select id="singleTerrain"><option value="balanced">균형</option><option value="continents">대륙 · 육지 많음</option><option value="islands">군도 · 바다 많음</option><option value="forest">삼림</option></select></label>
+<label>AI 난이도<select id="singleDifficulty"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select></label></div>
         <label
           >내 턴 제한 시간
           <select id="singleTimer">
@@ -207,8 +214,11 @@
         ><button id="singleMode" class="lobby-primary">나라 선택 →</button>
       </section>
       <section class="mode-section">
-        <h3>멀티플레이 · 2~4명</h3>
-        <p>방을 만들고 친구에게 초대 링크를 보내세요.</p>
+        <h3>멀티플레이 · 2~8명</h3>
+        <p>방을 만들고 친구를 초대하거나 AI를 추가하세요. AI 포함 최대 8명입니다.</p><div class="game-options">
+<label>맵 크기<select id="newRoomSize"><option value="12" >소형 · 12×12</option><option value="16" selected>중형 · 16×16</option><option value="20">대형 · 20×20</option><option value="24">초대형 · 24×24</option></select></label>
+<label>지형<select id="newRoomTerrain"><option value="balanced">균형</option><option value="continents">대륙 · 육지 많음</option><option value="islands">군도 · 바다 많음</option><option value="forest">삼림</option></select></label>
+<label>AI 난이도<select id="newRoomDifficulty"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select></label></div>
         <label
           >방 이름
           <input
@@ -257,6 +267,10 @@
           <option value="0">무한</option>
         </select></label
       >
+<div class="game-options">
+<label>맵 크기<select id="roomSize"><option value="12" >소형 · 12×12</option><option value="16" selected>중형 · 16×16</option><option value="20">대형 · 20×20</option><option value="24">초대형 · 24×24</option></select></label>
+<label>지형<select id="roomTerrain"><option value="balanced">균형</option><option value="continents">대륙 · 육지 많음</option><option value="islands">군도 · 바다 많음</option><option value="forest">삼림</option></select></label>
+<label>AI 난이도<select id="roomDifficulty"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select></label></div><button id="addBot" class="lobby-secondary">+ AI 추가</button>
       <div id="roomPlayers"></div>
       <p id="roomHelp"></p>
       <div class="room-buttons">
