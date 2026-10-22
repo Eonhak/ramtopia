@@ -714,7 +714,7 @@ export function refreshVisibility(world, units, night, techs, team = 0) {
     t.visible = sources.some(
       (s) =>
         gridDistance(t, s) <= s.radius &&
-        (!(night || s.scoutSight) || manhattan(t, s) <= s.radius),
+        (!(s.scoutSight && !night) || manhattan(t, s) <= s.radius),
     );
     if (t.visible) t.seen = true;
   }

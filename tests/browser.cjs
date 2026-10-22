@@ -584,7 +584,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   );
   await page.click("#endTurn");
   await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
-  assert((await snapshot()).visible < 9);
+  assert.equal((await snapshot()).visible, 9, "night keeps all eight adjacent directions visible");
   // Real multi-touch input through Chromium, including cancellation and a remaining finger.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.__gameTest.fixture("rest"));
