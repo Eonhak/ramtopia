@@ -388,3 +388,8 @@ test("server shields reflect melee damage and publish feedback, while archers ca
     assert.equal(g.lastAttack.reflected,type==="warrior");
   }
 });
+
+test("multiplayer snapshots never expose activity logs from unseen kingdoms", () => {
+  const g=fixture(); g.logs.push({turn:1,s:"hidden enemy research and recruitment"});
+  for (const seat of [0,1]) assert.deepEqual(matchView(g,seat).logs,[]);
+});

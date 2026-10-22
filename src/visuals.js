@@ -573,7 +573,7 @@ export function drawVessel(c, x, y, u, nation, night) {
 export function drawUnit(c, x, y, u, nation, night, pose) {
   c.save();
   c.translate(x, y);
-  const scale = u.type === "catapult" && !u.boat ? 0.72 : u.type === "giant" ? 0.58 : 0.42;
+  const scale = u.preview ? (u.type === "catapult" ? 0.72 : u.type === "giant" ? 0.58 : 0.42) : u.type === "catapult" && !u.boat ? 0.82 : u.type === "giant" ? 0.70 : 0.53;
   c.scale(scale, scale);
   if (pose && u.type === "archer") c.rotate(-Math.sin(pose.progress*Math.PI)*0.12);
   drawFigure(c, 0, 0, u, nation, night, pose);

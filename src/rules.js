@@ -276,7 +276,7 @@ export const TECHNOLOGIES = {
     name: "정찰",
     icon: "⌖",
     cost: 5,
-    description: "낮의 육상 시야 1 → 2 · 밤에는 1",
+    description: "낮 시야: 직선 2칸·대각선 1칸 · 밤에는 1",
   },
   cartography: {
     name: "지도 제작",
@@ -693,7 +693,7 @@ export function refreshVisibility(world, units, night, techs, team = 0) {
   for (const t of world.flat()) t.visible = false;
   const sources = units
     .filter((u) => u.team === team)
-    .map((u) => ({ ...u, radius: visionRadius(u, night, techs) }));
+    .map((u) => ({ ...u, radius: visionRadius(u, night, techs), scoutSight: !u.boat && techs.has("scouting") }));
   for (const t of world.flat())
     if (t.city?.owner === team)
       sources.push({
@@ -705,7 +705,7 @@ export function refreshVisibility(world, units, night, techs, team = 0) {
     t.visible = sources.some(
       (s) =>
         gridDistance(t, s) <= s.radius &&
-        (!night || manhattan(t, s) <= s.radius),
+        (!(night || s.scoutSight) || manhattan(t, s) <= s.radius),
     );
     if (t.visible) t.seen = true;
   }

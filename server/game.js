@@ -399,7 +399,7 @@ export function matchView(g, s) {
     winner: g.winner,
     eliminated: g.players[s].eliminated,
     homeCapital: g.players[s].capital,
-    logs: g.logs,
+    logs: [],
     players: g.players.map((p) => ({
       seat: p.seat,
       team: mapTeam(p.seat),

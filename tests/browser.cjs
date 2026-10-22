@@ -167,6 +167,9 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   assert.equal((await snapshot()).nation, "goguryeo");
   assert((await snapshot()).researched.includes("hunting"));
   assert.equal(await page.locator("#kingdomName").innerText(), "고구려");
+  assert.equal(await page.locator("#turnBanner").textContent(),"내 턴입니다");
+  assert.equal(await page.locator(".map-caption").count(),0);
+  assert.equal(await page.locator("#logs").isVisible(),false);
   const firstMap = (await snapshot()).map;
   await page.evaluate(() => window.__gameTest.choose());
   await page.click('[data-nation="rome"]');

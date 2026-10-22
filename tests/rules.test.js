@@ -317,3 +317,15 @@ test("city income starts at three stars and gains one per city level", () => {
   for (const level of [1, 2, 3, 7])
     assert.equal(cityIncome({ level, isCapital: true }, new Set()), level + 2);
 });
+
+
+test("scouting modestly extends daytime land vision to thirteen tiles, not a five-by-five square", () => {
+  const w=grid(), u={x:2,y:2,team:0};
+  refreshVisibility(w,[u],false,new Set(["scouting"]));
+  assert.equal(w.flat().filter(t=>t.visible).length,13);
+  assert.equal(w[2][4].visible,true);
+  assert.equal(w[3][3].visible,true);
+  assert.equal(w[4][4].visible,false);
+  refreshVisibility(w,[u],true,new Set(["scouting"]));
+  assert.equal(w.flat().filter(t=>t.visible).length,5);
+});

@@ -1927,3 +1927,10 @@ dialog p {
 @media(max-width:700px) { .production-choice { flex-basis: 55px; } }
 
 .production-units { align-items: flex-end; }
+
+.event-feed { display: none; }
+#turnBanner { position: absolute; z-index: 35; top: 50%; left: 50%; transform: translate(-50%, -50%); max-width: calc(100% - 32px); padding: 18px 34px; border: 1px solid #e4dcac80; border-radius: 16px; background: #173945ee; color: #fff1c5; font-size: clamp(20px, 4vw, 30px); font-weight: 700; text-align: center; box-shadow: 0 10px 40px #09253655; pointer-events: none; }
+#turnBanner[hidden] { display: none; }
+#turnBanner.show { animation: turn-arrive 1.6s ease both; }
+@keyframes turn-arrive { 0%,100% { opacity: 0; } 12%,80% { opacity: 1; } }
+@media(prefers-reduced-motion:reduce) { #turnBanner.show { animation: none; } }

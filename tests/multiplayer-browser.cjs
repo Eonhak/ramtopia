@@ -110,6 +110,12 @@ const assert = require("node:assert/strict");
     await host.screenshot({ path: "/tmp/ramtopia-multi.png" });
     assert.equal(await host.locator("#endTurn").isDisabled(), false);
     assert.equal(await pages[1].locator("#endTurn").isDisabled(), true);
+    assert.equal(await host.locator("#turnBanner").textContent(),"내 턴입니다");
+    assert.equal(await pages[1].locator("#turnBanner").textContent(),"왕국1님의 턴입니다");
+    for (const p of pages) {
+      assert.equal(await p.locator("#logs").isVisible(),false);
+      assert.deepEqual(await p.evaluate(() => window.__multiView().multiGame.logs),[]);
+    }
     assert.match(
       await host.locator("#turnClock").textContent(),
       /^(10:00|9:5\d)$/,
@@ -155,6 +161,8 @@ const assert = require("node:assert/strict");
         () => window.__multiView().multiGame.activeSeat === 1,
       );
     assert.equal(await pages[1].locator("#endTurn").isDisabled(), false);
+    assert.equal(await pages[1].locator("#turnBanner").textContent(),"내 턴입니다");
+    assert.equal(await host.locator("#turnBanner").textContent(),"왕국2님의 턴입니다");
     assert.equal(await host.locator("#gold").textContent(), "6");
     await host.click("#newGame");
     assert.equal(await host.locator("#gameMenu").isVisible(), true);

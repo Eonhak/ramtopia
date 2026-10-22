@@ -55,7 +55,7 @@ function block(c, x, y, w, d, h, col, left, right) {
 function tree(c, x, y, s = 1) {
   c.save();
   c.translate(x, y);
-  c.scale(s, s);
+  c.scale(s * 0.78, s * 0.78);
   block(c, 0, -9, 2, 1, 11, "#b49c70", "#846e4d", "#5e5745");
   for (let i = 0; i < 3; i++) {
     const b = -5 - i * 8,
@@ -263,6 +263,16 @@ export function renderMap(
       0.2,
       Math.min((w - 50) / (world.length * 60), (h - 130) / (world.length * 30)),
     ) * zoom;
+  const margin = Math.min(120, w * 0.2);
+  const panLimits = {
+    x: Math.max(margin, world.length * 30 * scale - w / 2 + margin),
+    y: Math.max(margin, world.length * 15 * scale - (h - panelHeight) / 2 + margin),
+  };
+  pan.x = Math.max(-panLimits.x, Math.min(panLimits.x, pan.x));
+  pan.y = Math.max(-panLimits.y, Math.min(panLimits.y, pan.y));
+  const cornerRatio = Math.abs(pan.x) / Math.max(margin, world.length * 30 * scale)
+    + Math.abs(pan.y) / Math.max(margin, world.length * 15 * scale);
+  if (cornerRatio > 1) { pan.x /= cornerRatio; pan.y /= cornerRatio; }
   let view = {
     scale,
     ox: w / 2 + pan.x,
@@ -440,7 +450,7 @@ export function renderMap(
             : t.type === "mountain"
               ? 43
               : t.type === "forest"
-                ? 40
+                ? 31
                 : 0
           : 0,
     });
@@ -455,13 +465,13 @@ export function renderMap(
         ry = y + 5;
       c.fillStyle = "#173b4666";
       c.beginPath();
-      c.ellipse(rx, ry, 9, 5, 0, 0, Math.PI * 2);
+      c.ellipse(rx, ry, 7, 4, 0, 0, Math.PI * 2);
       c.fill();
       if (!t.developed) {
         c.globalAlpha = (t.visible ?? t.seen) ? 1 : 0.3;
         c.save();
         c.translate(rx, ry);
-        c.scale(1.25, 1.25);
+        c.scale(0.9, 0.9);
         resourceArt(c, 0, 0, t.resource);
         c.restore();
         c.globalAlpha = 1;
@@ -602,13 +612,13 @@ export function renderMap(
     c.restore();
   }
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { ...view, hit, selected };
+  return { ...view, hit, selected, panLimits };
 }
 export function pickTile(view, x, y) {
   if (!view) return null;
   const px = (x - view.ox) / view.scale,
     py = (y - view.oy) / view.scale;
-  const selectedUnit = view.hit.find(p => p.unit && p.t.x === view.selected?.x && p.t.y === view.selected?.y && Math.abs(px-p.x)<8 && py>p.y-22 && py<p.y+8);
+  const selectedUnit = view.hit.find(p => p.unit && p.t.x === view.selected?.x && p.t.y === view.selected?.y && Math.abs(px-p.x)<10 && py>p.y-32 && py<p.y+8);
   if (selectedUnit) return selectedUnit.t;
   const ground = view.hit
     .filter((p) => Math.abs(px - p.x) / 30 + Math.abs(py - p.y) / 15 <= 1)
@@ -619,7 +629,7 @@ export function pickTile(view, x, y) {
     view.hit
       .filter(
         (p) =>
-          p.unit && Math.abs(px - p.x) < 8 && py > p.y - 22 && py < p.y + 8,
+          p.unit && Math.abs(px - p.x) < 10 && py > p.y - 32 && py < p.y + 8,
       )
       .sort(
         (a, b) =>

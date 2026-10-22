@@ -164,6 +164,7 @@ function init() {
   );
   update();
   draw();
+  showTurnBanner("내 턴입니다");
 }
 function reveal() {
   refreshVisibility(world, units, isNight(turn), researched);
@@ -171,6 +172,14 @@ function reveal() {
 function addLog(s) {
   logs.unshift({ turn, s });
   logs = logs.slice(0, 3);
+}
+let turnBannerTimer;
+function showTurnBanner(text) {
+  clearTimeout(turnBannerTimer);
+  const banner = $("turnBanner");
+  banner.textContent = text; banner.hidden = false;
+  banner.classList.remove("show"); void banner.offsetWidth; banner.classList.add("show");
+  turnBannerTimer = setTimeout(() => { banner.hidden = true; }, 1600);
 }
 function toast(s) {
   $("toast").textContent = s;
@@ -199,12 +208,8 @@ function update() {
     "+" + cities.reduce((a, t) => a + cityIncome(t.city, researched), 0);
   $("turnLabel").innerHTML =
     `턴 ${String(turn).padStart(2, "0")} <span>${over ? "게임 종료" : animating ? "행동 중" : busy ? enemyNation.name + "의 차례" : "당신의 차례"}</span>`;
-  $("logs").innerHTML = logs
-    .map(
-      (l) =>
-        `<div class="log"><span>턴 ${String(l.turn).padStart(2, "0")}</span>${l.s}</div>`,
-    )
-    .join("");
+  $("logs").hidden = true;
+  $("logs").replaceChildren();
   $("endTurn").disabled = busy || animating || over;
   if (multiGame) {
     const active = multiGame.players[multiGame.activeSeat];
@@ -1177,6 +1182,7 @@ $("endTurn").onclick = async () => {
   if (multiGame) return sendMulti({ type: "endTurn" });
   if (busy || animating || over) return;
   busy = true;
+  showTurnBanner(enemyNation.name + "의 턴입니다");
   actionMode = null;
   selectedUnit = null;
   update();
@@ -1248,6 +1254,7 @@ $("endTurn").onclick = async () => {
       : null;
   update();
   draw();
+  if (!over) showTurnBanner("내 턴입니다");
 };
 function openNationChoice() {
   pendingNation = selectedNation;
@@ -1381,6 +1388,7 @@ async function sendMulti(command) {
 async function loadMulti(game, room) {
   if (gameMode === "multi" && multiRoom?.code === room.code && multiRoom.version >= room.version)
     return;
+  const previousSeat = multiGame?.activeSeat, previousRound = multiGame?.round;
   const previous = units || [];
   const previousAttack = multiGame?.attackId;
   const epoch = ++mpAnimation;
@@ -1402,7 +1410,11 @@ async function loadMulti(game, room) {
   gold = game.gold;
   researched = new Set(game.researched);
   turn = game.round;
-  logs = game.logs.slice(0, 3);
+  logs = [];
+  if (!game.finished && (first || previousSeat !== game.activeSeat || previousRound !== game.round)) {
+    const active = game.players[game.activeSeat];
+    showTurnBanner(game.activeSeat === game.selfSeat ? "내 턴입니다" : active.nickname + "님의 턴입니다");
+  }
   selectedNation = NATIONS.find(
     (n) => n.id === game.players[game.selfSeat].nation,
   );
@@ -1535,6 +1547,8 @@ requireAccount({
       busy = false;
     }
     $("cityRewardDialog").hidden = true;
+    clearTimeout(turnBannerTimer);
+    $("turnBanner").hidden = true;
     $("app").inert = true;
     for (const id of [
       "nationDialog",

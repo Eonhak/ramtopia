@@ -1,13 +1,13 @@
 {
   "name": "ramtopia",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build --base=./",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/rules.test.js tests/server.test.js tests/multiplayer.test.js tests/city.test.js && node tests/browser.cjs && node tests/auth-browser.cjs && node tests/multiplayer-browser.cjs && node tests/city-browser.cjs",
+    "test": "node --test tests/rules.test.js tests/server.test.js tests/multiplayer.test.js tests/city.test.js && node tests/browser.cjs && node tests/auth-browser.cjs && node tests/multiplayer-browser.cjs && node tests/city-browser.cjs && node tests/map-browser.cjs",
     "server": "node --env-file-if-exists=.env server/app.js",
     "start": "node server/app.js",
     "test:server": "node --test tests/server.test.js tests/multiplayer.test.js tests/city.test.js"
