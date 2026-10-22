@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
     <title>RAMTOPIA</title>
-    <script type="module" crossorigin src="./assets/index-BHXnWpQf.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DoBUv0JS.css">
+    <script type="module" crossorigin src="./assets/index-CyD_UWii.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CsjoCLgG.css">
   </head>
   <body>
     <div id="app">
@@ -177,6 +177,11 @@
       <p id="cityRewardInfo"></p>
       <div id="cityRewardChoices"></div>
     </section>
+    <dialog id="unitInfoDialog" aria-labelledby="unitInfoTitle">
+      <header class="unit-info-header"><h2 id="unitInfoTitle"></h2><button id="closeUnitInfo" aria-label="유닛 정보 닫기">×</button></header>
+      <div class="unit-info-content"><canvas id="unitInfoArt" width="140" height="130" aria-hidden="true"></canvas>
+      <p id="unitInfoDescription"></p><dl id="unitInfoStats"></dl><p id="unitInfoNote"></p></div>
+    </dialog>
     <dialog id="gameMenu" aria-labelledby="gameMenuTitle">
       <button id="closeGameMenu" class="icon-btn" aria-label="메뉴 닫기">×</button>
       <h2 id="gameMenuTitle">메뉴</h2>
@@ -369,14 +374,17 @@
             maxlength="20"
         /></label>
         <label
-          >이메일<input
-            id="accountEmail"
-            name="email"
-            type="email"
-            autocomplete="email"
+          >아이디<input
+            id="accountUsername"
+            name="username"
+            type="text"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
             maxlength="254"
             required
         /></label>
+        <small id="usernameHelp" hidden>영문·숫자·밑줄 3~24자</small>
         <label
           >비밀번호<input
             id="accountPassword"
@@ -392,7 +400,7 @@
       </form>
       <div id="accountProfile" hidden>
         <p id="accountWelcome"></p>
-        <p id="profileEmail"></p>
+        <p id="profileUsername"></p>
         <button id="logoutAccount">로그아웃</button>
       </div>
       <p id="accountMessage" role="status" aria-live="polite"></p>
