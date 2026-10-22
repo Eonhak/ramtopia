@@ -50,6 +50,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
  homeCapital={x:3,y:7};enemyCapital={x:9,y:3};for(const [x,y,owner]of [[3,7,0],[9,3,1],[6,6,-1],[4,3,-1],[8,8,-1]])at(x,y).city={owner,name:'테스트 마을',level:1,population:0,isCapital:owner!==-1};units=[{x:3,y:7,team:0,hp:10,acted:false},{x:9,y:3,team:1,hp:10,acted:false}];researched=new Set();selected={x:3,y:7};
 
  if(kind==='combat'||kind==='kill'){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:1,hp:kind==='kill'?4:10,acted:false}];}
+ if(kind==='reflect'||kind==='rangedReflect'){units=[{x:3,y:7,type:kind==='reflect'?'warrior':'archer',team:0,hp:kind==='reflect'?10:8,acted:false},{x:4,y:7,type:'guard',team:1,hp:15,acted:false}];}
  if(kind==='rest')units[0].hp=4;
  if(kind==='income'){gold=10;units=units.slice(0,1);at(3,7).city.level=2;at(6,6).city.owner=0;at(6,6).city.level=3;}
  if(kind==='wounded'){units=[{x:3,y:7,team:0,hp:5,acted:false},{x:4,y:7,team:1,hp:10,acted:false}];}
@@ -237,6 +238,14 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   await page.click("#endTurn");
   await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
   assert.equal((await snapshot()).gold, 17);
+  await fixture("reflect");
+  await clickTile(3,7); await clickTile(4,7);
+  assert.equal((await snapshot()).units[0].hp,4);
+  assert.equal((await snapshot()).units[1].hp,9);
+  await fixture("rangedReflect");
+  await clickTile(3,7); await clickTile(4,7);
+  assert.equal((await snapshot()).units[0].hp,8);
+  assert.equal((await snapshot()).units[1].hp,10);
   await fixture("wounded");
   await clickTile(3, 7);
   await clickTile(4, 7);

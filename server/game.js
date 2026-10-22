@@ -18,6 +18,8 @@ import {
   normalizeCity,
   claimCityReward,
   battleDamage,
+  retaliationDamage,
+  reflectsAttack,
   cityIncome,
   researchCost,
   seedResources,
@@ -304,19 +306,11 @@ export function applyCommand(g, s, c, now = Date.now()) {
               g.world,
               enemy,
             ),
-            counter =
-              gridDistance(u, target) <= stats(g, enemy).range
-                ? battleDamage(
-                    stats(g, enemy).counter,
-                    enemy.hp,
-                    stats(g, enemy).hp,
-                    g.world,
-                    u,
-                  )
-                : 0;
+            counter = retaliationDamage(g.world, u, enemy, stats(g,u), stats(g,enemy), damage);
           g.lastAttack = {
             id: (g.lastAttack?.id || 0) + 1,
             unitId:u.id, team:u.team, unit:{...u},
+            reflected: reflectsAttack(enemy,stats(g,u)) && counter > 0, counter,
             from:{x:u.x,y:u.y}, to:{x:enemy.x,y:enemy.y},
           };
           enemy.hp -= damage;

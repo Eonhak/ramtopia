@@ -182,3 +182,24 @@ test("old saved games migrate partial progress to XP without resetting account s
   assert.equal(g.players[0].gold, 22);
   assert.equal(upgradeMatch(g), false);
 });
+
+test("shield reflection uses actual melee damage, including walls and lethal hits, but never ranged attacks", async () => {
+  const {retaliationDamage, combatStats} = await import("../src/rules.js");
+  const {world,t} = fixture(); t.city.walls=true;
+  const guard={x:t.x,y:t.y,team:0,type:"guard",hp:15};
+  const attacker={x:t.x+1,y:t.y,team:1,type:"warrior",hp:10};
+  const counter = () => {
+    const a=combatStats(attacker), d=combatStats(guard);
+    return retaliationDamage(world,attacker,guard,a,d,battleDamage(a.attack,attacker.hp,a.hp,world,guard));
+  };
+  assert.equal(counter(),4,"reflects reduced actual damage after wall defence");
+  guard.hp=2; assert.equal(counter(),2,"overkill beyond remaining hp is not reflected");
+  guard.hp=15;
+  for (const type of ["archer","catapult"]) {
+    attacker.type=type; attacker.hp=UNIT_TYPES[type].hp;
+    assert.equal(counter(),0,"point-blank ranged attack does not reflect");
+    attacker.x=t.x+2; assert.equal(counter(),0); attacker.x=t.x+1;
+  }
+  attacker.type="warrior"; attacker.hp=10; guard.boat="transport";
+  assert.equal(counter(),0,"shield reflection is replaced by vessel combat when embarked");
+});

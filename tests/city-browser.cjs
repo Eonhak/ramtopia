@@ -144,6 +144,10 @@ window.__cityTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from
     assert.equal(await page.locator("#unitInfoTitle").innerText(),"투석기");
     assert.equal((await page.evaluate(() => window.__cityTest.state)).gold,beforeInfo);
     await page.click("#closeUnitInfo");
+    await page.locator('[data-unit="guard"]').click();
+    assert.match(await page.locator("#unitInfoDescription").innerText(),/반사/);
+    assert.match(await page.locator("#unitInfoStats").innerText(),/근접 100%/);
+    await page.click("#closeUnitInfo");
     assert.deepEqual(errors, []);
     console.log(
       "PASS: city XP, harvest borders, level-up choice UI, wall combat, expansion caps and level-five giant",

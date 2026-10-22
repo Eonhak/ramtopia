@@ -510,6 +510,15 @@ export function battleDamage(power, hp, maxHp, world, defender) {
       )
     : 0;
 }
+export const reflectsAttack = (defender, attackerStats) =>
+  defender.type === "guard" && !defender.boat && attackerStats.range === 1;
+export function retaliationDamage(world, attacker, defender, attackStats, defenceStats, incoming) {
+  if (defender.type === "guard" && !defender.boat)
+    return reflectsAttack(defender, attackStats) && gridDistance(attacker, defender) === 1
+      ? Math.min(Math.max(0, defender.hp), Math.max(0, incoming)) : 0;
+  return gridDistance(attacker, defender) <= defenceStats.range
+    ? battleDamage(defenceStats.counter, defender.hp, defenceStats.hp, world, attacker) : 0;
+}
 const aroundTiles = (world, city) =>
   world.flat().filter((t) => !t.city && gridDistance(t, city) === 1);
 export function seedResources(world, random = Math.random) {

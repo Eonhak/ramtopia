@@ -36,6 +36,8 @@ import {
   giantSpawnTile,
   hasWallDefence,
   battleDamage,
+  retaliationDamage,
+  reflectsAttack,
   growthRequired,
   movementPath,
 } from "./rules.js";
@@ -712,23 +714,15 @@ async function act(u, t) {
           world,
           enemy,
         ),
-        counter =
-          distance(u, t) <= stats(enemy).range
-            ? battleDamage(
-                stats(enemy).counter,
-                enemy.hp,
-                stats(enemy).hp,
-                world,
-                u,
-              )
-            : 0;
+        counter = retaliationDamage(world, u, enemy, stats(u), stats(enemy), damage);
       enemy.hp -= damage;
       u.hp -= counter;
       effects = [
         { x: t.x, y: t.y, text: "−" + damage, progress: 0 },
-        { x: u.x, y: u.y, text: "−" + counter, progress: 0 },
+        { x: u.x, y: u.y, text: (reflectsAttack(enemy,stats(u)) ? "반사 −" : "−") + counter, color: reflectsAttack(enemy,stats(u)) ? "#a4f3df" : undefined, progress: 0 },
       ];
-      effects = effects.filter((e) => e.text !== "−0");
+      effects = effects.filter((e) => e.text !== "−0" && e.text !== "반사 −0");
+      if (counter && reflectsAttack(enemy,stats(u))) effects.push({x:t.x,y:t.y,text:"⛨ 반사",color:"#a4f3df",progress:0});
       await tween(300, (p) => effects.forEach((e) => (e.progress = p)));
       effects = [];
       const killed = enemy.hp <= 0;
@@ -977,7 +971,7 @@ function showUnitInfo(type) {
   const spec = UNIT_TYPES[type];
   $("unitInfoTitle").textContent = spec.name;
   $("unitInfoStats").replaceChildren();
-  for (const [name,value] of [["생산 비용",`${spec.cost} ✦`],["최대 체력",spec.hp],["공격",spec.attack],["반격",spec.counter],["이동",spec.moves],["사거리",spec.range],["도시 레벨",`${spec.level} 이상`],["필요 연구",spec.tech ? TECHNOLOGIES[spec.tech].name : "없음"]]) {
+  for (const [name,value] of [["생산 비용",`${spec.cost} ✦`],["최대 체력",spec.hp],["공격",spec.attack],[type === "guard" ? "피해 반사" : "반격",type === "guard" ? "근접 100%" : spec.counter],["이동",spec.moves],["사거리",spec.range],["도시 레벨",`${spec.level} 이상`],["필요 연구",spec.tech ? TECHNOLOGIES[spec.tech].name : "없음"]]) {
     const item = document.createElement("div"), label = document.createElement("dt"), text = document.createElement("dd");
     label.textContent = name; text.textContent = value; item.append(label,text); $("unitInfoStats").append(item);
   }
@@ -985,12 +979,12 @@ function showUnitInfo(type) {
     warrior:"근접전의 기본 보병입니다. 적을 처치하면 해당 칸으로 전진합니다.",
     archer:"두 칸 떨어진 적에게 화살을 발사합니다. 거리를 유지하며 지원하세요.",
     rider:"빠른 이동으로 탐험과 측면 공격에 유리합니다.",
-    guard:"높은 체력과 반격으로 도시와 좁은 길을 지킵니다.",
+    guard:"받은 근접 피해의 100%를 공격자에게 반사합니다. 궁수·투석기·함선의 원거리 공격은 바로 옆에서 맞아도 반사하지 못합니다. 승선 중에는 배의 반격 규칙을 따릅니다.",
     assassin:"낮에는 이동 1·공격 1, 밤에는 이동 3·공격 10으로 강화됩니다.",
     catapult:"사거리 3의 공성 병기입니다. 강력한 돌을 던지지만 근접 반격은 약합니다.",
-    knight:"갑옷과 방패를 갖춘 중기병입니다. 이동 2와 공격 10으로 돌격합니다."
+    knight:"갑옷과 방패를 갖춘 중장보병입니다. 이동 2와 공격 10으로 돌격합니다."
   }[type];
-  $("unitInfoNote").textContent = "공격·반격 피해는 현재 체력에 따라 달라집니다. 생산한 유닛은 다음 자기 턴부터 행동합니다.";
+  $("unitInfoNote").textContent = type === "guard" ? "반사량은 성곽 방어 적용 후 실제로 잃은 체력만큼입니다. 치명타로 쓰러져도 반사하며 원거리 피해에는 반사하지 않습니다." : "공격·반격 피해는 현재 체력에 따라 달라집니다. 생산한 유닛은 다음 자기 턴부터 행동합니다.";
   const c = $("unitInfoArt").getContext("2d"); c.clearRect(0,0,140,130); c.save(); c.translate(70,108); c.scale(3,3);
   drawUnit(c,0,0,{type,team:0,hp:spec.hp,acted:true,preview:true},selectedNation,false); c.restore();
   $("unitInfoDialog").showModal();
@@ -1449,10 +1443,14 @@ async function loadMulti(game, room) {
     });
     effects = units.flatMap((u) => {
       const old = previous.find((v) => v.id === u.id);
-      return old && old.hp > u.hp
+      return old && old.hp > u.hp && !(shot?.id !== previousAttack && shot?.reflected && u.id === shot.unitId)
         ? [{ x: u.x, y: u.y, text: "−" + (old.hp - u.hp), progress: 0 }]
         : [];
     });
+    if (shot?.id !== previousAttack && shot?.reflected && shot.counter) effects.push(
+      {x:shot.from.x,y:shot.from.y,text:"반사 −"+shot.counter,color:"#a4f3df",progress:0},
+      {x:shot.to.x,y:shot.to.y,text:"⛨ 반사",color:"#a4f3df",progress:0}
+    );
     if (moved || effects.length || animating) {
       const old = moved && previous.find((v) => v.id === moved.id),
         from = old && project(old.x, old.y),

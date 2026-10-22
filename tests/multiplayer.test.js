@@ -376,3 +376,15 @@ test("attack events include projectile source and target only when visible", () 
   g.world[7][3].city = null;
   assert.equal(matchView(g,0).lastAttack,null);
 });
+
+test("server shields reflect melee damage and publish feedback, while archers cannot trigger reflection", () => {
+  for (const type of ["warrior","archer"]) {
+    const g=fixture(); g.units[0].x=4; g.units[0].type=type;
+    g.units[0].hp=type==="archer"?8:10;
+    g.units[1].type="guard"; g.units[1].hp=15;
+    applyCommand(g,0,{type:"act",unitId:1,x:5,y:7});
+    assert.equal(g.units[1].hp,type==="archer"?10:9);
+    assert.equal(g.units[0].hp,type==="archer"?8:4);
+    assert.equal(g.lastAttack.reflected,type==="warrior");
+  }
+});
