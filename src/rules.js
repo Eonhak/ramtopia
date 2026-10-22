@@ -182,7 +182,7 @@ export const TECHNOLOGIES = {
     name: "사냥",
     icon: "♠",
     cost: 5,
-    description: "주변 동물 사냥 · 인구 +2",
+    description: "주변 동물 사냥 · 도시 경험치 +2",
   },
   roads: {
     name: "도로",
@@ -203,7 +203,7 @@ export const TECHNOLOGIES = {
     icon: "♣",
     cost: 6,
     requires: "hunting",
-    description: "목재 수확 · 인구 +2",
+    description: "숲 벌목 · 도시 경험치 +2",
   },
   siege: {
     name: "투석기",
@@ -223,7 +223,7 @@ export const TECHNOLOGIES = {
     icon: "◆",
     cost: 7,
     requires: "climbing",
-    description: "광석 채굴 · 인구 +3",
+    description: "광물이 있는 산에 광산 건설 · 도시 경험치 +3",
   },
   chivalry: {
     name: "기사",
@@ -236,14 +236,14 @@ export const TECHNOLOGIES = {
     name: "채집",
     icon: "●",
     cost: 4,
-    description: "열매 수확 · 인구 +1",
+    description: "열매 수확 · 도시 경험치 +1",
   },
   farming: {
     name: "농업",
     icon: "♧",
     cost: 6,
     requires: "gathering",
-    description: "곡물 수확 · 인구 +2",
+    description: "곡물 수확 · 도시 경험치 +2",
   },
   fortification: {
     name: "방어술",
@@ -256,7 +256,7 @@ export const TECHNOLOGIES = {
     name: "낚시",
     icon: "≈",
     cost: 5,
-    description: "물고기 수확 · 인구 +2",
+    description: "물고기 수확 · 도시 경험치 +2",
   },
   navigation: {
     name: "항해",
@@ -312,7 +312,7 @@ export const RESOURCES = {
   },
   wood: {
     name: "목재",
-    verb: "목재 수확",
+    verb: "숲 벌목",
     icon: "♣",
     cost: 4,
     experience: 2,
@@ -336,7 +336,7 @@ export const RESOURCES = {
   },
   ore: {
     name: "광석",
-    verb: "광산 개발",
+    verb: "광산 건설",
     icon: "◆",
     cost: 5,
     experience: 3,
@@ -533,6 +533,11 @@ export function seedResources(world, random = Math.random) {
     t.developed = false;
     t.road = false;
   }
+  // Fish and mineral deposits also occur beyond the immediate city ring.
+  for (const t of world.flat()) {
+    if (!t.city && t.type === "water" && random() < .38) t.resource = "fish";
+    if (!t.city && t.type === "mountain" && random() < .48) t.resource = "ore";
+  }
   for (const city of cities) {
     const around = shuffle(
       world
@@ -583,7 +588,12 @@ export function seedResources(world, random = Math.random) {
       inner.find((t) => t.resource === "fruit"),
     ]);
     const candidates = inner.filter((t) => !protectedTiles.has(t));
-    for (const t of candidates.slice(0, 2)) t.resource = null;
+    for (const t of candidates.filter(t=>t.type!=="water"&&t.type!=="mountain").slice(0, 2)) t.resource = null;
+    // Coastal and mountain territories always offer their corresponding development.
+    for (const [type, resource] of [["water","fish"],["mountain","ore"]]) {
+      const t = inner.find(t=>t.type===type);
+      if (t) t.resource = resource;
+    }
   }
 }
 export function movementPath(
@@ -735,13 +745,9 @@ export function changeVessel(u, kind, techs, gold) {
 }
 
 export function researchCost(tech, cities) {
-  return (
-    tech.cost +
-    2 *
-      cities
-        .filter((c) => c.owner === 0)
-        .reduce((sum, c) => sum + Math.max(0, c.level - 1), 0)
-  );
+  const own = cities.filter(c => c.owner === 0);
+  return tech.cost + 2 * (Math.max(0, own.length - 1) +
+    own.reduce((sum, c) => sum + Math.max(0, c.level - 1), 0));
 }
 export function healthDamage(power, hp, maxHp) {
   return power <= 0 || hp <= 0

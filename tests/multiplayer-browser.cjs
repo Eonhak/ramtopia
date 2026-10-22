@@ -62,7 +62,7 @@ const assert = require("node:assert/strict");
           response: res,
           body:
             (await res.text()) +
-            "\nwindow.__multiView=()=>({view,units,gold,busy,world,multiGame});",
+            "\nwindow.__multiView=()=>({view,units,gold,busy,world,multiGame,pickTile});",
         });
       });
       pages.push(page);
@@ -141,10 +141,12 @@ const assert = require("node:assert/strict");
     }
     await click(host, actor.x, actor.y);
     const target = await host.evaluate(
-      () =>
-        window
-          .__multiView()
-          .view.hit.find((p) => p.available === "move" && !p.t.city)?.t,
+      () => {
+        const v = window.__multiView().view, canvas = document.querySelector('#map'), r = canvas.getBoundingClientRect();
+        return v.hit.find(p => p.available === "move" && !p.t.city &&
+          window.__multiView().pickTile(v, v.ox+p.x*v.scale, v.oy+p.y*v.scale) === p.t &&
+          document.elementFromPoint(r.left + v.ox + p.x*v.scale, r.top + v.oy + p.y*v.scale) === canvas)?.t;
+      },
     );
     assert(target, "initial unit has a walkable tile");
     await click(host, target.x, target.y);

@@ -10,7 +10,7 @@ const assert=require('node:assert/strict');
     await page.route(/\/src\/main\.js(?:\?.*)?$/,async r=>{
       const response=await r.fetch();
       await r.fulfill({response,body:await response.text()+`
-window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',seen:false,visible:false,city:null})));homeCapital={x:1,y:1};enemyCapital={x:10,y:10};at(1,1).city={owner:0,name:'수도',level:1,population:1,experience:0};at(10,10).city={owner:1,name:'적',level:1,population:1,experience:0};assignTerritories(world);units=[{x:6,y:6,team:0,hp:10,acted:false}];researched=new Set();gold=100;selected={x:1,y:1};reveal();update();draw();},idleFixture(state){units=[{id:1,x:6,y:6,team:0,hp:10,acted:state===3,moved:state===1},{id:2,x:6,y:7,team:0,hp:10,acted:state>=2},{id:3,x:7,y:6,team:1,hp:10,acted:false}];busy=state===4;draw();return view.idleUnit?.id??null;},camera(x,y,z){pan={x,y};zoom=z;draw();},get visible(){return world.flat().filter(t=>t.visible).map(t=>[t.x,t.y]);},get cameraView(){return view;}};`});
+window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',seen:false,visible:false,city:null})));homeCapital={x:1,y:1};enemyCapital={x:10,y:10};at(1,1).city={owner:0,name:'수도',level:1,population:1,experience:0};at(10,10).city={owner:1,name:'적',level:1,population:1,experience:0};assignTerritories(world);units=[{x:6,y:6,team:0,hp:10,acted:false}];researched=new Set();gold=100;selected={x:1,y:1};reveal();update();draw();},resourceFixture(type,resource){const t=at(2,1);t.type=type;t.resource=resource;t.developed=false;researched=new Set(["lumber","fishing","smelting"]);gold=100;selectTile(t,"city");update();draw();},get development(){return {city:at(1,1).city,tile:at(2,1),gold};},idleFixture(state){units=[{id:1,x:6,y:6,team:0,hp:10,acted:state===3,moved:state===1},{id:2,x:6,y:7,team:0,hp:10,acted:state>=2},{id:3,x:7,y:6,team:1,hp:10,acted:false}];busy=state===4;draw();return view.idleUnit?.id??null;},camera(x,y,z){pan={x,y};zoom=z;draw();},get visible(){return world.flat().filter(t=>t.visible).map(t=>[t.x,t.y]);},get cameraView(){return view;}};`});
     });
     await page.goto(process.env.TEST_URL||'http://localhost:3000');
     await page.click('#singleMode');await page.click('#startNation');
@@ -49,6 +49,24 @@ window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from(
     assert.equal(visible.length,22); // nine city tiles + thirteen scout tiles
     assert(visible.some(([x,y])=>x===8&&y===6));
     assert(!visible.some(([x,y])=>x===8&&y===8));
+    await page.evaluate(()=>window.__mapTest.resourceFixture('forest',null));
+    assert(await page.locator('#lumberForest').isVisible());
+    assert(await page.locator('#lumberForest').isEnabled());
+    await page.click('#lumberForest');
+    let development=await page.evaluate(()=>window.__mapTest.development);
+    assert.equal(development.tile.type,'grass');assert.equal(development.city.level,2);assert.equal(development.gold,96);
+    await page.locator('[data-reward="stars"]').click();
+    await page.evaluate(()=>window.__mapTest.resourceFixture('water','fish'));
+    assert.match(await page.locator('#develop').textContent(),/어장/);
+    await page.click('#develop');
+    development=await page.evaluate(()=>window.__mapTest.development);
+    assert.equal(development.city.experience,2);assert.equal(development.gold,97);
+    await page.evaluate(()=>window.__mapTest.resourceFixture('mountain','ore'));
+    assert.match(await page.locator('#develop').textContent(),/광산 건설/);
+    await page.click('#develop');
+    development=await page.evaluate(()=>window.__mapTest.development);
+    assert.equal(development.city.level,3);assert.equal(development.tile.developed,true);assert.equal(development.gold,95);
+    await page.screenshot({path:'/tmp/ramtopia-development.png'});
     assert.deepEqual(errors,[]);
     console.log('PASS: bounded camera at all zoom levels, turn banner, hidden logs and reduced scouting via research UI');
   } finally {await browser.close();}

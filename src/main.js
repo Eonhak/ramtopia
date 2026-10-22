@@ -309,6 +309,7 @@ function update() {
     restUnit: ownUnit,
     claimVillage: ownUnit && !!city && !friendlyTeam(city.owner),
     recruit: ownCity,
+    lumberForest: !showUnit && t.seen && !city && t.type === "forest" && t.resource !== "wood",
     develop: !showUnit && t.seen && !!t.resource && !t.developed,
     recruitRider: ownCity,
     recruitGuard: ownCity,
@@ -402,6 +403,7 @@ function update() {
     cityForTile(world, t)?.city.owner !== 0;
   const resource = t.resource && RESOURCES[t.resource],
     owner = cityForTile(world, t);
+  $("lumberForest").disabled = busy || animating || over || !researched.has("lumber") || gold < RESOURCES.wood.cost || owner?.city.owner !== 0;
   $("develop").disabled =
     busy ||
     animating ||
@@ -462,7 +464,7 @@ function update() {
           : "수확하면 도시 경험치가 쌓이고, 레벨업할 때 인구가 늘어납니다.";
   showCityReward();
   if(multiGame?.turnLocked) {
-    for(const id of ["recruit","recruitArcher","recruitRider","recruitGuard","recruitAssassin","recruitCatapult","recruitKnight","restUnit","claimVillage","promoteUnit","upgradeScout","upgradeWarship","develop","buildRoad"]) $(id).disabled=true;
+    for(const id of ["recruit","recruitArcher","recruitRider","recruitGuard","recruitAssassin","recruitCatapult","recruitKnight","restUnit","claimVillage","promoteUnit","upgradeScout","upgradeWarship","develop","lumberForest","buildRoad"]) $(id).disabled=true;
     $("status").textContent="동맹을 해제해 이번 턴은 행동할 수 없습니다. 턴을 마치세요.";
   }
   if($("diplomacyDialog").open) renderDiplomacy();
@@ -1065,12 +1067,12 @@ $("buildRoad").onclick = () => {
   update();
   draw();
 };
-function canDevelop(t) {
-  const r = t?.resource && RESOURCES[t.resource];
+function canDevelop(t, lumber = false) {
+  const r = lumber ? RESOURCES.wood : t?.resource && RESOURCES[t.resource];
   return (
     !!r &&
     t.seen &&
-    !t.developed &&
+    (lumber ? t.type === "forest" && !t.city : !t.developed) &&
     cityForTile(world, t)?.city.owner === 0 &&
     gold >= r.cost &&
     (!r.tech || researched.has(r.tech)) &&
@@ -1079,13 +1081,14 @@ function canDevelop(t) {
     !over
   );
 }
-function develop(t) {
-  if (multiGame) return sendMulti({ type: "develop", x: t.x, y: t.y });
-  if (!canDevelop(t)) return;
-  const r = RESOURCES[t.resource],
+function develop(t, lumber = false) {
+  if (multiGame) return sendMulti({ type: lumber ? "lumber" : "develop", x: t.x, y: t.y });
+  if (!canDevelop(t, lumber)) return;
+  const r = RESOURCES[lumber ? "wood" : t.resource],
     city = cityForTile(world, t);
   gold -= r.cost;
   t.developed = true;
+  if (lumber || t.resource === "wood") { t.type = "grass"; t.resource = "wood"; }
   const levels = addCityExperience(city.city, r.experience);
   addLog(
     `${r.name} 개발 · ${city.city.name} 경험치 +${r.experience}${levels ? " · 레벨 " + city.city.level + " 성장" : ""}`,
@@ -1100,13 +1103,14 @@ function develop(t) {
   update();
   draw();
 }
+$("lumberForest").onclick = () => develop(at(selected.x, selected.y), true);
 $("develop").onclick = () => develop(at(selected.x, selected.y));
 function renderResearch() {
   $("researchGold").textContent = gold + " ✦";
-  $("researchSurcharge").textContent = `도시 성장 할증 +${researchCost(
+  $("researchSurcharge").textContent = `왕국 규모 할증 +${researchCost(
     { cost: 0 },
     ownCities().map((t) => t.city),
-  )} ✦ · 보유 도시의 레벨 상승분마다 +2 ✦`;
+  )} ✦ · 추가 도시·도시 레벨 상승마다 +2 ✦`;
   $("techGrid").replaceChildren();
   for (const branch of TECH_BRANCHES) {
     const row = document.createElement("section");

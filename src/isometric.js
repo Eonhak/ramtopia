@@ -82,6 +82,7 @@ function tree(c, x, y, s = 1) {
   c.restore();
 }
 function mountain(c, x, y) {
+  c.save(); c.translate(x, y); c.scale(.72, .72); x = 0; y = 0;
   poly(
     c,
     [
@@ -120,6 +121,7 @@ function mountain(c, x, y) {
     ],
     "#bacbc3",
   );
+  c.restore();
 }
 function resourceArt(c, x, y, kind) {
   if (kind === "game") {
@@ -450,7 +452,7 @@ export function renderMap(
           ? t.city
             ? 36
             : t.type === "mountain"
-              ? 43
+              ? 31
               : t.type === "forest"
                 ? 31
                 : 0
@@ -477,6 +479,13 @@ export function renderMap(
         resourceArt(c, 0, 0, t.resource);
         c.restore();
         c.globalAlpha = 1;
+      } else if (t.resource === "ore") {
+        // A built mine stays visible on the mountain, rather than a harvest checkmark.
+        block(c, rx, ry - 6, 8, 5, 9, "#bda67b", "#806b52", "#66564b");
+        c.fillStyle = "#23323b"; c.fillRect(rx - 3, ry - 6, 6, 9);
+        c.strokeStyle = "#cfb27c"; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(rx - 3, ry + 7); c.lineTo(rx - 2, ry + 1);
+        c.moveTo(rx + 3, ry + 7); c.lineTo(rx + 2, ry + 1); c.stroke();
       } else {
         c.strokeStyle = "#f4df91";
         c.lineWidth = 2;

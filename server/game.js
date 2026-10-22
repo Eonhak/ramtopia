@@ -285,7 +285,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
       acted: true,
       bornTurn: g.round,
     });
-  } else if (c.type === "develop" || c.type === "road") {
+  } else if (c.type === "develop" || c.type === "lumber" || c.type === "road") {
     const visible = target && visibility(g, s)[c.y]?.[c.x]?.seen;
     if (!visible || cityForTile(g.world, target)?.city.owner !== s)
       fail("내 도시 영토를 선택하세요.");
@@ -300,16 +300,21 @@ export function applyCommand(g, s, c, now = Date.now()) {
       p.gold -= 2;
       target.road = true;
     } else {
-      const r = RESOURCES[target.resource];
+      const lumber = c.type === "lumber";
+      const r = RESOURCES[lumber ? "wood" : target.resource];
       if (
         !r ||
-        target.developed ||
+        (lumber ? target.type !== "forest" || !!target.city : target.developed) ||
         (r.tech && !ts.has(r.tech)) ||
         p.gold < r.cost
       )
         fail("수확 조건이 맞지 않습니다.");
       p.gold -= r.cost;
       target.developed = true;
+      if (lumber || target.resource === "wood") {
+        target.type = "grass";
+        target.resource = "wood";
+      }
       addCityExperience(cityForTile(g.world, target).city, r.experience);
     }
   } else {
