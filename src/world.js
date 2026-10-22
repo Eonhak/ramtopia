@@ -82,7 +82,12 @@ export const NATIONS = [
   },
 ];
 const cheb = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
-export function generateWorld(size = 12, random = Math.random) {
+export function generateWorld(size = 12, random = Math.random, options = {}) {
+  const players = options.players || 2;
+  const terrain = options.terrain || "balanced";
+  const water = terrain === "islands" ? .53 : terrain === "continents" ? .06 : terrain === "forest" ? .10 : .16;
+  const mountain = terrain === "forest" ? .1 : .17;
+  const woods = terrain === "forest" ? .64 : .33;
   const world = Array.from({ length: size }, (_, y) =>
     Array.from({ length: size }, (_, x) => {
       const r = random(),
@@ -91,11 +96,11 @@ export function generateWorld(size = 12, random = Math.random) {
         x,
         y,
         type:
-          r < (edge ? 0.55 : 0.16)
+          r < (edge ? Math.min(.85,water+.35) : water)
             ? "water"
-            : r < 0.33
+            : r < water + mountain
               ? "mountain"
-              : r < 0.66
+              : r < water + mountain + woods
                 ? "forest"
                 : "grass",
         seen: false,
@@ -116,9 +121,14 @@ export function generateWorld(size = 12, random = Math.random) {
   const far = shuffled.filter((t) => cheb(t, home) >= Math.floor(size / 2));
   const enemy = far[0] || shuffled.at(-1),
     cities = [home, enemy];
+  // Spread starting capitals first, then fill remaining neutral settlements.
+  while (cities.length < players) {
+    const next = shuffled.filter(t => !cities.includes(t)).sort((a,b) => Math.min(...cities.map(c=>cheb(c,b))) - Math.min(...cities.map(c=>cheb(c,a))))[0];
+    if (!next) throw new Error("도시를 배치할 수 없습니다.");
+    cities.push(next);
+  }
   for (const t of shuffled)
-    if (cities.length < 5 && cities.every((c) => cheb(c, t) >= 3))
-      cities.push(t);
+    if (cities.length < Math.max(5,players*2) && cities.every((c) => cheb(c, t) >= (players > 4 ? 2 : 3))) cities.push(t);
   for (const [i, t] of cities.entries()) {
     t.type = "grass";
     t.city = {
@@ -128,7 +138,7 @@ export function generateWorld(size = 12, random = Math.random) {
           ? "수도"
           : i === 1
             ? "적의 수도"
-            : ["이끼 마을", "바람 마을", "햇살 마을"][i - 2],
+            : ["이끼 마을", "바람 마을", "햇살 마을"][(i - 2)%3] + (i>4 ? " " + (i-1) : ""),
       level: 1,
       population: 1,
       experience: 0,

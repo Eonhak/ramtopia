@@ -1,3 +1,6 @@
+import { createMatch, applyCommand, matchView } from "../server/game.js";
+import { runBots } from "../server/ai.js";
+import { gameOptions } from "./game-options.js";
 import "./style.css";
 import { lobby } from "./lobby.js";
 import { requireAccount } from "./auth.js";
@@ -66,6 +69,7 @@ for (const id of [
   choice.append(button,info); $("productionUnits").append(choice);
 }
 
+let singleMatch = null, singleOptions = gameOptions({},12), localRevision = 0, localCode = "", accountNickname = "플레이어";
 let gameMode = "single",
   multiGame = null,
   multiRoom = null,
@@ -118,6 +122,7 @@ const stats = (u) =>
   });
 const inSight = (t) => t.visible ?? t.seen;
 function init() {
+  singleMatch = null; multiGame = null; multiRoom = null; gameMode = "single";
   $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
   $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
   activePointers.clear();
@@ -135,7 +140,7 @@ function init() {
   gold = 3;
   turn = 1;
   turnDeadline = singleTimeLimit ? Date.now() + singleTimeLimit * 1000 : null;
-  const generated = generateWorld(N);
+  const generated = generateWorld(singleOptions.size,Math.random,singleOptions);
   world = generated.world;
   homeCapital = generated.home;
   enemyCapital = generated.enemy;
@@ -166,6 +171,15 @@ function init() {
   draw();
   showTurnBanner("내 턴입니다");
 }
+async function startSingleMatch() {
+  mpAnimation++; animation=null; effects=[]; animating=false;
+  const enemies=NATIONS.filter(n=>n.id!==pendingNation.id), enemy=enemies[Math.floor(Math.random()*enemies.length)];
+  singleMatch=createMatch([{userId:1,nickname:accountNickname,nation:pendingNation.id},{userId:-1,nickname:"AI · "+enemy.name,nation:enemy.id,bot:true,difficulty:singleOptions.difficulty}],singleTimeLimit,Date.now(),singleOptions);
+  localCode="single-"+Date.now()+"-"+Math.random(); localRevision=0;
+  multiGame=null; multiRoom=null; teamNations=null;
+  await loadMulti(matchView(singleMatch,0),{code:localCode,version:++localRevision});
+}
+const friendlyTeam = team => team === 0 || !!multiGame?.allies?.includes(team);
 function reveal() {
   refreshVisibility(world, units, isNight(turn), researched);
 }
@@ -274,7 +288,7 @@ function update() {
     : showUnit
       ? `체력 ${u.hp} / ${stats(u).hp} · ${u.bornTurn === turn ? "훈련 중 · 다음 턴 행동" : u.acted ? "이번 턴 행동 완료" : u.moved ? "이동 완료 · 공격 가능" : "이동·공격 가능"}`
       : city
-        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner > 0 ? "적의 도시" : "중립 마을"} · 인구 ${city.population} · 경험치 ${city.experience}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
+        ? `레벨 ${city.level} · ${city.owner === 0 ? "내 도시" : city.owner > 0 ? (friendlyTeam(city.owner)?"동맹 도시":"적의 도시") : "중립 마을"} · 인구 ${city.population} · 경험치 ${city.experience}/${growthRequired(city)} · 수입 +${cityIncome(city, researched)} ✦`
         : "왕국의 지도를 넓혀 보세요.";
   if (showUnit)
     $("tileDescription").textContent +=
@@ -293,7 +307,7 @@ function update() {
   $("productionDock").hidden = !panelOpen || !ownCity;
   const buttons = {
     restUnit: ownUnit,
-    claimVillage: ownUnit && !!city && city.owner !== 0,
+    claimVillage: ownUnit && !!city && !friendlyTeam(city.owner),
     recruit: ownCity,
     develop: !showUnit && t.seen && !!t.resource && !t.developed,
     recruitRider: ownCity,
@@ -447,6 +461,11 @@ function update() {
           ? "내 도시 영토 안의 자원만 개발할 수 있습니다."
           : "수확하면 도시 경험치가 쌓이고, 레벨업할 때 인구가 늘어납니다.";
   showCityReward();
+  if(multiGame?.turnLocked) {
+    for(const id of ["recruit","recruitArcher","recruitRider","recruitGuard","recruitAssassin","recruitCatapult","recruitKnight","restUnit","claimVillage","promoteUnit","upgradeScout","upgradeWarship","develop","buildRoad"]) $(id).disabled=true;
+    $("status").textContent="동맹을 해제해 이번 턴은 행동할 수 없습니다. 턴을 마치세요.";
+  }
+  if($("diplomacyDialog").open) renderDiplomacy();
 }
 function showCityReward() {
   const t =
@@ -477,8 +496,7 @@ function showCityReward() {
     icon.className = "reward-icon";
     icon.textContent = {stars:"✦", walls:"♜", expand:"⛶", giant:"♟"}[option.key];
     button.append(icon, title, description);
-    button.disabled =
-      option.key === "giant" && !giantSpawnTile(world, t, units);
+    button.disabled = !!multiGame?.turnLocked || (option.key === "giant" && !giantSpawnTile(world, t, units));
     button.onclick = () => {
       if (multiGame)
         return sendMulti({
@@ -506,6 +524,7 @@ function available(t) {
   if (
     !selectedUnit ||
     selectedUnit.acted ||
+    multiGame?.turnLocked ||
     selectedUnit.bornTurn === turn ||
     busy ||
     animating ||
@@ -517,7 +536,7 @@ function available(t) {
     return null;
   const occupant = unitAt(t.x, t.y);
   if (
-    occupant?.team > 0 &&
+    occupant?.team > 0 && !friendlyTeam(occupant.team) &&
     stats(selectedUnit).attack > 0 &&
     inSight(t) &&
     !selectedUnit.attacked &&
@@ -568,6 +587,7 @@ function draw() {
       nation: selectedNation,
       enemyNation,
       teamNations,
+      allies: multiGame?.allies || [],
       panelHeight:
         panelOpen && selectionKind !== "unit" && canvas.clientWidth < 541
           ? $("actionPanel").offsetHeight + 65
@@ -1113,7 +1133,7 @@ function renderResearch() {
       button.dataset.tech = key;
       button.className = "tech-card" + (learned ? " learned" : "");
       button.disabled =
-        learned || locked || gold < price || busy || animating || over;
+        learned || locked || gold < price || busy || animating || over || !!multiGame?.turnLocked;
       button.innerHTML = `<span>${tech.icon}</span><div><b>${tech.name}</b><p>${tech.description}</p><small>${learned ? "연구 완료" : locked ? TECHNOLOGIES[tech.requires].name + " 선행 필요" : price + " ✦"}</small></div>`;
       button.onclick = () => {
         if (multiGame) return sendMulti({ type: "research", tech: key });
@@ -1297,10 +1317,10 @@ function openNationChoice() {
   $("cancelNation").hidden = false;
   $("nationDialog").showModal();
 }
-$("startNation").onclick = () => {
+$("startNation").onclick = async () => {
   selectedNation = pendingNation;
-  init();
   $("nationDialog").close();
+  await startSingleMatch();
 };
 $("cancelNation").onclick = () => {
   $("nationDialog").close();
@@ -1312,7 +1332,7 @@ $("nationDialog").addEventListener("cancel", (e) => {
 $("newGame").onclick = () => {
   if (animating) return;
   $("menuMain").disabled = busy && !multiGame;
-  $("menuRoom").hidden = !multiGame;
+  $("menuRoom").hidden = !multiGame || !!singleMatch;
   $("gameMenu").showModal();
 };
 $("menuRoom").onclick = () => { $("gameMenu").close(); lobby.returnToRoom(); };
@@ -1322,6 +1342,26 @@ $("menuMain").onclick = () => {
   $("gameMenu").close();
   lobby.showMode();
 };
+function renderDiplomacy() {
+  const g=multiGame;
+  $("diplomacyHelp").textContent=!g ? "게임을 시작하면 외교를 할 수 있습니다." : g.turnLocked ? "동맹을 해제했습니다. 이번 턴은 더 행동할 수 없습니다." : researched.has("diplomacy") ? "내 턴에 동맹을 제안할 수 있습니다. 상대가 수락하면 공격이 금지되고 시야를 공유합니다." : "동맹 연구를 완료하면 제안할 수 있습니다. 받은 제안은 연구 없이 수락할 수 있습니다.";
+  $("diplomacyPlayers").replaceChildren(); if(!g) return;
+  for(const p of g.players.filter(p=>p.seat!==g.selfSeat && !p.eliminated)) {
+    const row=document.createElement("div"); row.className="diplomacy-player";
+    const name=document.createElement("strong"); name.textContent=p.nickname+(p.bot?" · AI":"")+(g.allies?.includes(p.team)?" · 동맹":""); row.append(name);
+    const received=g.offers?.some(o=>o.from===p.seat&&o.to===g.selfSeat), sent=g.offers?.some(o=>o.from===g.selfSeat&&o.to===p.seat), linked=g.allies?.includes(p.team);
+    const choices=linked?[["break","동맹 해제"]]:received?[["accept","동맹 수락"],["decline","거절"]]:[["propose",sent?"제안 대기 중":"동맹 제안"]];
+    for(const [action,label] of choices) {
+      const button=document.createElement("button"); button.textContent=label; button.dataset.alliance=action; button.dataset.target=String(p.seat);
+      button.disabled=busy||animating||over||g.turnLocked||(action==="propose"&&(!researched.has("diplomacy")||sent));
+      button.onclick=async()=>{const ok=await sendMulti({type:"alliance",action,target:p.seat});$("diplomacyMessage").textContent=ok?(action==="break"?"동맹이 해제되어 이번 턴의 행동을 마쳤습니다.":"외교 상태가 갱신되었습니다."):"외교 행동을 처리하지 못했습니다. 현재 차례와 상태를 확인하세요.";renderDiplomacy();};
+      row.append(button);
+    }
+    $("diplomacyPlayers").append(row);
+  }
+}
+$("menuDiplomacy").onclick=()=>{$("gameMenu").close();$("diplomacyMessage").textContent="";renderDiplomacy();$("diplomacyDialog").showModal();};
+$("closeDiplomacy").onclick=()=>$("diplomacyDialog").close();
 $("help").onclick = () => $("helpDialog").showModal();
 $("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
 $("zoomIn").onclick = () => setZoom(zoom + 0.25);
@@ -1335,7 +1375,7 @@ function updateTurnClock() {
       ? null
       : Math.max(
           0,
-          Math.ceil((deadline - (multiGame ? lobby.now() : Date.now())) / 1000),
+          Math.ceil((deadline - (multiGame && !singleMatch ? lobby.now() : Date.now())) / 1000),
         );
   $("turnClock").textContent =
     remaining === null
@@ -1350,12 +1390,12 @@ setInterval(() => {
   if (!world) return;
   updateTurnClock();
   if (
-    !multiGame &&
+    (!multiGame || !!singleMatch) &&
     !$("modeDialog").open &&
     !$("roomDialog").open &&
     !$("nationDialog").open &&
-    turnDeadline &&
-    Date.now() >= turnDeadline &&
+    (singleMatch ? multiGame.deadline : turnDeadline) &&
+    Date.now() >= (singleMatch ? multiGame.deadline : turnDeadline) &&
     !busy &&
     !animating &&
     !over
@@ -1364,11 +1404,22 @@ setInterval(() => {
 }, 500);
 async function sendMulti(command) {
   if (!multiGame || busy || mpSending || over) return false;
+  if(multiGame.turnLocked && command.type!=="endTurn") {toast("동맹 해제로 이번 턴은 더 행동할 수 없습니다.");return false;}
   mpSending = true;
   busy = true;
   update();
   try {
-    await lobby.command(command);
+    if(singleMatch) {
+      const model=singleMatch;
+      applyCommand(model,0,command,Date.now());
+      await loadMulti(matchView(model,0),{code:localCode,version:++localRevision});
+      if(!model.finished && model.players[model.activeSeat]?.bot) {
+        await new Promise(r=>setTimeout(r,350));
+        if(singleMatch!==model) return false;
+        runBots(model,Date.now());
+        await loadMulti(matchView(model,0),{code:localCode,version:++localRevision});
+      }
+    } else await lobby.command(command);
     return true;
   } catch (error) {
     toast(error.message);
@@ -1386,7 +1437,7 @@ async function sendMulti(command) {
   }
 }
 async function loadMulti(game, room) {
-  if (gameMode === "multi" && multiRoom?.code === room.code && multiRoom.version >= room.version)
+  if (multiRoom?.code === room.code && multiRoom.version >= room.version)
     return;
   const previousSeat = multiGame?.activeSeat, previousRound = multiGame?.round;
   const previous = units || [];
@@ -1395,9 +1446,9 @@ async function loadMulti(game, room) {
   animation = null;
   effects = [];
   animating = false;
-  const first = gameMode !== "multi" || multiRoom?.code !== room.code;
+  const first = !multiGame || multiRoom?.code !== room.code;
   const selectedId = selectedUnit?.id;
-  gameMode = "multi";
+  gameMode = singleMatch ? "single" : "multi";
   multiGame = game;
   multiRoom = room;
   const oldWorld = world;
@@ -1433,7 +1484,7 @@ async function loadMulti(game, room) {
     pan = { x: 0, y: 0 };
     $("zoomLabel").textContent = "100%";
   }
-  selectedUnit = units.find((u) => u.id === selectedId && u.team === 0) || null;
+  selectedUnit = first ? null : units.find((u) => u.id === selectedId && u.team === 0) || null;
   if (selectedUnit) selected = { x: selectedUnit.x, y: selectedUnit.y };
   actionMode = selectedUnit && !busy && !over ? "unit" : null;
   $("kingdomName").textContent = selectedNation.name;
@@ -1492,6 +1543,7 @@ async function loadMulti(game, room) {
 }
 requireAccount({
   async onAuthenticated(user) {
+    singleMatch=null; accountNickname=user.nickname;
     accountGameId++;
     if (!multiGame)
       while (busy || animating)
@@ -1508,15 +1560,17 @@ requireAccount({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     $("app").inert = false;
     await lobby.open(user, {
-      onSingle(limit) {
+      onSingle(limit,options) {
+        singleMatch=null; singleOptions=gameOptions(options,12);
         gameMode = "single";
         multiGame = null;
         teamNations = null;
         singleTimeLimit = limit;
         openNationChoice();
       },
-      onGame: loadMulti,
+      onGame: (game,room) => {singleMatch=null; return loadMulti(game,room);},
       onLeave() {
+        singleMatch=null;
         accountGameId++;
         mpAnimation++;
         animation = null;
@@ -1536,6 +1590,7 @@ requireAccount({
     });
   },
   onSignedOut() {
+    singleMatch=null;
     accountGameId++;
     lobby.stop();
     if (multiGame) {
@@ -1556,6 +1611,7 @@ requireAccount({
       "helpDialog",
       "gameMenu",
       "unitInfoDialog",
+      "diplomacyDialog",
 
     ])
       $(id).close();

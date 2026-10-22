@@ -228,6 +228,7 @@ export function renderMap(
     nation,
     enemyNation,
     teamNations = null,
+    allies = [],
   },
 ) {
   let c = canvas.getContext("2d"),
@@ -495,8 +496,8 @@ export function renderMap(
         c.fillStyle = "#ffffff"; c.font = "bold 7px sans-serif"; c.textAlign = "left";
         c.fillText(`Lv.${t.city.level}`, p.x + 11, y + 25);
       } else {
-        const label = owner > 0 ? (t.city.isCapital ? "⚔ 적 수도" : "⚔ 적 도시") : "◇ 중립 마을";
-        c.fillStyle = owner > 0 ? "#743a48ed" : "#f4e4bbf5";
+        const label = allies.includes(owner) ? "동맹 도시" : owner > 0 ? (t.city.isCapital ? "⚔ 적 수도" : "⚔ 적 도시") : "◇ 중립 마을";
+        c.fillStyle = allies.includes(owner) ? "#315c64ed" : owner > 0 ? "#743a48ed" : "#f4e4bbf5";
         c.fillRect(p.x - 25, y + 15, 50, 12);
         c.fillStyle = owner === -1 ? "#5d503c" : "#ffffff";
         c.font = "bold 7px sans-serif"; c.textAlign = "center";

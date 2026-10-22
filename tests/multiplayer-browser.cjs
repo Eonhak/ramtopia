@@ -83,7 +83,7 @@ const assert = require("node:assert/strict");
       await page.locator("#roomDialog").waitFor({ state: "visible" });
     }
     await host.waitForFunction(
-      () => document.getElementById("roomCount").textContent === "4 / 4명",
+      () => document.getElementById("roomCount").textContent === "4 / 8명",
     );
     await host
       .locator(".room-player")

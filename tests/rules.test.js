@@ -277,7 +277,7 @@ test("three kills allow one veteran promotion with +5 max hp and full healing", 
   assert.equal(promote(u), false);
   assert.equal(u.hp, 2);
 });
-test("basic fog exposes only nearby tiles; night contracts visibility and mapping never reveals enemy presence", () => {
+test("basic fog exposes only nearby tiles; night contracts visibility and diplomacy research never reveals the entire map", () => {
   const w = grid(),
     u = { x: 2, y: 2, team: 0 };
   refreshVisibility(w, [u], false, new Set());
@@ -286,8 +286,8 @@ test("basic fog exposes only nearby tiles; night contracts visibility and mappin
   refreshVisibility(w, [u], true, new Set());
   assert.equal(w.flat().filter((t) => t.visible).length, 5);
   assert.equal(w.flat().filter((t) => t.seen).length, 9);
-  refreshVisibility(w, [u], true, new Set(["cartography"]));
-  assert.equal(w.flat().filter((t) => t.seen).length, 25);
+  refreshVisibility(w, [u], true, new Set(["diplomacy"]));
+  assert.equal(w.flat().filter((t) => t.seen).length, 9);
   assert.equal(w.flat().filter((t) => t.visible).length, 5);
 });
 

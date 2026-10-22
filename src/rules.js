@@ -139,7 +139,7 @@ export const TECH_BRANCHES = [
   {
     name: "탐험과 교역",
     icon: "⌖",
-    nodes: ["scouting", "cartography", "trade"],
+    nodes: ["scouting", "diplomacy", "trade"],
   },
 ];
 export const TECHNOLOGIES = {
@@ -278,18 +278,18 @@ export const TECHNOLOGIES = {
     cost: 5,
     description: "낮 시야: 직선 2칸·대각선 1칸 · 밤에는 1",
   },
-  cartography: {
-    name: "지도 제작",
-    icon: "▧",
+  diplomacy: {
+    name: "동맹",
+    icon: "🤝",
     cost: 7,
     requires: "scouting",
-    description: "대륙 지형 공개 · 적 유닛은 현재 시야에서만 확인",
+    description: "동맹 제안 · 상호 공격 금지 · 시야 공유",
   },
   trade: {
     name: "교역",
     icon: "✦",
     cost: 10,
-    requires: "cartography",
+    requires: "diplomacy",
     description: "내 도시마다 매 턴 수입 +2별",
   },
 };
@@ -701,7 +701,6 @@ export function refreshVisibility(world, units, night, techs, team = 0) {
         radius: Math.max(0, territoryRadius(t.city) - (night ? 1 : 0)),
       });
   for (const t of world.flat()) {
-    if (techs.has("cartography")) t.seen = true;
     t.visible = sources.some(
       (s) =>
         gridDistance(t, s) <= s.radius &&
@@ -763,3 +762,5 @@ export function waitAtVillage(unit, tile, round) {
   unit.claimSite = site; unit.claimRound = round + 1;
   unit.acted = true;
 }
+
+export const allied = (g, a, b) => a === b || !!g.alliances?.some(pair => pair.includes(a) && pair.includes(b));

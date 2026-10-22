@@ -180,7 +180,8 @@ test("invite-only rooms enforce capacity, host settings, ready checks and server
     /2명 이상/,
   );
   for (const u of users.slice(1, 4)) rooms.join(u, { code: r.code });
-  assert.throws(() => rooms.join(users[4], { code: r.code }), /최대 4명/);
+  for(let n=0;n<4;n++) rooms.action(users[0],r.code,{type:"addBot"});
+  assert.throws(() => rooms.join(users[4], { code: r.code }), /최대 8명/);
   assert.throws(
     () => rooms.action(users[1], r.code, { type: "settings", timeLimit: 0 }),
     /방장/,
@@ -197,7 +198,7 @@ test("invite-only rooms enforce capacity, host settings, ready checks and server
     rooms.action(u, r.code, { type: "ready", ready: true });
   r = rooms.action(users[0], r.code, { type: "start" });
   assert.equal(r.phase, "playing");
-  assert.equal(r.game.players.length, 4);
+  assert.equal(r.game.players.length, 8);
   assert.throws(
     () =>
       rooms.action(users[0], r.code, {

@@ -1,3 +1,4 @@
+import { AI_LEVELS } from "./game-options.js";
 import { NATIONS } from "./world.js";
 const $ = (id) => document.getElementById(id);
 const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -70,6 +71,9 @@ function schedule() {
     }
   }, 1200);
 }
+function selectedOptions(prefix) {
+  return {size:Number($(prefix+"Size").value),terrain:$(prefix+"Terrain").value,difficulty:$(prefix+"Difficulty").value};
+}
 function renderRoom() {
   if (!room) return;
   $("roomTitle").textContent = room.title;
@@ -83,6 +87,12 @@ function renderRoom() {
     me = room.members.find((p) => p.userId === user.id);
   $("roomTimer").value = String(room.timeLimit);
   $("roomTimer").disabled = pending || !host || room.phase !== "lobby";
+  for(const key of ["Size","Terrain","Difficulty"]) {
+    $("room"+key).value=String(room.settings?.[key.toLowerCase()] ?? (key==="Size"?16:key==="Terrain"?"balanced":"normal"));
+    $("room"+key).disabled=pending || !host || room.phase!=="lobby";
+  }
+  $("addBot").hidden=!host || room.phase!=="lobby";
+  $("addBot").disabled=pending || room.members.length>=8;
   $("roomPlayers").replaceChildren();
   for (const m of room.members) {
     const row = document.createElement("div");
@@ -102,15 +112,24 @@ function renderRoom() {
       n.add(option);
     }
     n.value = m.nation;
-    n.disabled = pending || m.userId !== user.id || room.phase !== "lobby";
+    n.disabled = pending || !(m.userId === user.id || (host && m.bot)) || room.phase !== "lobby";
     n.onchange = () =>
-      command({ type: "nation", nation: n.value }).catch((e) =>
+      command({ type: "nation", nation: n.value, ...(m.bot?{userId:m.userId}:{}) }).catch((e) =>
         message(e.message),
       );
     const ready = document.createElement("span");
-    ready.textContent = m.ready ? "준비 완료" : "나라 선택 중";
+    ready.textContent = m.bot ? "AI · " + AI_LEVELS[m.difficulty] : m.ready ? "준비 완료" : "나라 선택 중";
     ready.className = m.ready ? "ready" : "";
     row.append(title, n, ready);
+    if(m.bot && host && room.phase === "lobby") {
+      const difficulty=document.createElement("select"); difficulty.setAttribute("aria-label",m.nickname+" 난이도");
+      for(const [value,label] of Object.entries(AI_LEVELS)) difficulty.add(new Option(label,value));
+      difficulty.value=m.difficulty; difficulty.disabled=pending;
+      difficulty.onchange=()=>command({type:"botDifficulty",userId:m.userId,difficulty:difficulty.value}).catch(e=>message(e.message));
+      row.append(difficulty);
+      const remove=document.createElement("button"); remove.textContent="제거"; remove.disabled=pending;
+      remove.onclick=()=>command({type:"removeBot",userId:m.userId}).catch(e=>message(e.message)); row.append(remove);
+    }
     $("roomPlayers").append(row);
   }
   $("resumeRoom").hidden = room.phase === "lobby";
@@ -121,10 +140,10 @@ function renderRoom() {
   $("startRoom").hidden = !host || room.phase !== "lobby";
   $("startRoom").disabled =
     pending || room.members.length < 2 || !room.members.every((m) => m.ready);
-  $("roomCount").textContent = room.members.length + " / 4명";
+  $("roomCount").textContent = room.members.length + " / 8명";
   $("roomHelp").textContent =
     room.phase === "lobby"
-      ? "초대 링크나 방 코드를 공유하세요. 2~4명 모두 준비하면 방장이 시작할 수 있습니다."
+      ? "초대 링크나 방 코드를 공유하세요. AI 포함 2~8명으로, 사람 모두 준비하면 방장이 시작할 수 있습니다."
       : "진행 중인 게임입니다.";
   $("leaveRoom").textContent =
     room.phase === "playing" ? "포기하고 방 나가기" : "방 나가기";
@@ -192,7 +211,7 @@ async function perform(fn) {
 $("singleMode").onclick = () => {
   viewMode = "single";
   closeDialogs();
-  callbacks.onSingle(Number($("singleTimer").value));
+  callbacks.onSingle(Number($("singleTimer").value),selectedOptions("single"));
 };
 $("createRoom").onclick = () =>
   perform(async () => {
@@ -200,6 +219,7 @@ $("createRoom").onclick = () =>
       await request("", {
         title: $("newRoomTitle").value,
         timeLimit: Number($("newRoomTimer").value),
+        settings: selectedOptions("newRoom"),
       }),
     );
     schedule();
@@ -215,10 +235,8 @@ $("joinRoom").onsubmit = (e) => {
     schedule();
   });
 };
-$("roomTimer").onchange = () =>
-  command({ type: "settings", timeLimit: Number($("roomTimer").value) }).catch(
-    (e) => message(e.message),
-  );
+for(const id of ["roomTimer","roomSize","roomTerrain","roomDifficulty"]) $(id).onchange=()=>command({type:"settings",timeLimit:Number($("roomTimer").value),settings:selectedOptions("room")}).catch(e=>message(e.message));
+$("addBot").onclick=()=>command({type:"addBot",difficulty:$("roomDifficulty").value}).catch(e=>message(e.message));
 $("readyRoom").onclick = () =>
   command({
     type: "ready",

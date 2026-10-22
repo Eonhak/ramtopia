@@ -1,6 +1,8 @@
+import { gameOptions } from "../src/game-options.js";
 import { NATIONS, generateWorld } from "../src/world.js";
 import {
   UNIT_TYPES,
+  allied,
   canClaimVillage,
   waitAtVillage,
   TECHNOLOGIES,
@@ -43,12 +45,17 @@ function log(g, text) {
   g.logs.unshift({ turn: g.round, s: text });
   g.logs = g.logs.slice(0, 8);
 }
-export function createMatch(members, timeLimit, now = Date.now()) {
-  const { world } = generateWorld(16),
+export function createMatch(members, timeLimit, now = Date.now(), options = {}) {
+  const settings = gameOptions(options);
+  if (members.length < 2 || members.length > 8) fail("2~8명으로 시작하세요.");
+  const { world } = generateWorld(settings.size, Math.random, {...settings,players:members.length}),
     settlements = world.flat().filter((t) => t.city);
   const g = {
     world,
-    rulesVersion: 3,
+    rulesVersion: 4,
+    settings,
+    alliances: [],
+    offers: [],
     players: members.map((p, seat) => ({
       ...p,
       seat,
@@ -64,7 +71,7 @@ export function createMatch(members, timeLimit, now = Date.now()) {
     winner: null,
     finished: false,
     logs: [],
-    knowledge: members.map(() => Array(256).fill(null)),
+    knowledge: members.map(() => Array(settings.size*settings.size).fill(null)),
     nextUnit: 1,
   };
   settlements.forEach((t, i) => {
@@ -94,6 +101,16 @@ function visibility(g, s) {
   const w = copy(g.world);
   for (const t of w.flat()) t.seen = !!g.knowledge[s][t.y * w.length + t.x];
   refreshVisibility(w, g.units, isNight(g.round), techs(g, s), s);
+  for (const other of g.players) {
+    if (other.seat === s || other.eliminated || !allied(g,s,other.seat)) continue;
+    const shared = copy(g.world);
+    refreshVisibility(shared,g.units,isNight(g.round),techs(g,other.seat),other.seat);
+    for (const t of w.flat()) {
+      const known=g.knowledge[other.seat]?.[t.y*w.length+t.x];
+      if (shared[t.y][t.x].visible) Object.assign(t,copy(g.world[t.y][t.x]),{visible:true,seen:true});
+      else if (known && !t.visible && !g.knowledge[s][t.y*w.length+t.x]) Object.assign(t,copy(known),{visible:false,seen:true});
+    }
+  }
   return w;
 }
 function remember(g) {
@@ -107,6 +124,8 @@ function remember(g) {
 }
 function eliminate(g, s) {
   g.players[s].eliminated = true;
+  g.alliances = (g.alliances || []).filter(p => !p.includes(s));
+  g.offers = (g.offers || []).filter(p => !p.includes(s));
   g.units = g.units.filter((u) => u.team !== s);
   for (const t of cities(g, s)) {
     t.city.owner = -1;
@@ -122,7 +141,7 @@ function eliminate(g, s) {
 }
 function capture(g, u, claim = false) {
   const t = tile(g, u.x, u.y);
-  if (!t.city || t.city.owner === u.team) return;
+  if (!t.city || allied(g,t.city.owner,u.team)) return;
   if (!claim) { waitAtVillage(u, t, g.round); return; }
   const old = t.city.owner,
     capital = t.city.isCapital;
@@ -154,6 +173,7 @@ export function advanceTurn(g, now = Date.now(), timeout = false) {
     if (next === 0) g.round++;
   } while (g.players[next].eliminated);
   g.activeSeat = next;
+  g.players[next].turnLocked = false;
   for (const u of g.units.filter((u) => u.team === next)) {
     u.acted = false;
     delete u.moved;
@@ -189,6 +209,32 @@ export function applyCommand(g, s, c, now = Date.now()) {
   if (c.type === "endTurn") {
     advanceTurn(g, now);
     return;
+  }
+  if (p.turnLocked) fail("동맹을 해제해 이번 턴은 더 행동할 수 없습니다.",409);
+  if (c.type === "alliance") {
+    if (!Number.isInteger(c.target)) fail("외교 상대를 확인하세요.");
+    const other = g.players[c.target];
+    if (!other || other.seat === s || other.eliminated) fail("외교 상대를 확인하세요.");
+    g.alliances ||= []; g.offers ||= [];
+    const linked = allied(g,s,other.seat);
+    if (c.action === "propose") {
+      if (!ts.has("diplomacy") || linked) fail("동맹 연구가 필요하거나 이미 동맹입니다.");
+      if (!g.offers.some(p=>p[0]===s&&p[1]===other.seat)) g.offers.push([s,other.seat]);
+    } else if (c.action === "accept") {
+      if (linked || !g.offers.some(p=>p[0]===other.seat&&p[1]===s)) fail("받은 동맹 제안이 없습니다.");
+      g.alliances.push([s,other.seat]);
+      g.offers = g.offers.filter(p=>!(p.includes(s)&&p.includes(other.seat)));
+    } else if (c.action === "decline") {
+      g.offers = g.offers.filter(p=>!(p.includes(s)&&p.includes(other.seat)));
+    } else if (c.action === "break") {
+      if (!linked) fail("동맹 관계가 아닙니다.");
+      g.alliances = g.alliances.filter(p=>!(p.includes(s)&&p.includes(other.seat)));
+      const victim = g.units.filter(u=>u.team===s && cityForTile(g.world,tile(g,u.x,u.y))?.city.owner===other.seat).sort((a,b)=>a.id-b.id)[0];
+      if (victim) g.units = g.units.filter(u=>u!==victim);
+      p.turnLocked = true;
+      for (const u of g.units.filter(u=>u.team===s)) u.acted = u.moved = u.attacked = true;
+    } else fail("외교 행동을 확인하세요.");
+    remember(g); return;
   }
   if (c.type === "research") {
     const t = Object.hasOwn(TECHNOLOGIES, c.tech) ? TECHNOLOGIES[c.tech] : null;
@@ -280,7 +326,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
         fail("이번 턴 행동을 마친 유닛입니다.");
       if (c.type === "claim") {
         const village = tile(g, u.x, u.y);
-        if (!canClaimVillage(u, village, g.round)) fail("다음 내 턴에 도시를 점령할 수 있습니다.");
+        if (allied(g,s,village?.city?.owner) || !canClaimVillage(u, village, g.round)) fail("다음 내 턴에 도시를 점령할 수 있습니다.");
         capture(g, u, true);
       } else if (c.type === "rest") {
         if (u.hp >= stats(g, u).hp) fail("이미 최대 체력입니다.");
@@ -292,7 +338,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
         const enemy = occupant(g, target);
         if (enemy) {
           if (
-            enemy.team === s ||
+            allied(g,enemy.team,s) ||
             u.attacked ||
             !visibility(g, s)[c.y][c.x].visible ||
             stats(g, u).attack <= 0 ||
@@ -388,6 +434,10 @@ export function matchView(g, s) {
     attackId: g.lastAttack?.id || 0,
     lastAttack: g.lastAttack && visible[g.lastAttack.from.y]?.[g.lastAttack.from.x]?.visible && visible[g.lastAttack.to.y]?.[g.lastAttack.to.x]?.visible
       ? {...copy(g.lastAttack), team:mapTeam(g.lastAttack.team), unit:{...copy(g.lastAttack.unit),team:mapTeam(g.lastAttack.team)}} : null,
+    settings: g.settings,
+    turnLocked: !!g.players[s].turnLocked,
+    allies: g.players.filter(p=>p.seat!==s && allied(g,s,p.seat)).map(p=>mapTeam(p.seat)),
+    offers: (g.offers || []).filter(p=>p.includes(s)).map(([from,to])=>({from,to})),
     gold: g.players[s].gold,
     researched: g.players[s].researched,
     round: g.round,
@@ -407,12 +457,17 @@ export function matchView(g, s) {
       nickname: p.nickname,
       nation: p.nation,
       eliminated: p.eliminated,
+      bot: !!p.bot,
+      difficulty: p.difficulty,
     })),
   };
 }
 
 export function upgradeMatch(g) {
-  if (g.rulesVersion === 3) return false;
+  if (g.rulesVersion === 4) return false;
+  g.settings ||= gameOptions({size:g.world.length});
+  g.alliances ||= []; g.offers ||= [];
+  for (const p of g.players) p.researched = [...new Set(p.researched.map(t=>t==="cartography"?"diplomacy":t))];
   for (const t of g.world.flat()) if (t.city) normalizeCity(t.city);
   assignTerritories(g.world);
   for (const knowledge of g.knowledge)
@@ -421,6 +476,6 @@ export function upgradeMatch(g) {
         if (t.city) normalizeCity(t.city);
         t.territory = g.world[t.y][t.x].territory;
       }
-  g.rulesVersion = 3;
+  g.rulesVersion = 4;
   return true;
 }

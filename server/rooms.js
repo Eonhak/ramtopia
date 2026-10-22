@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { gameOptions, AI_LEVELS } from "../src/game-options.js";
+import { runBots } from "./ai.js";
 import { NATIONS } from "../src/world.js";
 import {
   createMatch,
@@ -28,7 +30,8 @@ export function createRooms(db, clock = Date.now) {
       r.version++;
       save(r);
     }
-    if (r.phase === "playing" && expireTurn(r.game, clock())) {
+    if (r.phase === "playing" && (expireTurn(r.game, clock()) || r.game.players[r.game.activeSeat]?.bot)) {
+      runBots(r.game,clock());
       r.version++;
       if (r.game.finished) r.phase = "finished";
       save(r);
@@ -74,12 +77,14 @@ export function createRooms(db, clock = Date.now) {
       hostId: r.hostId,
       title: r.title,
       timeLimit: r.timeLimit,
+      settings: r.settings || gameOptions(),
       members: r.members,
       selfSeat: i,
       serverNow: clock(),
       game: r.game ? matchView(r.game, i) : null,
     };
   };
+  function validatedOptions(value) {try{return gameOptions(value);}catch(e){fail(e.message);}}
   function create(user, data) {
     if (current(user.id))
       fail("참가 중인 방이 있습니다. 먼저 나가거나 이어서 플레이하세요.", 409);
@@ -95,6 +100,7 @@ export function createRooms(db, clock = Date.now) {
       phase: "lobby",
       version: 1,
       timeLimit,
+      settings: validatedOptions(data.settings),
       members: [
         {
           userId: user.id,
@@ -121,8 +127,8 @@ export function createRooms(db, clock = Date.now) {
       fail("다른 방에 참가 중입니다. 먼저 방에서 나가세요.", 409);
     if (r.members.some((p) => p.userId === user.id)) return view(r, user);
     if (r.phase !== "lobby") fail("이미 시작하거나 종료된 방입니다.", 409);
-    if (r.members.length >= 4)
-      fail("방은 최대 4명까지 참가할 수 있습니다.", 409);
+    if (r.members.length >= 8)
+      fail("방은 최대 8명까지 참가할 수 있습니다.", 409);
     const n = NATIONS.find((n) => !r.members.some((p) => p.nation === n.id));
     r.members.push({
       userId: user.id,
@@ -145,49 +151,73 @@ export function createRooms(db, clock = Date.now) {
       p = r.members[s];
     if (data.type === "leave") {
       if (r.phase === "playing") {
-        applyCommand(r.game, s, { type: "resign" }, clock());
+        if(!r.game.players[s].eliminated) applyCommand(r.game, s, { type: "resign" }, clock());
+        runBots(r.game,clock());
         if (r.game.finished) r.phase = "finished";
       } else if (r.phase === "lobby") {
         r.members.splice(s, 1);
         if (r.hostId === user.id && r.members.length)
-          r.hostId = r.members[0].userId;
+          r.hostId = r.members.find(m=>!m.bot)?.userId ?? r.members[0].userId;
       }
       // A playing seat remains stable for reconnecting opponents; membership is removed for this account.
       db.prepare(
         "DELETE FROM room_members WHERE room_code=? AND user_id=?",
       ).run(r.code, user.id);
       r.version++;
-      if (!r.members.length) r.phase = "finished";
+      if (!r.members.some(m=>!m.bot)) r.phase = "finished";
       save(r);
       return { left: true };
     }
     if (r.phase === "lobby") {
-      if (data.type === "nation") {
+      if (data.type === "addBot") {
+        if(user.id!==r.hostId) fail("방장만 AI를 추가할 수 있습니다.",403);
+        if(r.members.length>=8) fail("AI 포함 최대 8명입니다.",409);
+        const difficulty=data.difficulty || r.settings?.difficulty || "normal";
+        if(!Object.hasOwn(AI_LEVELS,difficulty)) fail("AI 난이도를 확인하세요.");
+        const id=-Math.max(1,...r.members.filter(m=>m.bot).map(m=>-m.userId+1));
+        const n=NATIONS.find(n=>!r.members.some(m=>m.nation===n.id));
+        r.members.push({userId:id,nickname:`AI ${-id} · ${AI_LEVELS[difficulty]}`,nation:n.id,ready:true,bot:true,difficulty});
+        for(const m of r.members.filter(m=>!m.bot)) m.ready=false;
+      } else if(data.type === "removeBot") {
+        if(user.id!==r.hostId) fail("방장만 AI를 제거할 수 있습니다.",403);
+        const i=r.members.findIndex(m=>m.bot&&m.userId===data.userId);
+        if(i<0) fail("AI를 선택하세요.");
+        r.members.splice(i,1); for(const m of r.members.filter(m=>!m.bot)) m.ready=false;
+      } else if(data.type === "botDifficulty") {
+        if(user.id!==r.hostId) fail("방장만 AI 난이도를 변경할 수 있습니다.",403);
+        const bot=r.members.find(m=>m.bot&&m.userId===data.userId);
+        if(!bot||!Object.hasOwn(AI_LEVELS,data.difficulty)) fail("AI 난이도를 확인하세요.");
+        bot.difficulty=data.difficulty; bot.nickname=`AI ${-bot.userId} · ${AI_LEVELS[data.difficulty]}`;
+        for(const m of r.members.filter(m=>!m.bot)) m.ready=false;
+      } else if (data.type === "nation") {
         if (
           !NATIONS.some((n) => n.id === data.nation) ||
-          r.members.some((m, i) => i !== s && m.nation === data.nation)
+          r.members.some(m => m.userId !== (data.userId ?? user.id) && m.nation === data.nation)
         )
           fail("다른 나라를 선택하세요.");
-        p.nation = data.nation;
-        p.ready = false;
+        const member = data.userId === undefined ? p : r.members.find(m=>m.userId===data.userId && m.bot && user.id===r.hostId);
+        if(!member) fail("AI 나라를 변경할 권한이 없습니다.",403);
+        member.nation=data.nation; member.ready=!!member.bot;
       } else if (data.type === "ready") {
         if (typeof data.ready !== "boolean") fail("준비 상태를 확인하세요.");
         p.ready = data.ready;
       } else if (data.type === "settings") {
         if (user.id !== r.hostId) fail("방장만 설정할 수 있습니다.", 403);
-        if (![0, 300, 600].includes(data.timeLimit))
+        if (![0, 300, 600].includes(data.timeLimit ?? r.timeLimit))
           fail("시간 설정을 확인하세요.");
-        r.timeLimit = data.timeLimit;
-        for (const m of r.members) m.ready = false;
+        r.timeLimit = data.timeLimit ?? r.timeLimit;
+        r.settings=validatedOptions({...r.settings,...data.settings});
+        for (const m of r.members) m.ready = !!m.bot;
       } else if (data.type === "start") {
         if (user.id !== r.hostId) fail("방장만 시작할 수 있습니다.", 403);
         if (r.members.length < 2 || !r.members.every((m) => m.ready))
           fail("2명 이상 모두 준비해야 시작할 수 있습니다.");
-        r.game = createMatch(r.members, r.timeLimit, clock());
+        r.game = createMatch(r.members, r.timeLimit, clock(),r.settings);
         r.phase = "playing";
       } else fail("대기실에서 할 수 없는 행동입니다.");
     } else if (r.phase === "playing") {
       applyCommand(r.game, s, data, clock());
+      runBots(r.game,clock());
       if (r.game.finished) r.phase = "finished";
     } else fail("종료된 방입니다.", 409);
     r.version++;

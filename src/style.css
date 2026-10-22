@@ -1934,3 +1934,21 @@ dialog p {
 #turnBanner.show { animation: turn-arrive 1.6s ease both; }
 @keyframes turn-arrive { 0%,100% { opacity: 0; } 12%,80% { opacity: 1; } }
 @media(prefers-reduced-motion:reduce) { #turnBanner.show { animation: none; } }
+
+.game-options { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 8px; margin: 12px 0; }
+.game-options label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.game-options select { width: 100%; padding: 8px; border: 1px solid #bdcbb2; border-radius: 7px; background: #f5f7ee; color: #294f51; }
+#addBot { margin: 8px 0; }
+#diplomacyDialog { padding: 0; width: min(560px,calc(100vw - 24px)); overflow: hidden; }
+.diplomacy-content { padding: 12px 18px 20px; max-height: 72dvh; overflow: auto; }
+.diplomacy-player { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 0; border-bottom: 1px solid #d4dec8; }
+.diplomacy-player strong { flex: 1; min-width: 100px; }
+.diplomacy-player button { padding: 8px 12px; border: 1px solid #adc4a7; border-radius: 8px; background: #e7efdc; color: #315449; cursor: pointer; }
+.diplomacy-player button:disabled { opacity: .45; cursor: default; }
+.diplomacy-warning { color: #90694d; font-size: 12px; line-height: 1.7; }
+#diplomacyMessage { color: #9b594e; }
+
+.room-player:has(button) { grid-template-columns: minmax(100px,1fr) 110px 85px; }
+.room-player:has(button) > select:nth-of-type(2) { grid-column: 2; }
+
+@media(max-width:540px) { .room-player:has(button) { grid-template-columns: minmax(0,1fr) 95px 65px; gap: 5px; } }
