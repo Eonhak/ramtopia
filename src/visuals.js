@@ -132,7 +132,7 @@ export function drawCity(c, x, y, city, nation) {
     id = nation?.id;
   c.save();
   c.translate(x, y);
-  const growth = 1 + Math.min(4, Math.max(0, city.level - 1)) * 0.045;
+  const growth = 1 + Math.min(4, Math.max(0, city.level - 1)) * 0.14;
   c.scale(growth, growth);
   ellipse(c, 0, 5, 23, 9, "#183d4650");
   p(
@@ -433,25 +433,16 @@ export function drawCity(c, x, y, city, nation) {
   c.restore();
 }
 function health(c, u, s) {
-  line(
-    c,
-    [
-      [-10, 10],
-      [10, 10],
-    ],
-    "#1b3545",
-    3,
-  );
-  line(
-    c,
-    [
-      [-10, 10],
-      [-10 + (20 * Math.max(0, u.hp)) / s.hp, 10],
-    ],
-    u.team === 0 ? "#a9d4bb" : "#eab1a6",
-    2,
-  );
-  if (!u.acted) ellipse(c, 0, -41, 1.7, 1.7, "#f1dda1");
+  c.save();
+  c.font = "bold 22px sans-serif";
+  c.textAlign = "center";
+  c.lineJoin = "round";
+  c.lineWidth = 4;
+  c.strokeStyle = "#173344";
+  c.strokeText(String(Math.max(0, u.hp)), 0, -48);
+  c.fillStyle = u.team === 0 ? "#ffffff" : "#ffd6cc";
+  c.fillText(String(Math.max(0, u.hp)), 0, -48);
+  c.restore();
   if (u.veteran) {
     c.fillStyle = "#efd88f";
     c.font = "7px sans-serif";

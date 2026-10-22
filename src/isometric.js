@@ -223,6 +223,7 @@ export function renderMap(
     panelHeight = 0,
     animation = null,
     effects = [],
+    growthEffects = [],
     night = false,
     nation,
     enemyNation,
@@ -556,6 +557,25 @@ export function renderMap(
     }
   }
 
+  for (const effect of growthEffects) {
+    if (!world[effect.y]?.[effect.x]?.visible) continue;
+    const p = project(effect.x, effect.y), k = Math.min(1, effect.progress);
+    c.save();
+    c.globalAlpha = Math.sin(Math.PI * k);
+    c.strokeStyle = "#ffe99b";
+    c.lineWidth = 3;
+    c.beginPath(); c.ellipse(p.x, p.y, 22 + k * 25, 10 + k * 12, 0, 0, Math.PI*2); c.stroke();
+    c.fillStyle = "#fff2aa";
+    for (let i=0; i<12; i++) {
+      const a=i*Math.PI/6, r=12+k*45;
+      c.fillRect(p.x+Math.cos(a)*r-2, p.y-30+Math.sin(a)*r*.65-k*25, 4, 4);
+    }
+    c.font = "bold 17px sans-serif"; c.textAlign="center";
+    c.strokeStyle="#634d29"; c.lineWidth=3;
+    c.strokeText(`✦ LEVEL ${effect.level}`, p.x, p.y-68-k*18);
+    c.fillText(`✦ LEVEL ${effect.level}`, p.x, p.y-68-k*18);
+    c.restore();
+  }
   for (const effect of effects) {
     if (!(
       world[effect.y]?.[effect.x]?.visible ?? world[effect.y]?.[effect.x]?.seen

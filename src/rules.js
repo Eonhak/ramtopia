@@ -347,7 +347,7 @@ export const unitSpec = (u) => UNIT_TYPES[u.type || "warrior"];
 export const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 export const growthRequired = (city) => city.level + 1;
 export const cityIncome = (city, techs) =>
-  city.level + 2 + (techs.has("trade") ? 2 : 0);
+  city.level + (city.isCapital ? 2 : 0) + (techs.has("trade") ? 2 : 0);
 export function canRecruit(city, type, techs, gold, occupied = false) {
   const s = UNIT_TYPES[type];
   return (
@@ -741,3 +741,16 @@ export function healthDamage(power, hp, maxHp) {
     : Math.max(1, Math.round(power * Math.min(1, hp / maxHp)));
 }
 export const canManageCity = (city) => !!city && city.owner === 0;
+
+// A neutral settlement needs one full turn of occupation before claiming it.
+export function canClaimVillage(unit, tile, round) {
+  return !!unit && tile?.city?.owner === -1 &&
+    unit.claimSite === `${tile.x},${tile.y}` && round >= unit.claimRound &&
+    !unit.acted && !unit.moved && !unit.attacked && unit.bornTurn !== round;
+}
+export function waitAtVillage(unit, tile, round) {
+  if (tile?.city?.owner !== -1) { delete unit.claimSite; delete unit.claimRound; return; }
+  const site = `${tile.x},${tile.y}`;
+  unit.claimSite = site; unit.claimRound = round + 1;
+  unit.acted = true;
+}

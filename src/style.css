@@ -1841,3 +1841,57 @@ dialog p {
 .production-dock .city-growth i {
   background: #b9df8c;
 }
+
+/* City rewards use the same compact tray layout as unit production. */
+#cityRewardDialog {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  max-height: 36vh;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #ccd3be;
+  border-radius: 18px;
+  background: #faf9ed;
+  box-shadow: 0 8px 30px #142f4940;
+}
+#cityRewardDialog[hidden],
+#cityRewardDialog .eyebrow,
+#cityRewardInfo {
+  display: none;
+}
+#cityRewardDialog h2 {
+  color: #294d43;
+  font-size: 13px;
+  margin: 0 0 4px;
+}
+#cityRewardChoices {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  overflow-x: auto;
+}
+#cityRewardChoices button {
+  flex: 0 0 76px;
+  width: 76px;
+  height: 90px;
+  min-width: 0;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 38px 38px 10px 10px;
+}
+#cityRewardChoices b { font-size: 12px; }
+#cityRewardChoices small { font-size: 10px; }
+.reward-icon {
+  font-size: 30px;
+  line-height: 34px;
+  color: #a67e39;
+}

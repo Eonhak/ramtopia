@@ -114,8 +114,8 @@ test("new economy starts at three, infantry costs two and other prices scale fro
   assert.equal(UNIT_TYPES.assassin.cost, 4);
   assert.equal(UNIT_TYPES.catapult.cost, 5);
   assert.equal(UNIT_TYPES.knight.cost, 6);
-  assert.equal(cityIncome({ level: 1 }, new Set()), 3);
-  assert.equal(cityIncome({ level: 2 }, new Set()), 4);
+  assert.equal(cityIncome({ level: 1 }, new Set()), 1);
+  assert.equal(cityIncome({ level: 2 }, new Set()), 2);
 });
 test("multiplayer rejects harvest outside owned borders and validates city reward ownership", () => {
   const g = createMatch(

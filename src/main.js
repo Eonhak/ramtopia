@@ -5,6 +5,8 @@ import { NATIONS, generateWorld } from "./world.js";
 import { drawCity, drawUnit } from "./visuals.js";
 import {
   UNIT_TYPES,
+  canClaimVillage,
+  waitAtVillage,
   researchCost,
   healthDamage,
   canManageCity,
@@ -261,7 +263,7 @@ function update() {
   if (showUnit)
     $("tileDescription").textContent +=
       ` · ${hasWallDefence(world, u) ? "성곽 방어 +50% · " : ""}${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${healthDamage(stats(u).attack, u.hp, stats(u).hp)}`;
-  $("healthBar").hidden = !showUnit;
+  $("healthBar").hidden = true;
   $("healthBar").firstElementChild.style.width =
     (u ? (u.hp / stats(u).hp) * 100 : 0) + "%";
   $("actionPanel").classList.toggle(
@@ -275,6 +277,7 @@ function update() {
   $("productionDock").hidden = !panelOpen || !ownCity;
   const buttons = {
     restUnit: ownUnit,
+    claimVillage: ownUnit && city?.owner === -1,
     recruit: ownCity,
     develop: !showUnit && t.seen && !!t.resource && !t.developed,
     recruitRider: ownCity,
@@ -311,6 +314,8 @@ function update() {
       !u?.boat ||
       !researched.has(VESSELS[kind].tech) ||
       gold < VESSELS[kind].cost;
+  $("claimVillage").disabled = busy || animating || over || !canClaimVillage(u, t, turn);
+  $("claimVillage").textContent = canClaimVillage(u, t, turn) ? "⚑ 마을 점령" : "⚑ 다음 턴에 점령 가능";
   $("restUnit").disabled = !ready || u.hp >= stats(u).hp;
   for (const [id, type] of [
     ["recruit", "warrior"],
@@ -436,7 +441,7 @@ function showCityReward() {
     ownCities().find((t) => t.city.pendingRewards?.length);
   const dialog = $("cityRewardDialog");
   if (!t) {
-    dialog.close();
+    dialog.hidden = true;
     return;
   }
   $("cityRewardTitle").textContent =
@@ -450,8 +455,12 @@ function showCityReward() {
     const title = document.createElement("b"),
       description = document.createElement("small");
     title.textContent = option.name;
-    description.textContent = option.description;
-    button.append(title, description);
+    description.textContent = {stars:"+5 ✦", walls:"방어 +50%", expand:`${t.city.expansions}/2회 사용`, giant:"체력 30"}[option.key];
+    button.title = option.description;
+    const icon = document.createElement("span");
+    icon.className = "reward-icon";
+    icon.textContent = {stars:"✦", walls:"♜", expand:"⛶", giant:"♟"}[option.key];
+    button.append(icon, title, description);
     button.disabled =
       option.key === "giant" && !giantSpawnTile(world, t, units);
     button.onclick = () => {
@@ -475,11 +484,8 @@ function showCityReward() {
     };
     $("cityRewardChoices").append(button);
   }
-  if (!dialog.open) dialog.showModal();
+  dialog.hidden = false;
 }
-$("cityRewardDialog").addEventListener("cancel", (event) =>
-  event.preventDefault(),
-);
 function available(t) {
   if (
     !selectedUnit ||
@@ -519,6 +525,17 @@ function available(t) {
     return "move";
   return null;
 }
+let growthEffects = [], growthFrame = null;
+function celebrateCity(t) {
+  growthEffects.push({x:t.x, y:t.y, level:t.city.level, start:performance.now()});
+  if (growthFrame) return;
+  const frame = () => {
+    growthEffects = growthEffects.filter(e => performance.now() - e.start < 1400);
+    draw();
+    growthFrame = growthEffects.length ? requestAnimationFrame(frame) : null;
+  };
+  growthFrame = requestAnimationFrame(frame);
+}
 function draw() {
   if (world)
     view = renderMap(canvas, {
@@ -530,6 +547,7 @@ function draw() {
       available,
       animation,
       effects,
+      growthEffects: growthEffects.map(e => ({...e, progress:(performance.now()-e.start)/1400})),
       night: isNight(turn),
       nation: selectedNation,
       enemyNation,
@@ -573,9 +591,10 @@ function finish(win) {
   );
   toast(win ? "✦ 승리! 에버그린은 당신의 것입니다." : "수도가 함락되었습니다.");
 }
-function capture(u) {
+function capture(u, claim = false) {
   let t = at(u.x, u.y);
   if (t.city && t.city.owner !== u.team) {
+    if (t.city.owner === -1 && !claim) { waitAtVillage(u, t, turn); return; }
     t.city.owner = u.team;
     u.acted = true;
     addLog(
@@ -856,6 +875,12 @@ function setZoom(value) {
   $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
   draw();
 }
+$("claimVillage").onclick = () => {
+  const u = selectedUnit, t = u && at(u.x, u.y);
+  if (busy || animating || over || !canClaimVillage(u, t, turn)) return;
+  if (multiGame) return sendMulti({type: "claim", unitId: u.id});
+  capture(u, true); reveal(); update(); draw();
+};
 $("restUnit").onclick = () => {
   if (multiGame) return sendMulti({ type: "rest", unitId: selectedUnit?.id });
   if ($("restUnit").disabled || !selectedUnit) return;
@@ -1012,6 +1037,7 @@ function develop(t) {
     `${r.name} 개발 · ${city.city.name} 경험치 +${r.experience}${levels ? " · 레벨 " + city.city.level + " 성장" : ""}`,
   );
   if (levels) {
+    celebrateCity(city);
     toast(
       `${city.city.name} 성장! 다음 턴부터 +${cityIncome(city.city, researched)} ✦`,
     );
@@ -1129,6 +1155,7 @@ $("endTurn").onclick = async () => {
   for (let u of [...units.filter((u) => u.team === 1)]) {
     await new Promise((r) => setTimeout(r, 250));
     if (over) break;
+    if (canClaimVillage(u, at(u.x, u.y), turn)) { capture(u, true); continue; }
     let targets = units.filter((v) => v.team === 0);
     let adjacent = targets.find((v) => distance(u, v) === 1);
     let goal = adjacent || homeCapital;
@@ -1328,7 +1355,12 @@ async function loadMulti(game, room) {
   gameMode = "multi";
   multiGame = game;
   multiRoom = room;
+  const oldWorld = world;
   world = game.world;
+  if (!first && oldWorld) for (const row of world) for (const t of row) {
+    const old = oldWorld[t.y]?.[t.x]?.city;
+    if (old && t.city?.level > old.level) celebrateCity(t);
+  }
   units = game.units;
   gold = game.gold;
   researched = new Set(game.researched);
@@ -1453,12 +1485,13 @@ requireAccount({
       multiGame = null;
       busy = false;
     }
+    $("cityRewardDialog").hidden = true;
     $("app").inert = true;
     for (const id of [
       "nationDialog",
       "researchDialog",
       "helpDialog",
-      "cityRewardDialog",
+
     ])
       $(id).close();
   },

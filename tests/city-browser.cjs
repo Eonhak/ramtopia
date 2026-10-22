@@ -31,7 +31,7 @@ const assert = require("node:assert/strict");
         body:
           (await response.text()) +
           `
-window.__cityTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',city:null,resource:null,seen:true,visible:true})));homeCapital={x:3,y:7};enemyCapital={x:9,y:3};world[7][3].city={owner:0,level:1,population:1,experience:0,name:'도시'};world[3][9].city={owner:1,level:1,population:1,experience:0,name:'적'};assignTerritories(world);for(const [x,y] of [[4,7],[2,7],[3,9]])world[y][x].resource='fruit';researched=new Set(['gathering']);gold=100;units=[{x:3,y:6,team:0,hp:10,acted:false},{x:9,y:3,team:1,hp:10,acted:false}];selected={x:3,y:7};update();draw();},level(){const c=world[7][3].city;addCityExperience(c,growthRequired(c)-c.experience);update();draw();},combat(){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:1,hp:10,acted:false}];update();draw();},get state(){return {city:world[7][3].city,units,gold,animating}},get view(){return view}};
+window.__cityTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from({length:12},(_,x)=>({x,y,type:'grass',city:null,resource:null,seen:true,visible:true})));homeCapital={x:3,y:7};enemyCapital={x:9,y:3};world[7][3].city={owner:0,level:1,population:1,experience:0,name:'도시'};world[3][9].city={owner:1,level:1,population:1,experience:0,name:'적'};assignTerritories(world);for(const [x,y] of [[4,7],[2,7],[3,9]])world[y][x].resource='fruit';researched=new Set(['gathering']);gold=100;units=[{x:3,y:6,team:0,hp:10,acted:false},{x:9,y:3,team:1,hp:10,acted:false}];selected={x:3,y:7};update();draw();},level(){const c=world[7][3].city;addCityExperience(c,growthRequired(c)-c.experience);update();draw();},combat(){units=[{x:3,y:7,team:0,hp:10,acted:false},{x:4,y:7,team:1,hp:10,acted:false}];update();draw();},get state(){return {city:world[7][3].city,units,gold,animating,growthEffects}},get view(){return view}};
 `,
       });
     });
@@ -72,6 +72,9 @@ window.__cityTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from
     await page.locator("#cityRewardDialog").waitFor({ state: "visible" });
     state = await page.evaluate(() => window.__cityTest.state);
     assert.equal(state.city.level, 2);
+    assert(state.growthEffects.some(e => e.level === 2));
+    assert.equal(await page.locator("#cityRewardDialog").evaluate(el => el.tagName), "SECTION");
+    assert.equal(await page.locator("#healthBar").isVisible(), false);
     assert.equal(state.city.population, 2);
     assert.equal(await page.locator('[data-reward="giant"]').count(), 0);
     await page.locator('[data-reward="walls"]').click();

@@ -85,6 +85,7 @@
             </div>
 
             <div class="actions">
+              <button id="claimVillage" hidden>⚑ 마을 점령</button>
               <button id="promoteUnit">
                 <span>★</span><b>정예 진급</b
                 ><small>3킬 · 최대체력 +5 · 완전 회복</small></button
@@ -164,7 +165,7 @@
       </main>
       <div id="logs" class="event-feed" aria-live="polite"></div>
     </div>
-    <dialog
+    <section hidden
       id="cityRewardDialog"
       class="city-reward-dialog"
       aria-labelledby="cityRewardTitle"
@@ -173,7 +174,7 @@
       <h2 id="cityRewardTitle">도시 성장 보상</h2>
       <p id="cityRewardInfo"></p>
       <div id="cityRewardChoices"></div>
-    </dialog>
+    </section>
     <dialog id="modeDialog" class="mode-dialog" aria-labelledby="modeTitle">
       <span class="eyebrow">RAMTOPIA</span>
       <h2 id="modeTitle">어떤 모험을 시작할까요?</h2>

@@ -340,3 +340,20 @@ test("lobby host transfers and changing turn limit resets every ready flag", (t)
   assert.equal(r.members.length, 2);
   assert.throws(() => rooms.get(users[0], r.code), /참가/);
 });
+
+test("neutral villages require an explicit claim on the next own turn and pay their level", () => {
+  const g = fixture();
+  g.units = g.units.filter(u => u.team === 0);
+  const u = g.units[0];
+  g.world[6][3].city = {owner:-1, level:2, population:2, experience:0, name:"중립"};
+  applyCommand(g, 0, {type:"act", unitId:u.id, x:3, y:6});
+  assert.equal(g.world[6][3].city.owner, -1);
+  assert.throws(() => applyCommand(g, 0, {type:"claim", unitId:u.id}));
+  advanceTurn(g); advanceTurn(g);
+  applyCommand(g, 0, {type:"claim", unitId:u.id});
+  assert.equal(g.world[6][3].city.owner, 0);
+  assert.equal(u.acted, true);
+  const before = g.players[0].gold;
+  advanceTurn(g);
+  assert.equal(g.players[0].gold - before, 5); // capital 3 + level-two village 2
+});
