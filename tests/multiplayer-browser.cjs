@@ -49,14 +49,14 @@ const assert = require("node:assert/strict");
           );
       });
       page.on("pageerror", (e) => errors.push(e.message));
-      await page.route("**/api/**", async (route) => {
+      await context.route("**/api/**", async (route) => {
         const u = new URL(route.request().url());
         const response = await route.fetch({
           url: backend + u.pathname + u.search,
         });
         await route.fulfill({ response });
       });
-      await page.route(/\/src\/main\.js(?:\?.*)?$/, async (route) => {
+      await context.route(/\/src\/main\.js(?:\?.*)?$/, async (route) => {
         const res = await route.fetch();
         await route.fulfill({
           response: res,
@@ -157,10 +157,18 @@ const assert = require("node:assert/strict");
     assert.equal(await pages[1].locator("#endTurn").isDisabled(), false);
     assert.equal(await host.locator("#gold").textContent(), "6");
     await host.click("#newGame");
-    assert.equal(await host.locator("#roomDialog").isVisible(), true);
-    await host.click("#resumeRoom");
-    assert.equal(await host.locator("#roomDialog").isVisible(), false);
-    await pages[2].reload();
+    assert.equal(await host.locator("#gameMenu").isVisible(), true);
+    await host.click("#menuMain");
+    assert.equal(await host.locator("#modeDialog").isVisible(), true);
+    await host.waitForTimeout(1500);
+    assert.equal(await host.locator("#modeDialog").isVisible(), true,"background polling keeps main menu open");
+    await host.click("#continueMatch");
+    assert.equal(await host.locator("#modeDialog").isVisible(), false);
+    const context = pages[2].context();
+    await pages[2].close();
+    pages[2] = await context.newPage();
+    pages[2].on("pageerror", e => errors.push(e.message));
+    await pages[2].goto(process.env.TEST_URL || "http://localhost:3000");
     await pages[2].waitForFunction(
       () => window.__multiView()?.multiGame?.activeSeat === 1,
     );

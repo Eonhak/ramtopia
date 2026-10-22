@@ -427,15 +427,6 @@ export function renderMap(
       diamond(c, p.x, y, night ? "#0b183b99" : "#132b4266");
     let u =
       (t.visible ?? t.seen) && units.find((u) => u.x === t.x && u.y === t.y);
-    if (u && animation?.unit !== u && !(u.id !== undefined && animation?.unit?.id === u.id))
-      drawUnit(
-        c,
-        p.x,
-        y - 3,
-        u,
-        teamNations?.[u.team] || (u.team === 0 ? nation : enemyNation),
-        night,
-      );
     hit.push({
       t,
       x: p.x,
@@ -502,6 +493,13 @@ export function renderMap(
         c.fillText(label, p.x, y + 24);
       }
     }
+  }
+  // Units are foreground objects, above city XP labels and resource markers.
+  for (const u of [...units].sort((a,b) => a.x+a.y-b.x-b.y)) {
+    if (!(world[u.y]?.[u.x]?.visible ?? world[u.y]?.[u.x]?.seen)) continue;
+    if (animation?.unit === u || (u.id !== undefined && animation?.unit?.id === u.id)) continue;
+    const p = project(u.x,u.y), t = world[u.y][u.x];
+    drawUnit(c,p.x,p.y-(t.type === "water"?3:11),u,teamNations?.[u.team] || (u.team === 0?nation:enemyNation),night);
   }
   if (
     animation &&
@@ -604,12 +602,14 @@ export function renderMap(
     c.restore();
   }
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { ...view, hit };
+  return { ...view, hit, selected };
 }
 export function pickTile(view, x, y) {
   if (!view) return null;
   const px = (x - view.ox) / view.scale,
     py = (y - view.oy) / view.scale;
+  const selectedUnit = view.hit.find(p => p.unit && p.t.x === view.selected?.x && p.t.y === view.selected?.y && Math.abs(px-p.x)<8 && py>p.y-22 && py<p.y+8);
+  if (selectedUnit) return selectedUnit.t;
   const ground = view.hit
     .filter((p) => Math.abs(px - p.x) / 30 + Math.abs(py - p.y) / 15 <= 1)
     .at(-1);

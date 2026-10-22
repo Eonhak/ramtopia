@@ -742,14 +742,14 @@ export function healthDamage(power, hp, maxHp) {
 }
 export const canManageCity = (city) => !!city && city.owner === 0;
 
-// A neutral settlement needs one full turn of occupation before claiming it.
+// Every foreign city needs one full turn of occupation before claiming it.
 export function canClaimVillage(unit, tile, round) {
-  return !!unit && tile?.city?.owner === -1 &&
+  return !!unit && tile?.city && tile.city.owner !== unit.team &&
     unit.claimSite === `${tile.x},${tile.y}` && round >= unit.claimRound &&
     !unit.acted && !unit.moved && !unit.attacked && unit.bornTurn !== round;
 }
 export function waitAtVillage(unit, tile, round) {
-  if (tile?.city?.owner !== -1) { delete unit.claimSite; delete unit.claimRound; return; }
+  if (!tile?.city || tile.city.owner === unit.team) { delete unit.claimSite; delete unit.claimRound; return; }
   const site = `${tile.x},${tile.y}`;
   unit.claimSite = site; unit.claimRound = round + 1;
   unit.acted = true;

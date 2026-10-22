@@ -217,7 +217,7 @@ function update() {
   const t = at(selected.x, selected.y),
     u = inSight(t) ? unitAt(t.x, t.y) : null,
     city = t.seen ? t.city : null;
-  const showUnit = !!u && (selectionKind === "unit" || !city);
+  const showUnit = !!u && selectionKind === "unit";
   $("actionPanel").classList.toggle(
     "city-dock",
     !showUnit && canManageCity(city),
@@ -277,7 +277,7 @@ function update() {
   $("productionDock").hidden = !panelOpen || !ownCity;
   const buttons = {
     restUnit: ownUnit,
-    claimVillage: ownUnit && city?.owner === -1,
+    claimVillage: ownUnit && !!city && city.owner !== 0,
     recruit: ownCity,
     develop: !showUnit && t.seen && !!t.resource && !t.developed,
     recruitRider: ownCity,
@@ -315,7 +315,7 @@ function update() {
       !researched.has(VESSELS[kind].tech) ||
       gold < VESSELS[kind].cost;
   $("claimVillage").disabled = busy || animating || over || !canClaimVillage(u, t, turn);
-  $("claimVillage").textContent = canClaimVillage(u, t, turn) ? "⚑ 마을 점령" : "⚑ 다음 턴에 점령 가능";
+  $("claimVillage").textContent = canClaimVillage(u, t, turn) ? "⚑ 도시 점령" : "⚑ 다음 턴에 점령 가능";
   $("restUnit").disabled = !ready || u.hp >= stats(u).hp;
   for (const [id, type] of [
     ["recruit", "warrior"],
@@ -594,7 +594,7 @@ function finish(win) {
 function capture(u, claim = false) {
   let t = at(u.x, u.y);
   if (t.city && t.city.owner !== u.team) {
-    if (t.city.owner === -1 && !claim) { waitAtVillage(u, t, turn); return; }
+    if (!claim) { waitAtVillage(u, t, turn); return; }
     t.city.owner = u.team;
     u.acted = true;
     addLog(
@@ -839,7 +839,8 @@ canvas.addEventListener("pointerup", async (e) => {
       return;
     }
   }
-  selectTile(t);
+  const sameUnit = panelOpen && selectionKind === "unit" && selected.x === t.x && selected.y === t.y && !!unitAt(t.x,t.y);
+  selectTile(t, sameUnit ? "tile" : undefined);
   if (t.city && t.city.owner !== 0 && !unitAt(t.x, t.y))
     toast(
       t.city.owner === -1
@@ -1276,9 +1277,17 @@ $("nationDialog").addEventListener("cancel", (e) => {
   if (!world) e.preventDefault();
 });
 $("newGame").onclick = () => {
-  if (multiGame) return lobby.returnToRoom();
-  if (busy || animating) return;
-  if (confirm("새로운 나라와 지도로 시작할까요?")) lobby.showMode();
+  if (animating) return;
+  $("menuMain").disabled = busy && !multiGame;
+  $("menuRoom").hidden = !multiGame;
+  $("gameMenu").showModal();
+};
+$("menuRoom").onclick = () => { $("gameMenu").close(); lobby.returnToRoom(); };
+$("closeGameMenu").onclick = () => $("gameMenu").close();
+$("menuMain").onclick = () => {
+  if (animating || (busy && !multiGame)) return;
+  $("gameMenu").close();
+  lobby.showMode();
 };
 $("help").onclick = () => $("helpDialog").showModal();
 $("closeHelp").onclick = $("startPlay").onclick = () => $("helpDialog").close();
@@ -1344,7 +1353,7 @@ async function sendMulti(command) {
   }
 }
 async function loadMulti(game, room) {
-  if (multiRoom?.code === room.code && multiRoom.version >= room.version)
+  if (gameMode === "multi" && multiRoom?.code === room.code && multiRoom.version >= room.version)
     return;
   const previous = units || [];
   const previousAttack = multiGame?.attackId;
@@ -1501,6 +1510,7 @@ requireAccount({
       "nationDialog",
       "researchDialog",
       "helpDialog",
+      "gameMenu",
 
     ])
       $(id).close();

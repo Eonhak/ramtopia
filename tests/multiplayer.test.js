@@ -318,6 +318,11 @@ test("capital capture eliminates that kingdom and the last survivor wins", () =>
   g.units[1].y = 7;
   g.units[1].hp = 1;
   applyCommand(g, 0, { type: "act", unitId: 1, x: 9, y: 7 });
+  assert.equal(g.players[1].eliminated, false);
+  assert.equal(g.world[7][9].city.owner, 1);
+  assert.throws(() => applyCommand(g,0,{type:"claim",unitId:1}));
+  advanceTurn(g); advanceTurn(g);
+  applyCommand(g,0,{type:"claim",unitId:1});
   assert.equal(g.players[1].eliminated, true);
   assert.equal(g.winner, 0);
   assert.equal(g.finished, true);

@@ -7,7 +7,8 @@ let user,
   generation = 0,
   pending = false,
   callbacks = {},
-  offset = 0;
+  offset = 0,
+  viewMode = "game";
 async function request(path, data) {
   let response;
   try {
@@ -40,10 +41,13 @@ async function accept(value) {
   if (room?.code === value.code && room.version > value.version) return;
   room = value;
   renderRoom();
+  $("continueMatch").hidden = !room.game;
   if (room.game) {
+    if (viewMode !== "game") return;
     closeDialogs();
     await callbacks.onGame(room.game, room);
   } else {
+    viewMode = "game";
     if (!$("roomDialog").open) {
       closeDialogs();
       $("roomDialog").showModal();
@@ -163,11 +167,14 @@ function modeBusy(value) {
   $("joinRoom").querySelector("button").disabled = value;
 }
 function showMode() {
+  viewMode = "main";
+  $("continueMatch").hidden = !room?.game;
   closeDialogs();
   $("modeDialog").showModal();
   message("");
 }
 async function perform(fn) {
+  viewMode = "game";
   if (pending) return;
   pending = true;
   message("");
@@ -183,6 +190,7 @@ async function perform(fn) {
   }
 }
 $("singleMode").onclick = () => {
+  viewMode = "single";
   closeDialogs();
   callbacks.onSingle(Number($("singleTimer").value));
 };
@@ -239,6 +247,27 @@ $("copyInvite").onclick = async () => {
 };
 for (const id of ["modeDialog", "roomDialog"])
   $(id).addEventListener("cancel", (e) => e.preventDefault());
+async function recoverMatch() {
+  if (!user || pending) return;
+  const session = generation;
+  try {
+    const value = await request("/current");
+    if (session !== generation) return;
+    if (!value) { message("진행 중인 멀티플레이가 없습니다."); return; }
+    viewMode = "game";
+    await accept(value); schedule();
+  } catch(e) { message(e.message); }
+}
+$("recoverMatch").onclick = recoverMatch;
+$("continueMatch").onclick = async () => {
+  if (!room?.game) return recoverMatch();
+  viewMode = "game"; closeDialogs();
+  await callbacks.onGame(room.game,room);
+};
+window.addEventListener("online", () => { if (viewMode === "game") recoverMatch(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && viewMode === "game") recoverMatch();
+});
 export const lobby = {
   async open(account, handlers) {
     this.stop();
@@ -246,12 +275,12 @@ export const lobby = {
     callbacks = handlers;
     const session = generation;
     showMode();
+    viewMode = "game";
     modeBusy(true);
     try {
       const invite = new URL(location.href).searchParams.get("room");
-      const value = invite
-        ? await request("/join", { code: invite.toUpperCase() })
-        : await request("/current");
+      const existing = await request("/current");
+      const value = existing || (invite ? await request("/join", {code:invite.toUpperCase()}) : null);
       if (session !== generation) return;
       if (value) {
         await accept(value);
@@ -271,6 +300,9 @@ export const lobby = {
   command,
   showMode,
   stop() {
+    viewMode = "game";
+    user = null;
+    callbacks = {};
     generation++;
     clearTimeout(timer);
     room = null;
@@ -279,6 +311,7 @@ export const lobby = {
   },
   returnToRoom() {
     if (!room) return showMode();
+    viewMode = "game";
     renderRoom();
     $("roomDialog").showModal();
   },

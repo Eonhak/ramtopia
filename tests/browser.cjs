@@ -186,12 +186,18 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   await page.waitForFunction(() => !window.__gameTest.snapshot.animating);
   assert.equal((await snapshot()).units[0].x, 4);
   assert.equal(await page.evaluate(() => window.__resetWasPrompted), false);
+  assert.equal(await page.locator("#gameMenu").isVisible(), false);
   assert.equal((await snapshot()).units[0].moved, true);
   assert.deepEqual((await snapshot()).targets, []);
   assert(
     (await page.evaluate(() => window.__renderFrames)).some((f) => f.animating),
     "movement produced visual animation frames",
   );
+  await fixture("base");
+  await clickTile(3,7,false);
+  await clickTile(3,7,false);
+  assert.equal(await page.locator("#productionDock").isVisible(),true,"second click selects the city below its unit");
+  assert.deepEqual((await snapshot()).targets,[]);
   await fixture("base");
   await clickTile(6, 6, false);
   assert.equal(await page.locator("#actionPanel").isVisible(), false);
@@ -392,9 +398,17 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   await fixture("win");
   await clickTile(8, 3);
   await clickTile(9, 3);
+  assert.equal((await snapshot()).over, false);
+  assert.equal((await snapshot()).owner, 1);
+  await page.click("#endTurn");
+  await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
+  await page.click("#claimVillage");
   assert((await snapshot()).over);
   assert.equal((await snapshot()).units[0].x, 9);
   await fixture("lose");
+  await page.click("#endTurn");
+  await page.waitForFunction(() => window.__gameTest.snapshot.turn === 2);
+  assert.equal((await snapshot()).over, false);
   await page.click("#endTurn");
   await page.waitForFunction(() => window.__gameTest.snapshot.over);
   assert.match(await page.locator("#statusTitle").innerText(), /내려갔습니다/);

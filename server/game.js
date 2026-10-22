@@ -121,7 +121,7 @@ function eliminate(g, s) {
 function capture(g, u, claim = false) {
   const t = tile(g, u.x, u.y);
   if (!t.city || t.city.owner === u.team) return;
-  if (t.city.owner === -1 && !claim) { waitAtVillage(u, t, g.round); return; }
+  if (!claim) { waitAtVillage(u, t, g.round); return; }
   const old = t.city.owner,
     capital = t.city.isCapital;
   t.city.owner = u.team;
@@ -278,7 +278,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
         fail("이번 턴 행동을 마친 유닛입니다.");
       if (c.type === "claim") {
         const village = tile(g, u.x, u.y);
-        if (!canClaimVillage(u, village, g.round)) fail("다음 내 턴에 마을을 점령할 수 있습니다.");
+        if (!canClaimVillage(u, village, g.round)) fail("다음 내 턴에 도시를 점령할 수 있습니다.");
         capture(g, u, true);
       } else if (c.type === "rest") {
         if (u.hp >= stats(g, u).hp) fail("이미 최대 체력입니다.");

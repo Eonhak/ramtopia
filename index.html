@@ -36,7 +36,7 @@
         <button id="research" class="research-btn" title="별로 기술 연구">
           ⚗ 연구</button
         ><button id="help" class="icon-btn" title="게임 도움말">?</button
-        ><button id="newGame" class="icon-btn" title="새 게임">↻</button>
+        ><button id="newGame" class="icon-btn" title="메뉴" aria-label="메뉴">☰</button>
       </header>
       <main>
         <div class="canvas-wrap">
@@ -175,9 +175,18 @@
       <p id="cityRewardInfo"></p>
       <div id="cityRewardChoices"></div>
     </section>
+    <dialog id="gameMenu" aria-labelledby="gameMenuTitle">
+      <button id="closeGameMenu" class="icon-btn" aria-label="메뉴 닫기">×</button>
+      <h2 id="gameMenuTitle">메뉴</h2>
+      <button id="menuMain" class="lobby-primary">메인 화면</button>
+      <button id="menuRoom" class="lobby-secondary" hidden>멀티플레이 방</button>
+      <p>멀티플레이는 방을 나가지 않으면 서버에 유지됩니다.</p>
+    </dialog>
     <dialog id="modeDialog" class="mode-dialog" aria-labelledby="modeTitle">
       <span class="eyebrow">RAMTOPIA</span>
       <h2 id="modeTitle">어떤 모험을 시작할까요?</h2>
+      <button id="continueMatch" class="lobby-primary" hidden>진행 중인 멀티플레이 이어하기</button>
+      <button id="recoverMatch" class="lobby-secondary">진행 중인 게임 다시 찾기</button>
       <section class="mode-section">
         <h3>싱글플레이</h3>
         <p>AI 왕국과 혼자 플레이합니다.</p>

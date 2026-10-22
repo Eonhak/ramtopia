@@ -12,6 +12,15 @@ const assert = require("node:assert/strict");
       viewport: { width: 1100, height: 850 },
     });
     page.setDefaultTimeout(15000);
+    await page.addInitScript(() => {
+      window.__growthLevels = [];
+      const raf = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = callback => raf(time => {
+        callback(time);
+        for (const effect of window.__cityTest?.state.growthEffects || [])
+          if (!window.__growthLevels.includes(effect.level)) window.__growthLevels.push(effect.level);
+      });
+    });
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/api/auth/me", (r) =>
@@ -72,7 +81,7 @@ window.__cityTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from
     await page.locator("#cityRewardDialog").waitFor({ state: "visible" });
     state = await page.evaluate(() => window.__cityTest.state);
     assert.equal(state.city.level, 2);
-    assert(state.growthEffects.some(e => e.level === 2));
+    assert(await page.evaluate(() => window.__growthLevels.includes(2)), "city growth renders animation frames");
     assert.equal(await page.locator("#cityRewardDialog").evaluate(el => el.tagName), "SECTION");
     assert.equal(await page.locator("#healthBar").isVisible(), false);
     assert.equal(state.city.population, 2);
