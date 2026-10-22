@@ -38,6 +38,8 @@ import {
   claimCityReward,
   giantSpawnTile,
   hasWallDefence,
+  hasMountainDefence,
+  combatForecast,
   battleDamage,
   retaliationDamage,
   reflectsAttack,
@@ -104,6 +106,7 @@ let pan = { x: 0, y: 0 },
   pointerStart = null,
   dragged = false;
 const activePointers = new Map();
+let combatPreview = null, holdTimer = null, previewTimer = null;
 let pinchStart = null,
   suppressTap = false;
 const directions = NEIGHBORS;
@@ -116,7 +119,7 @@ const at = (x, y) => world[y]?.[x];
 const unitAt = (x, y) => units.find((u) => u.x === x && u.y === y);
 const distance = gridDistance;
 const stats = (u) =>
-  combatStats(u, {
+  u.combat || combatStats(u, {
     night: isNight(turn),
     techs: u.team === 0 ? researched : new Set(["climbing"]),
   });
@@ -125,6 +128,7 @@ function init() {
   singleMatch = null; multiGame = null; multiRoom = null; gameMode = "single";
   $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
   $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
+  clearCombatPreview();
   activePointers.clear();
   pointerStart = null;
   pinchStart = null;
@@ -292,7 +296,7 @@ function update() {
         : "왕국의 지도를 넓혀 보세요.";
   if (showUnit)
     $("tileDescription").textContent +=
-      ` · ${hasWallDefence(world, u) ? "성곽 방어 +50% · " : ""}${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${healthDamage(stats(u).attack, u.hp, stats(u).hp)}`;
+      ` · ${hasWallDefence(world, u) ? "성곽 방어 +50% · " : hasMountainDefence(world, u) ? "산 방어 +50% · " : ""}${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${healthDamage(stats(u).attack, u.hp, stats(u).hp)}`;
   $("healthBar").hidden = true;
   $("healthBar").firstElementChild.style.width =
     (u ? (u.hp / stats(u).hp) * 100 : 0) + "%";
@@ -584,6 +588,7 @@ function draw() {
       available,
       animation,
       effects,
+      combatPreview: !busy && !animating && !over ? combatPreview : null,
       growthEffects: growthEffects.map(e => ({...e, progress:(performance.now()-e.start)/1400})),
       night: isNight(turn),
       nation: selectedNation,
@@ -598,6 +603,7 @@ function draw() {
     });
 }
 function selectTile(t, preferredKind) {
+  clearCombatPreview();
   selected = { x: t.x, y: t.y };
   const u = inSight(t) ? unitAt(t.x, t.y) : null;
   selectedUnit = u?.team === 0 ? u : null;
@@ -608,6 +614,7 @@ function selectTile(t, preferredKind) {
   draw();
 }
 function cancelSelection() {
+  clearCombatPreview();
   if (!world) return;
   actionMode = null;
   panelOpen = false;
@@ -779,6 +786,37 @@ async function act(u, t) {
     draw();
   }
 }
+function clearCombatPreview() {
+  clearTimeout(holdTimer); clearTimeout(previewTimer);
+  holdTimer = previewTimer = null;
+  combatPreview = null;
+}
+function beginCombatHold(e) {
+  if (!selectedUnit || selectedUnit.team !== 0 || busy || animating || over) return;
+  const r = canvas.getBoundingClientRect();
+  let tile = pickTile(view, e.clientX-r.left, e.clientY-r.top);
+  let enemy = tile && unitAt(tile.x,tile.y);
+  const actor = selectedUnit;
+  // Holding the enemy sprite also works when its head overlaps a neighbouring tile.
+  if (!enemy || friendlyTeam(enemy.team)) {
+    const px=(e.clientX-r.left-view.ox)/view.scale, py=(e.clientY-r.top-view.oy)/view.scale;
+    enemy=units.filter(u=>!friendlyTeam(u.team)&&inSight(at(u.x,u.y))).filter(u=>{
+      const p=project(u.x,u.y), big=u.type==="giant"||u.type==="catapult";
+      return Math.abs(px-p.x)<(big?19:12)&&py>p.y-(big?65:44)&&py<p.y+8;
+    }).sort((a,b)=>{const pa=project(a.x,a.y),pb=project(b.x,b.y);return Math.hypot(px-pa.x,py-pa.y+24)-Math.hypot(px-pb.x,py-pb.y+24);})[0];
+    if(enemy) tile=at(enemy.x,enemy.y);
+  }
+  if (!enemy || friendlyTeam(enemy.team) || !inSight(tile)) return;
+  holdTimer = setTimeout(() => {
+    holdTimer = null;
+    if (activePointers.size !== 1 || dragged || busy || animating || over || selectedUnit !== actor) return;
+    suppressTap = true;
+    if (available(tile) !== "attack") { toast("이 유닛은 현재 공격할 수 없습니다."); return; }
+    combatPreview = {attacker:actor, defender:enemy, ...combatForecast(world,actor,enemy,stats(actor),stats(enemy))};
+    draw();
+  }, 450);
+}
+canvas.addEventListener("contextmenu", e => e.preventDefault());
 function pointerPair() {
   const [a, b] = [...activePointers.values()];
   return {
@@ -788,6 +826,8 @@ function pointerPair() {
   };
 }
 function beginPinch() {
+  clearCombatPreview();
+  draw();
   const pair = pointerPair(),
     rect = canvas.getBoundingClientRect();
   pinchStart = {
@@ -806,12 +846,15 @@ function rebaseDrag() {
 }
 canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
+  clearCombatPreview();
   activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
   if (activePointers.size === 1) {
     suppressTap = false;
     dragged = false;
     rebaseDrag();
+    beginCombatHold(e);
+    draw();
   } else beginPinch();
 });
 canvas.addEventListener("pointermove", (e) => {
@@ -830,7 +873,7 @@ canvas.addEventListener("pointermove", (e) => {
   if (!pointerStart) return;
   const dx = e.clientX - pointerStart.x,
     dy = e.clientY - pointerStart.y;
-  if (Math.hypot(dx, dy) > 5) dragged = true;
+  if (Math.hypot(dx, dy) > 5) { dragged = true; clearCombatPreview(); }
   if (dragged) {
     pan = { x: pointerStart.panX + dx, y: pointerStart.panY + dy };
     draw();
@@ -838,6 +881,8 @@ canvas.addEventListener("pointermove", (e) => {
 });
 canvas.addEventListener("pointerup", async (e) => {
   if (!activePointers.has(e.pointerId)) return;
+  clearTimeout(holdTimer); holdTimer = null;
+  if (combatPreview) previewTimer = setTimeout(() => { clearCombatPreview(); draw(); }, 1800);
   const wasGesture = suppressTap || dragged;
   activePointers.delete(e.pointerId);
   pinchStart = null;
@@ -881,6 +926,8 @@ canvas.addEventListener("pointerup", async (e) => {
 });
 function cancelPointer(e) {
   if (!activePointers.delete(e.pointerId)) return;
+  clearCombatPreview();
+  draw();
   pinchStart = null;
   suppressTap = true;
   dragged = true;
@@ -890,6 +937,7 @@ function cancelPointer(e) {
 canvas.addEventListener("pointercancel", cancelPointer);
 canvas.addEventListener("lostpointercapture", cancelPointer);
 window.addEventListener("blur", () => {
+  clearCombatPreview();
   activePointers.clear();
   pinchStart = null;
   pointerStart = null;
@@ -1444,6 +1492,7 @@ async function sendMulti(command) {
 async function loadMulti(game, room) {
   if (multiRoom?.code === room.code && multiRoom.version >= room.version)
     return;
+  clearCombatPreview();
   const previousSeat = multiGame?.activeSeat, previousRound = multiGame?.round;
   const previous = units || [];
   const previousAttack = multiGame?.attackId;

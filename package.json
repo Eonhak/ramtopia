@@ -1,16 +1,16 @@
 {
   "name": "ramtopia",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build --base=./",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/rules.test.js tests/server.test.js tests/multiplayer.test.js tests/city.test.js tests/strategy.test.js tests/development.test.js && node tests/browser.cjs && node tests/auth-browser.cjs && node tests/multiplayer-browser.cjs && node tests/city-browser.cjs && node tests/map-browser.cjs && node tests/strategy-browser.cjs",
+    "test": "node --test tests/rules.test.js tests/server.test.js tests/multiplayer.test.js tests/city.test.js tests/strategy.test.js tests/development.test.js tests/combat.test.js && node tests/browser.cjs && node tests/auth-browser.cjs && node tests/multiplayer-browser.cjs && node tests/city-browser.cjs && node tests/map-browser.cjs && node tests/strategy-browser.cjs && node tests/combat-browser.cjs",
     "server": "node --env-file-if-exists=.env server/app.js",
     "start": "node server/app.js",
-    "test:server": "node --test tests/server.test.js tests/multiplayer.test.js tests/city.test.js tests/strategy.test.js tests/development.test.js"
+    "test:server": "node --test tests/server.test.js tests/multiplayer.test.js tests/city.test.js tests/strategy.test.js tests/development.test.js tests/combat.test.js"
   },
   "devDependencies": {
     "playwright": "^1.64.1",

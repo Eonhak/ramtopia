@@ -19,8 +19,7 @@ import {
   assignTerritories,
   normalizeCity,
   claimCityReward,
-  battleDamage,
-  retaliationDamage,
+  combatForecast,
   reflectsAttack,
   cityIncome,
   researchCost,
@@ -350,14 +349,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
             gridDistance(u, target) > stats(g, u).range
           )
             fail("공격할 수 없습니다.");
-          const damage = battleDamage(
-              stats(g, u).attack,
-              u.hp,
-              stats(g, u).hp,
-              g.world,
-              enemy,
-            ),
-            counter = retaliationDamage(g.world, u, enemy, stats(g,u), stats(g,enemy), damage);
+          const { damage, counter } = combatForecast(g.world, u, enemy, stats(g,u), stats(g,enemy));
           g.lastAttack = {
             id: (g.lastAttack?.id || 0) + 1,
             unitId:u.id, team:u.team, unit:{...u},
@@ -435,7 +427,7 @@ export function matchView(g, s) {
     world,
     units: g.units
       .filter((u) => u.team === s || visible[u.y][u.x].visible)
-      .map((u) => ({ ...u, team: mapTeam(u.team) })),
+      .map((u) => ({ ...u, team: mapTeam(u.team), combat: stats(g, u) })),
     attackId: g.lastAttack?.id || 0,
     lastAttack: g.lastAttack && visible[g.lastAttack.from.y]?.[g.lastAttack.from.x]?.visible && visible[g.lastAttack.to.y]?.[g.lastAttack.to.x]?.visible
       ? {...copy(g.lastAttack), team:mapTeam(g.lastAttack.team), unit:{...copy(g.lastAttack.unit),team:mapTeam(g.lastAttack.team)}} : null,

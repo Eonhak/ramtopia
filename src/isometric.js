@@ -232,6 +232,7 @@ export function renderMap(
     teamNations = null,
     allies = [],
     showIdleUnit = false,
+    combatPreview = null,
   },
 ) {
   let c = canvas.getContext("2d"),
@@ -554,6 +555,27 @@ export function renderMap(
       animation.pose,
     );
   }
+  const forecastLabels = [];
+  if (combatPreview) {
+    c.save(); c.setTransform(dpr,0,0,dpr,0,0);
+    c.font = "bold 13px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+    for (const [u, damage, lethal, enemy] of [
+      [combatPreview.attacker, combatPreview.counter, combatPreview.attackerDies, false],
+      [combatPreview.defender, combatPreview.damage, combatPreview.defenderDies, true],
+    ]) {
+      const p=project(u.x,u.y), text=`−${damage} 피해${lethal ? (enemy ? " · ☠ 처치" : " · ☠ 전사") : ""}`;
+      const width=c.measureText(text).width+18, height=26;
+      const x=Math.max(width/2+4,Math.min(w-width/2-4,view.ox+p.x*scale));
+      let y=Math.max(18,view.oy+(p.y-(u.type==="giant"||u.type==="catapult"?86:65))*scale);
+      if (forecastLabels.some(l=>Math.abs(l.x-x)<(l.width+width)/2+4&&Math.abs(l.y-y)<height+4)) y=forecastLabels[0].y-height-6>=18?forecastLabels[0].y-height-6:forecastLabels[0].y+height+6;
+      c.fillStyle=lethal?"#8c2535f5":enemy?"#803c3af5":"#214b61f5";
+      c.fillRect(x-width/2,y-height/2,width,height);
+      c.strokeStyle=lethal?"#ffb49c":"#eadca4";c.lineWidth=1.5;c.strokeRect(x-width/2,y-height/2,width,height);
+      c.fillStyle="#fff5dc";c.fillText(text,x,y+.5);
+      forecastLabels.push({text,x,y,width});
+    }
+    c.restore();
+  }
   if (animation?.projectile) {
     const { from, to, progress: k } = animation.projectile;
     const x = from.x + (to.x - from.x) * k,
@@ -638,7 +660,7 @@ export function renderMap(
     c.restore();
   }
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { ...view, hit, selected, panLimits, idleUnit: idleUnit || null };
+  return { ...view, hit, selected, panLimits, forecastLabels, idleUnit: idleUnit || null };
 }
 export function pickTile(view, x, y) {
   if (!view) return null;

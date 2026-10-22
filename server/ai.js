@@ -26,6 +26,7 @@ export function botPlan(g,s) {
     score[tech]=2 + Math.min(6,resources*1.6) + (STYLE_TECHS[p.aiStyle].includes(tech)?4*weight:0) + noise(p.aiSeed,tech)*1.4;
     if(['hunting','gathering','archery'].includes(tech)) score[tech]+=2;
     if(['fishing','navigation'].includes(tech)&&own.filter(t=>t.type==='water').length>=3) score[tech]+=5;
+    if(tech==='diplomacy'&&known.players.some(p=>p.bot&&p.seat!==s&&known.units.some(u=>u.team===p.team))) score[tech]+=p.aiStyle==='military'?1:4;
     if(tech==='fortification'&&enemies.some(u=>known.world.flat().some(t=>t.city?.owner===0&&gridDistance(t,u)<=2))) score[tech]+=6;
   }
   // Valuable late technologies pull their prerequisite branches forward too.
@@ -46,6 +47,26 @@ export function botPlan(g,s) {
   }
   return {style:p.aiStyle,priorities,kinds};
 }
+function botDiplomacy(g,s,now,propose=false) {
+  const p=g.players[s], alive=g.players.filter(p=>!p.eliminated);
+  const finalBot=alive.find(o=>o.seat!==s&&o.bot&&allied(g,s,o.seat));
+  if(alive.length===2&&finalBot) {safe(g,s,{type:'alliance',action:'break',target:finalBot.seat},now);return;}
+  const hasAlly=()=>g.players.some(o=>o.seat!==s&&allied(g,s,o.seat)&&!o.eliminated);
+  for(const offer of [...(g.offers||[])].filter(o=>o[1]===s)) {
+    const from=g.players[offer[0]];
+    const accept=!from.bot || (alive.length>2&&!hasAlly());
+    safe(g,s,{type:'alliance',action:accept?'accept':'decline',target:from.seat},now);
+  }
+  if(!propose||alive.length<=2||hasAlly()||!p.researched.includes('diplomacy')||
+     (g.offers||[]).some(o=>o[0]===s)||(g.round+s)%4!==0) return;
+  const v=matchView(g,s);
+  const contacts=alive.filter(o=>o.bot&&o.seat!==s&&!allied(g,s,o.seat)&&
+    !g.players.some(a=>a.seat!==o.seat&&!a.eliminated&&allied(g,o.seat,a.seat))&&
+    (v.units.some(u=>u.team===v.players.find(t=>t.seat===o.seat)?.team)||
+     v.world.flat().some(t=>t.city?.owner===v.players.find(p=>p.seat===o.seat)?.team)));
+  contacts.sort((a,b)=>noise(p.aiSeed,'ally'+b.seat)-noise(p.aiSeed,'ally'+a.seat));
+  if(contacts[0]) safe(g,s,{type:'alliance',action:'propose',target:contacts[0].seat},now);
+}
 export function takeBotTurn(g, now=Date.now()) {
   const s=g.activeSeat,p=g.players[s];
   if (!p?.bot || p.eliminated || g.finished) return;
@@ -54,7 +75,7 @@ export function takeBotTurn(g, now=Date.now()) {
   const techs=()=>new Set(p.researched);
   const stats=u=>combatStats(u,{night:isNight(g.round),techs:techs()});
   const cityTiles=()=>g.world.flat().filter(t=>t.city?.owner===s);
-  for (const offer of [...(g.offers || [])].filter(o=>o[1]===s)) safe(g,s,{type:'alliance',action:'accept',target:offer[0]},now);
+  botDiplomacy(g,s,now);
   if (p.turnLocked) {advanceTurn(g,now);return;}
   // Rewards and development use the same costs, ownership and production restrictions as humans.
   for(const t of cityTiles()) for(let n=0;n<8 && t.city.pendingRewards?.length;n++) {
@@ -85,6 +106,7 @@ export function takeBotTurn(g, now=Date.now()) {
       if(!tech||p.gold<cost(tech)+militaryReserve||!safe(g,s,{type:'research',tech},now)) break;
     }
   }
+  botDiplomacy(g,s,now,true);
   for(const u of [...g.units.filter(u=>u.team===s)]) {
     if(g.finished||!g.units.includes(u)) break;
     if(u.acted||u.bornTurn===g.round) continue;

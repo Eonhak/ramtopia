@@ -501,12 +501,13 @@ export const hasWallDefence = (world, u) => {
   const c = world[u.y]?.[u.x]?.city;
   return !!c?.walls && c.owner === u.team;
 };
+export const hasMountainDefence = (world, u) => !u.boat && world[u.y]?.[u.x]?.type === "mountain";
 export function battleDamage(power, hp, maxHp, world, defender) {
   const damage = healthDamage(power, hp, maxHp);
   return damage
     ? Math.max(
         1,
-        Math.round(damage / (hasWallDefence(world, defender) ? 1.5 : 1)),
+        Math.round(damage / (hasWallDefence(world, defender) || hasMountainDefence(world, defender) ? 1.5 : 1)),
       )
     : 0;
 }
@@ -518,6 +519,11 @@ export function retaliationDamage(world, attacker, defender, attackStats, defenc
       ? Math.min(Math.max(0, defender.hp), Math.max(0, incoming)) : 0;
   return gridDistance(attacker, defender) <= defenceStats.range
     ? battleDamage(defenceStats.counter, defender.hp, defenceStats.hp, world, attacker) : 0;
+}
+export function combatForecast(world, attacker, defender, attackStats, defenceStats) {
+  const damage = battleDamage(attackStats.attack, attacker.hp, attackStats.hp, world, defender);
+  const counter = retaliationDamage(world, attacker, defender, attackStats, defenceStats, damage);
+  return { damage, counter, defenderDies: damage >= defender.hp, attackerDies: counter >= attacker.hp };
 }
 const aroundTiles = (world, city) =>
   world.flat().filter((t) => !t.city && gridDistance(t, city) === 1);
