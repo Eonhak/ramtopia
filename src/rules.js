@@ -328,7 +328,7 @@ export const RESOURCES = {
   },
   fish: {
     name: "물고기",
-    verb: "어장 개발",
+    verb: "낚시",
     icon: "≈",
     cost: 3,
     experience: 2,
@@ -639,7 +639,7 @@ export function movementPath(
         const sideA = world[n.y]?.[n.x + dx],
           sideB = world[n.y + dy]?.[n.x];
         const blocked = (v) =>
-          !canEnter(v, u, techs) ||
+          (!canEnter(v, u, techs) && v?.type !== "mountain") ||
           units.some((o) => o !== u && o.x === v.x && o.y === v.y);
         if (blocked(sideA) && blocked(sideB)) continue;
       }
@@ -706,6 +706,7 @@ export function visionRadius(u, night, techs) {
   return Math.max(1, base - (night ? 1 : 0));
 }
 export function refreshVisibility(world, units, night, techs, team = 0) {
+  const metEnemies=new Set(world.flat().map(t=>t.dayEnemyId).filter(id=>id!=null));
   for (const t of world.flat()) t.visible = false;
   const sources = units
     .filter((u) => u.team === team)
@@ -720,8 +721,17 @@ export function refreshVisibility(world, units, night, techs, team = 0) {
     t.visible = sources.some(
       (s) =>
         gridDistance(t, s) <= s.radius &&
-        (!(s.scoutSight && !night) || manhattan(t, s) <= s.radius),
+        (!(night || s.scoutSight) || manhattan(t, s) <= s.radius),
     );
+    const enemy = units.find(u=>u.team!==team&&u.x===t.x&&u.y===t.y);
+    if (night && !t.visible && sources.some(s=>Math.abs(t.x-s.x)===1&&Math.abs(t.y-s.y)===1)) {
+      t.visible = !!((enemy && metEnemies.has(enemy.id ?? `${enemy.team}:${enemy.x},${enemy.y}`)) ||
+        (t.city && t.city.owner !== team && t.city.owner >= 0 && t.dayEnemyCity === t.city.owner));
+    }
+    if (!night && t.visible) {
+      t.dayEnemyId = enemy ? (enemy.id ?? `${enemy.team}:${enemy.x},${enemy.y}`) : null;
+      t.dayEnemyCity = t.city && t.city.owner >= 0 && t.city.owner !== team ? t.city.owner : null;
+    }
     if (t.visible) t.seen = true;
   }
 }
@@ -776,3 +786,31 @@ export function waitAtVillage(unit, tile, round) {
 }
 
 export const allied = (g, a, b) => a === b || !!g.alliances?.some(pair => pair.includes(a) && pair.includes(b));
+
+export const STRUCTURES = {
+  landStatue: {name:"정복의 동상",cost:0,experience:3,flag:"landBuilt",kills:"landKills"},
+  seaStatue: {name:"해양의 동상",cost:0,experience:3,flag:"seaBuilt",kills:"seaKills"},
+  smelter: {name:"제련소",cost:5,experience:2,tech:"smelting"},
+};
+export const monumentProgress = p => ({landKills:0,seaKills:0,landBuilt:false,seaBuilt:false,...p});
+export function recordConquestKill(player, sea) {
+  player.monuments = monumentProgress(player.monuments);
+  player.monuments[sea ? "seaKills" : "landKills"]++;
+}
+export function canBuildStructure(world, units, tile, kind, team, techs, gold, progress) {
+  const spec=Object.hasOwn(STRUCTURES,kind)&&STRUCTURES[kind];
+  if(!spec||!tile||tile.type!=="grass"||tile.city||tile.building||
+    (tile.resource&&!tile.developed)||units.some(u=>u.x===tile.x&&u.y===tile.y)||
+    cityForTile(world,tile)?.city.owner!==team||gold<spec.cost||(spec.tech&&!techs.has(spec.tech))) return false;
+  const m=monumentProgress(progress);
+  if(spec.flag) return m[spec.kills]>=3&&!m[spec.flag];
+  return world.flat().some(t=>gridDistance(tile,t)===1&&t.type==="mountain"&&t.resource==="ore"&&t.developed&&cityForTile(world,t)?.city.owner===team);
+}
+export function buildStructure(world, units, tile, kind, team, techs, gold, progress) {
+  if(!canBuildStructure(world,units,tile,kind,team,techs,gold,progress)) throw new Error("이 타일에 건설할 수 없습니다.");
+  const spec=STRUCTURES[kind], city=cityForTile(world,tile);
+  tile.building=kind;tile.resource=null;tile.developed=false;
+  if(spec.flag) progress[spec.flag]=true;
+  const levels=addCityExperience(city.city,spec.experience);
+  return {...spec,city,levels};
+}

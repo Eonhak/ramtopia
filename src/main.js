@@ -8,6 +8,11 @@ import { NATIONS, generateWorld } from "./world.js";
 import { drawCity, drawUnit } from "./visuals.js";
 import {
   UNIT_TYPES,
+  STRUCTURES,
+  monumentProgress,
+  recordConquestKill,
+  canBuildStructure,
+  buildStructure,
   canClaimVillage,
   waitAtVillage,
   researchCost,
@@ -95,6 +100,7 @@ let world,
   zoom = 1,
   view,
   toastTimer;
+let monuments = monumentProgress();
 let researched = new Set(),
   animating = false,
   animation = null,
@@ -132,6 +138,7 @@ function init() {
   activePointers.clear();
   pointerStart = null;
   pinchStart = null;
+  monuments = monumentProgress();
   researched = new Set([selectedNation.tech]);
   animating = false;
   animation = null;
@@ -199,11 +206,24 @@ function showTurnBanner(text) {
   banner.classList.remove("show"); void banner.offsetWidth; banner.classList.add("show");
   turnBannerTimer = setTimeout(() => { banner.hidden = true; }, 1600);
 }
-function toast(s) {
+function toast(s, duration = 2600) {
   $("toast").textContent = s;
   $("toast").classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $("toast").classList.remove("show"), 2600);
+  toastTimer = setTimeout(() => $("toast").classList.remove("show"), duration);
+}
+function notifyMonuments(before, after) {
+  const messages=[];
+  for(const [key,kind] of [["landKills","landStatue"],["seaKills","seaStatue"]]) {
+    const spec=STRUCTURES[kind];
+    if(after[spec.flag]) continue;
+    if(before[key]<3&&after[key]>=3) messages.push(`${spec.name} 획득! 내 도시 영역의 빈 땅에 세우세요. 경험치 +3`);
+    else if(before[key]<1&&after[key]>=1) messages.push(`${key==="landKills"?"지상":"해상"} 첫 처치! 3킬을 달성하면 ${spec.name}을 얻습니다. (${after[key]}/3)`);
+  }
+  if(messages.length) toast(messages.join(" · "),6000);
+}
+function recordLocalKill(sea) {
+  const before=monuments, player={monuments};recordConquestKill(player,sea);monuments=player.monuments;notifyMonuments(before,monuments);
 }
 function ownCities() {
   return world.flat().filter((t) => t.city?.owner === 0);
@@ -297,6 +317,10 @@ function update() {
   if (showUnit)
     $("tileDescription").textContent +=
       ` · ${hasWallDefence(world, u) ? "성곽 방어 +50% · " : hasMountainDefence(world, u) ? "산 방어 +50% · " : ""}${u.kills || 0}킬${u.veteran ? " ★ 정예" : ""} · 이동${stats(u).moves} 공격${healthDamage(stats(u).attack, u.hp, stats(u).hp)}`;
+  if(!showUnit && t.seen && t.building && STRUCTURES[t.building]) {
+    $("tileTitle").textContent=STRUCTURES[t.building].name;
+    $("tileDescription").textContent="건설 완료 · 도시 경험치는 건설할 때 한 번만 지급됩니다.";
+  }
   $("healthBar").hidden = true;
   $("healthBar").firstElementChild.style.width =
     (u ? (u.hp / stats(u).hp) * 100 : 0) + "%";
@@ -314,6 +338,7 @@ function update() {
     claimVillage: ownUnit && !!city && !friendlyTeam(city.owner),
     recruit: ownCity,
     lumberForest: !showUnit && t.seen && !city && t.type === "forest" && t.resource !== "wood",
+    buildSmelter: false, buildLandStatue: false, buildSeaStatue: false,
     develop: !showUnit && t.seen && !!t.resource && !t.developed,
     recruitRider: ownCity,
     recruitGuard: ownCity,
@@ -335,6 +360,10 @@ function update() {
     inspectUnit: !showUnit && !!u,
   };
   for (const [id, visible] of Object.entries(buttons)) $(id).hidden = !visible;
+  for(const [id,kind] of [["buildSmelter","smelter"],["buildLandStatue","landStatue"],["buildSeaStatue","seaStatue"]]) {
+    $(id).hidden=showUnit||!t.seen||!canBuildStructure(world,units,t,kind,0,new Set(["smelting"]),Infinity,monuments);
+    $(id).disabled=busy||animating||over||!!multiGame?.turnLocked||!canBuildStructure(world,units,t,kind,0,researched,gold,monuments);
+  }
   $("promoteUnit").disabled =
     !ownUnit || busy || animating || over || !canPromote(u);
   for (const [id, kind] of [
@@ -468,7 +497,7 @@ function update() {
           : "수확하면 도시 경험치가 쌓이고, 레벨업할 때 인구가 늘어납니다.";
   showCityReward();
   if(multiGame?.turnLocked) {
-    for(const id of ["recruit","recruitArcher","recruitRider","recruitGuard","recruitAssassin","recruitCatapult","recruitKnight","restUnit","claimVillage","promoteUnit","upgradeScout","upgradeWarship","develop","lumberForest","buildRoad"]) $(id).disabled=true;
+    for(const id of ["recruit","recruitArcher","recruitRider","recruitGuard","recruitAssassin","recruitCatapult","recruitKnight","restUnit","claimVillage","promoteUnit","upgradeScout","upgradeWarship","develop","lumberForest","buildSmelter","buildLandStatue","buildSeaStatue","buildRoad"]) $(id).disabled=true;
     $("status").textContent="동맹을 해제해 이번 턴은 행동할 수 없습니다. 턴을 마치세요.";
   }
   if($("diplomacyDialog").open) renderDiplomacy();
@@ -750,6 +779,7 @@ async function act(u, t) {
           enemy,
         ),
         counter = retaliationDamage(world, u, enemy, stats(u), stats(enemy), damage);
+      const attackAtSea=!!u.boat||at(u.x,u.y).type==="water", defenceAtSea=!!enemy.boat||t.type==="water";
       enemy.hp -= damage;
       u.hp -= counter;
       effects = [
@@ -763,9 +793,10 @@ async function act(u, t) {
       const killed = enemy.hp <= 0;
       if (killed) {
         u.kills = (u.kills || 0) + 1;
+        if(u.team===0) recordLocalKill(attackAtSea);
         units = units.filter((v) => v !== enemy);
       }
-      if (u.hp <= 0) units = units.filter((v) => v !== u);
+      if (u.hp <= 0) {enemy.kills=(enemy.kills||0)+1;if(enemy.team===0)recordLocalKill(defenceAtSea);units = units.filter((v) => v !== u);}
       if (
         killed &&
         units.includes(u) &&
@@ -1151,6 +1182,16 @@ function develop(t, lumber = false) {
   update();
   draw();
 }
+for(const [id,kind] of [["buildSmelter","smelter"],["buildLandStatue","landStatue"],["buildSeaStatue","seaStatue"]]) $(id).onclick=()=>{
+  if(busy||animating||over||multiGame?.turnLocked) return;
+  const t=at(selected.x,selected.y);
+  if(multiGame) return sendMulti({type:"build",x:t.x,y:t.y,kind});
+  try {
+    const result=buildStructure(world,units,t,kind,0,researched,gold,monuments);gold-=result.cost;
+    if(result.levels) celebrateCity(result.city);
+    toast(`${result.name} 건설 · ${result.city.city.name} 경험치 +${result.experience}`);reveal();update();draw();
+  }catch(error){toast(error.message);}
+};
 $("lumberForest").onclick = () => develop(at(selected.x, selected.y), true);
 $("develop").onclick = () => develop(at(selected.x, selected.y));
 function renderResearch() {
@@ -1240,7 +1281,7 @@ function pathStep(u, goal) {
         continue;
       if (dx && dy) {
         const techs = u.team === 0 ? researched : new Set(["climbing"]);
-        const blocked = (v) => !canEnter(v, u, techs) || !!unitAt(v.x, v.y);
+        const blocked = (v) => (!canEnter(v, u, techs)&&v?.type!=="mountain") || !!(v&&unitAt(v.x, v.y));
         if (blocked(at(p.x + dx, p.y)) && blocked(at(p.x, p.y + dy))) continue;
       }
       let other = unitAt(x, y);
@@ -1511,6 +1552,9 @@ async function loadMulti(game, room) {
     const old = oldWorld[t.y]?.[t.x]?.city;
     if (old && t.city?.level > old.level) celebrateCity(t);
   }
+  const oldMonuments=first?monumentProgress():monuments;
+  monuments=monumentProgress(game.monuments);
+  notifyMonuments(oldMonuments,monuments);
   units = game.units;
   gold = game.gold;
   researched = new Set(game.researched);

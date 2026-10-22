@@ -497,6 +497,21 @@ export function renderMap(
         c.stroke();
       }
     }
+    if(t.building) {
+      c.save();c.globalAlpha=(t.visible??t.seen)?1:.4;
+      if(t.building==="smelter") {
+        block(c,p.x,y-9,13,8,12,"#ae8571","#76584d","#614e47");
+        block(c,p.x+6,y-23,4,3,24,"#998e86","#746960","#5c5550");
+        c.fillStyle="#ffbe6c";c.fillRect(p.x-6,y-5,7,8);
+        c.fillStyle="#bfc9c0aa";c.beginPath();c.arc(p.x+7,y-32,4,0,Math.PI*2);c.fill();
+      }else{
+        block(c,p.x,y-5,11,7,7,"#d3c5a1","#9e9278","#7d796a");
+        block(c,p.x,y-13,6,4,10,"#c3b99c","#978e78","#787b70");
+        c.fillStyle=t.building==="seaStatue"?"#79c8c1":"#d9b971";
+        c.font="bold 22px sans-serif";c.textAlign="center";c.fillText(t.building==="seaStatue"?"⚓":"⚔",p.x,y-18);
+      }
+      c.restore();
+    }
     if (t.city) {
       const owner = t.city.owner;
       if (owner === 0) {

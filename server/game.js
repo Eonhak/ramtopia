@@ -2,6 +2,9 @@ import { gameOptions } from "../src/game-options.js";
 import { NATIONS, generateWorld } from "../src/world.js";
 import {
   UNIT_TYPES,
+  monumentProgress,
+  recordConquestKill,
+  buildStructure,
   allied,
   canClaimVillage,
   waitAtVillage,
@@ -98,15 +101,19 @@ export function createMatch(members, timeLimit, now = Date.now(), options = {}) 
 }
 function visibility(g, s) {
   const w = copy(g.world);
-  for (const t of w.flat()) t.seen = !!g.knowledge[s][t.y * w.length + t.x];
+  for (const t of w.flat()) {
+    const known=g.knowledge[s][t.y*w.length+t.x];t.seen=!!known;
+    t.dayEnemyId=known?.dayEnemyId??null;t.dayEnemyCity=known?.dayEnemyCity??null;
+  }
   refreshVisibility(w, g.units, isNight(g.round), techs(g, s), s);
   for (const other of g.players) {
     if (other.seat === s || other.eliminated || !allied(g,s,other.seat)) continue;
     const shared = copy(g.world);
+    for(const t of shared.flat()) {const known=g.knowledge[other.seat]?.[t.y*shared.length+t.x];t.dayEnemyId=known?.dayEnemyId??null;t.dayEnemyCity=known?.dayEnemyCity??null;}
     refreshVisibility(shared,g.units,isNight(g.round),techs(g,other.seat),other.seat);
     for (const t of w.flat()) {
       const known=g.knowledge[other.seat]?.[t.y*w.length+t.x];
-      if (shared[t.y][t.x].visible) Object.assign(t,copy(g.world[t.y][t.x]),{visible:true,seen:true});
+      if (shared[t.y][t.x].visible) Object.assign(t,copy(shared[t.y][t.x]),{visible:true,seen:true});
       else if (known && !t.visible && !g.knowledge[s][t.y*w.length+t.x]) Object.assign(t,copy(known),{visible:false,seen:true});
     }
   }
@@ -154,6 +161,7 @@ function capture(g, u, claim = false) {
 }
 export function advanceTurn(g, now = Date.now(), timeout = false) {
   if (g.finished) return;
+  remember(g);
   const outgoing = g.players[g.activeSeat];
   if (!outgoing.eliminated) {
     const income = cities(g, g.activeSeat).reduce(
@@ -258,6 +266,11 @@ export function applyCommand(g, s, c, now = Date.now()) {
     p.gold += reward.gold;
     if (reward.unit)
       g.units.push({ ...reward.unit, id: g.nextUnit++, bornTurn: g.round });
+  } else if (c.type === "build") {
+    if(!target || !visibility(g,s)[c.y]?.[c.x]?.seen) fail("탐험한 내 도시 영토를 선택하세요.");
+    p.monuments=monumentProgress(p.monuments);
+    try {const result=buildStructure(g.world,g.units,target,c.kind,s,ts,p.gold,p.monuments);p.gold-=result.cost;}
+    catch(error){fail(error.message);}
   } else if (c.type === "recruit") {
     if (
       !target ||
@@ -356,12 +369,14 @@ export function applyCommand(g, s, c, now = Date.now()) {
             reflected: reflectsAttack(enemy,stats(g,u)) && counter > 0, counter,
             from:{x:u.x,y:u.y}, to:{x:enemy.x,y:enemy.y},
           };
+          const attackAtSea=!!u.boat||g.world[u.y][u.x].type==="water", defenceAtSea=!!enemy.boat||target.type==="water";
           enemy.hp -= damage;
           u.hp -= counter;
           u.acted = true;
           u.attacked = true;
           if (enemy.hp <= 0) {
             u.kills = (u.kills || 0) + 1;
+            recordConquestKill(p,attackAtSea);
             g.units = g.units.filter((v) => v !== enemy);
             if (
               u.hp > 0 &&
@@ -374,7 +389,11 @@ export function applyCommand(g, s, c, now = Date.now()) {
               else delete u.boat;
             }
           }
-          if (u.hp <= 0) g.units = g.units.filter((v) => v !== u);
+          if (u.hp <= 0) {
+            enemy.kills=(enemy.kills||0)+1;
+            recordConquestKill(g.players[enemy.team],defenceAtSea);
+            g.units = g.units.filter((v) => v !== u);
+          }
         } else {
           if (u.moved || u.attacked) fail("이번 턴 이미 이동했습니다.");
           const path = movementPath(
@@ -436,6 +455,7 @@ export function matchView(g, s) {
     allies: g.players.filter(p=>p.seat!==s && allied(g,s,p.seat)).map(p=>mapTeam(p.seat)),
     offers: (g.offers || []).filter(p=>p.includes(s)).map(([from,to])=>({from,to})),
     gold: g.players[s].gold,
+    monuments: monumentProgress(g.players[s].monuments),
     researched: g.players[s].researched,
     round: g.round,
     activeSeat: g.activeSeat,

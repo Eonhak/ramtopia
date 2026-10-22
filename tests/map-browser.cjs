@@ -57,7 +57,7 @@ window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from(
     assert.equal(development.tile.type,'grass');assert.equal(development.city.level,2);assert.equal(development.gold,96);
     await page.locator('[data-reward="stars"]').click();
     await page.evaluate(()=>window.__mapTest.resourceFixture('water','fish'));
-    assert.match(await page.locator('#develop').textContent(),/어장/);
+    assert.match(await page.locator('#develop').textContent(),/낚시/);
     await page.click('#develop');
     development=await page.evaluate(()=>window.__mapTest.development);
     assert.equal(development.city.experience,2);assert.equal(development.gold,97);

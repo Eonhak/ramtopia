@@ -1,5 +1,5 @@
 import {applyCommand,advanceTurn,matchView} from './game.js';
-import {allied,UNIT_TYPES,battleDamage,retaliationDamage,TECHNOLOGIES,RESOURCES,combatStats,isNight,movementPath,gridDistance,canClaimVillage,canRecruit,cityForTile,cityRewardOptions,researchCost} from '../src/rules.js';
+import {allied,monumentProgress,canBuildStructure,UNIT_TYPES,battleDamage,retaliationDamage,TECHNOLOGIES,RESOURCES,combatStats,isNight,movementPath,gridDistance,canClaimVillage,canRecruit,cityForTile,cityRewardOptions,researchCost} from '../src/rules.js';
 const safe = (g,s,c,now) => {try {applyCommand(g,s,c,now);return true;} catch(e) {if(e.status) return false;throw e;}};
 const STYLES = ['expansion','military','economy'];
 const STYLE_TECHS = {
@@ -107,6 +107,10 @@ export function takeBotTurn(g, now=Date.now()) {
     }
   }
   botDiplomacy(g,s,now,true);
+  for(const kind of ["landStatue","seaStatue",...(level==="hard"?["smelter"]:[])]) {
+    const v=matchView(g,s);const t=g.world.flat().find(t=>v.world[t.y][t.x].seen&&canBuildStructure(g.world,g.units,t,kind,s,techs(),p.gold,monumentProgress(p.monuments)));
+    if(t) safe(g,s,{type:"build",x:t.x,y:t.y,kind},now);
+  }
   for(const u of [...g.units.filter(u=>u.team===s)]) {
     if(g.finished||!g.units.includes(u)) break;
     if(u.acted||u.bornTurn===g.round) continue;
