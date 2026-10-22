@@ -4,19 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#122c40" />
-    <title>RAMTOPIA — 에버그린의 왕국</title>
-    <script type="module" crossorigin src="./assets/index-ARdD35dZ.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Bbrjqyg1.css">
+    <title>RAMTOPIA</title>
+    <script type="module" crossorigin src="./assets/index-Dg0sJGnz.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BBhyALwT.css">
   </head>
   <body>
     <div id="app">
       <header class="topbar">
         <a class="brand" href="./"
           ><span class="brand-mark">♜</span
-          ><span>RAMTOPIA<small>에버그린의 왕국</small></span></a
+          ><span>RAMTOPIA</span></a
         >
         <div class="world-name">
-          <span class="live-dot"></span>에버그린 제도
+          <span class="live-dot"></span>픽셀 전략
           <small>자유 정복 · AI 대전</small>
         </div>
         <div class="resources">
@@ -48,7 +48,7 @@
           ></canvas>
           <div id="phaseBadge" class="phase-badge">낮 · 탐험 시간</div>
           <div class="map-caption">
-            <span class="eyebrow">THE EVERGREEN ISLES</span>
+            <span class="eyebrow">RAMTOPIA</span>
             <h1>한 걸음 너머의 세계</h1>
             <p>탐험하고, 성장하고, 당신의 왕국을 세우세요.</p>
           </div>
@@ -100,7 +100,7 @@
                 <span>✚</span><b>휴식</b><small>체력 +3</small>
               </button>
               <button id="recruit">
-                <span>⚔</span><b>보병 훈련</b><small>2 ✦</small>
+                <span>⚔</span><b>보병 훈련</b><small>3 ✦</small>
               </button>
               <button id="recruitAssassin">
                 <span>☾</span><b>암살자 훈련</b
@@ -267,9 +267,12 @@
       </div>
     </dialog>
     <dialog id="researchDialog" class="research-dialog">
-      <button id="closeResearch" class="icon-btn">×</button
+      <header class="research-header">
+      <button id="closeResearch" class="icon-btn" aria-label="연구창 닫기">×</button
       ><span class="eyebrow">KNOWLEDGE OF THE KINGDOM</span>
       <h2>왕국의 연구 <small id="researchGold"></small></h2>
+      </header>
+      <div class="research-content">
       <p>
         왼쪽부터 순서대로 연구하세요. 사냥은 두 계통이 공유하며 한 번만
         연구합니다. 도시 레벨 2는 궁수·기병·방패병, 레벨 3은 투석기·기사를
@@ -277,11 +280,12 @@
       </p>
       <p id="researchSurcharge" class="research-surcharge"></p>
       <div id="techGrid"></div>
+      </div>
     </dialog>
     <dialog id="helpDialog">
       <button id="closeHelp" class="icon-btn">×</button
       ><span class="eyebrow">HOW TO PLAY</span>
-      <h2>에버그린의 첫걸음</h2>
+      <h2>게임 방법</h2>
       <p>
         <b>전사 클릭 → 흰 테두리로 이동, 붉은 타일로 공격.</b> 유닛은 매 턴 한
         번 이동한 뒤 한 번 공격할 수 있습니다. 공격하거나 마을을 점령하면 행동을
