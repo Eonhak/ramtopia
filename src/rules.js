@@ -75,7 +75,7 @@ export const UNIT_TYPES = {
     icon: "⛨",
     cost: 3,
     hp: 15,
-    attack: 5,
+    attack: 2,
     counter: 4,
     moves: 1,
     tech: "fortification",
