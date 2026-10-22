@@ -129,6 +129,21 @@ window.__cityTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from
     await click(3, 7);
     await page.click("#inspectCity");
     await page.screenshot({ path: "/tmp/ramtopia-city-level5.png" });
+    await page.setViewportSize({width:390,height:844});
+    await page.locator('[data-unit="knight"]').click();
+    await page.locator("#unitInfoDialog").waitFor({state:"visible"});
+    assert.equal(await page.locator("#unitInfoTitle").innerText(),"기사");
+    assert.match(await page.locator("#unitInfoStats").innerText(),/기사|도시 레벨/);
+    assert.equal(await page.locator("#unitInfoStats dd").last().innerText(),"기사");
+    await page.screenshot({path:"/tmp/ramtopia-knight-info.png"});
+    await page.click("#closeUnitInfo");
+    for (const text of await page.locator(".production-choice > button small").allTextContents()) assert.match(text,/^\d+ ✦$/);
+    const beforeInfo = await page.evaluate(() => window.__cityTest.state.gold);
+    assert.equal(await page.locator("#recruitCatapult").isDisabled(),true);
+    await page.locator('[data-unit="catapult"]').click();
+    assert.equal(await page.locator("#unitInfoTitle").innerText(),"투석기");
+    assert.equal((await page.evaluate(() => window.__cityTest.state)).gold,beforeInfo);
+    await page.click("#closeUnitInfo");
     assert.deepEqual(errors, []);
     console.log(
       "PASS: city XP, harvest borders, level-up choice UI, wall combat, expansion caps and level-five giant",

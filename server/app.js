@@ -62,7 +62,7 @@ export function createApp({
   }
   const cookie = (token, age) =>
     `${sessionName}=${token}; HttpOnly; Path=/; Max-Age=${age}; SameSite=${crossSite ? "None" : "Lax"}${secure ? "; Secure" : ""}`;
-  const profile = (u) => ({ id: u.id, email: u.email, nickname: u.nickname });
+  const profile = (u) => ({ id: u.id, username: u.email, email: u.email, nickname: u.nickname });
   async function body(req) {
     if (!req.headers["content-type"]?.startsWith("application/json"))
       throw Object.assign(new Error("JSON 요청만 가능합니다."), {
@@ -241,18 +241,15 @@ export function createApp({
         return send(429, {
           error: "시도가 너무 많습니다. 잠시 후 다시 시도하세요.",
         });
-      const email =
-        typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
+      // Keep the existing unique login column so deployed accounts and sessions survive.
+      const usesUsername = typeof data.username === "string";
+      const login = usesUsername ? data.username : data.email;
+      const email = typeof login === "string" ? login.trim().toLowerCase() : "";
       const password = typeof data.password === "string" ? data.password : "";
-      if (
-        email.length > 254 ||
-        !/^\S+@\S+\.\S+$/.test(email) ||
-        password.length < 8 ||
-        password.length > 128
-      )
-        return send(400, {
-          error: "올바른 이메일과 8~128자의 비밀번호를 입력하세요.",
-        });
+      const validId = /^[a-z0-9_]{3,24}$/.test(email);
+      const legacyEmail = email.length <= 254 && /^\S+@\S+\.\S+$/.test(email);
+      if (!(registration && usesUsername ? validId : validId || legacyEmail) || password.length < 8 || password.length > 128)
+        return send(400, {error:"아이디는 영문·숫자·밑줄 3~24자, 비밀번호는 8~128자로 입력하세요."});
       let user;
       if (registration) {
         const nickname =
@@ -264,7 +261,7 @@ export function createApp({
         )
           return send(400, { error: "닉네임을 2~20자로 입력하세요." });
         if (db.prepare("SELECT id FROM users WHERE email=?").get(email))
-          return send(409, { error: "이미 가입된 이메일입니다." });
+          return send(409, { error: "이미 사용 중인 아이디입니다." });
         const salt = randomBytes(16).toString("hex"),
           hash = (await scrypt(password, salt, 64)).toString("hex");
         try {
@@ -279,7 +276,7 @@ export function createApp({
             String(e.code).includes("CONSTRAINT") ||
             /UNIQUE constraint failed/.test(e.message)
           )
-            return send(409, { error: "이미 가입된 이메일입니다." });
+            return send(409, { error: "이미 사용 중인 아이디입니다." });
           throw e;
         }
       } else {
@@ -293,7 +290,7 @@ export function createApp({
           ? Buffer.from(user.password_hash, "hex")
           : Buffer.alloc(64);
         if (!timingSafeEqual(candidate, expected) || !user)
-          return send(401, { error: "이메일 또는 비밀번호를 확인하세요." });
+          return send(401, { error: "아이디 또는 비밀번호를 확인하세요." });
       }
       session(res, user, current(req));
       return send(registration ? 201 : 200, { user: profile(user) });

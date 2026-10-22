@@ -42,7 +42,7 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#accountButton").textContent(), "로그인");
     await page.click("#registerTab");
     await page.fill("#accountNickname", "테스트왕");
-    await page.fill("#accountEmail", "browser@example.com");
+    await page.fill("#accountUsername", "browser_king");
     await page.fill("#accountPassword", "browser-password-123");
     await page.click("#submitAccount");
     await page.waitForFunction(
@@ -66,7 +66,7 @@ const assert = require("node:assert/strict");
     );
     assert.equal(await page.locator("#nicknameField").isVisible(), false);
     assert.equal(await page.locator("#nationDialog").isVisible(), false);
-    await page.fill("#accountEmail", "browser@example.com");
+    await page.fill("#accountUsername", "browser_king");
     await page.fill("#accountPassword", "browser-password-123");
     await page.click("#submitAccount");
     await page.locator("#modeDialog").waitFor({ state: "visible" });
@@ -84,11 +84,11 @@ const assert = require("node:assert/strict");
     );
     assert.equal(await page.locator("#accountDialog").isVisible(), true);
     assert.equal(await page.locator("#nationDialog").isVisible(), false);
-    await page.fill("#accountEmail", "browser@example.com");
+    await page.fill("#accountUsername", "browser_king");
     await page.fill("#accountPassword", "wrong-password");
     await page.click("#submitAccount");
     await page
-      .getByText("이메일 또는 비밀번호를 확인하세요.", { exact: true })
+      .getByText("아이디 또는 비밀번호를 확인하세요.", { exact: true })
       .waitFor();
     await page.fill("#accountPassword", "browser-password-123");
     await page.click("#submitAccount");

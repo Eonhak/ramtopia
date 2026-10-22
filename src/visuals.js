@@ -432,16 +432,17 @@ export function drawCity(c, x, y, city, nation) {
   );
   c.restore();
 }
-function health(c, u, s) {
+function health(c, u, s, y = -48) {
+  if (u.preview) return;
   c.save();
   c.font = "bold 22px sans-serif";
   c.textAlign = "center";
   c.lineJoin = "round";
   c.lineWidth = 4;
   c.strokeStyle = "#173344";
-  c.strokeText(String(Math.max(0, u.hp)), 0, -48);
+  c.strokeText(String(Math.max(0, u.hp)), 0, y);
   c.fillStyle = u.team === 0 ? "#ffffff" : "#ffd6cc";
-  c.fillText(String(Math.max(0, u.hp)), 0, -48);
+  c.fillText(String(Math.max(0, u.hp)), 0, y);
   c.restore();
   if (u.veteran) {
     c.fillStyle = "#efd88f";
@@ -623,6 +624,41 @@ function drawFigure(c, x, y, u, nation, night, pose) {
     health(c, u, s);
     c.restore();
     return;
+  }
+  if (u.type === "knight") {
+    // Horse and rider have separate silhouettes: four legs, saddle, armour and lance.
+    ellipse(c, 0, 7, 20, 6, "#16334550");
+    line(c,[[-11,0],[-15,12],[-10,12]],"#393e46",3);
+    line(c,[[10,0],[15,11],[19,11]],"#393e46",3);
+    p(c,[[-16,-9],[-23,-6],[-24,2],[-20,-2],[-16,-2]],"#3e414a");
+    ellipse(c,-1,-6,16,10,"#a7a6a0");
+    p(c,[[-16,-10],[-7,-15],[6,-14],[13,-7],[9,2],[-10,2]],t.cloth);
+    line(c,[[-14,-4],[-1,1],[9,-3]],t.trim,2);
+    p(c,[[7,-9],[9,-23],[15,-29],[20,-24],[18,-10]],"#b9b6a7");
+    p(c,[[14,-28],[14,-34],[17,-30],[20,-33],[22,-26],[27,-22],[26,-17],[17,-19]],"#d2cab5");
+    p(c,[[9,-22],[12,-29],[14,-28],[14,-18],[11,-12]],"#46505a");
+    ellipse(c,21,-25,.9,1,"#243847");
+    line(c,[[17,-20],[26,-20]],"#795c43",1.5);
+    line(c,[[17,-20],[6,-16]],"#795c43",1);
+    line(c,[[-10,0],[-12,12],[-7,12]],"#d3d1c2",3);
+    line(c,[[9,1],[8,12],[13,12]],"#d3d1c2",3);
+    line(c,[[-5,-15],[-9,1]],"#433c35",3);
+    p(c,[[-7,-31],[-13,-5],[-3,-8],[6,-18],[4,-31]],t.dark);
+    p(c,[[-6,-31],[3,-33],[9,-27],[7,-15],[-2,-14],[-8,-22]],"#aebdc0");
+    p(c,[[0,-31],[8,-27],[7,-16],[0,-15]],"#708c98");
+    line(c,[[-5,-29],[5,-26]],t.trim,2);
+    ellipse(c,0,-38,7,8,"#cbd4cc");
+    p(c,[[0,-45],[6,-41],[7,-34],[1,-31],[1,-38]],"#869ca5");
+    line(c,[[-5,-38],[5,-38]],"#263d4d",2);
+    line(c,[[2,-37],[2,-33]],t.trim,1);
+    p(c,[[-5,-43],[-2,-51],[6,-49],[9,-44],[2,-45]],id === "rome" ? "#c75c5f" : t.cloth);
+    p(c,[[-11,-26],[-3,-23],[-4,-12],[-9,-8],[-14,-16]],t.cloth);
+    line(c,[[-11,-24],[-5,-21],[-6,-13],[-9,-10],[-12,-17],[-11,-24]],t.trim,1.5);
+    line(c,[[10,-11],[15,-43]],"#d8c393",2);
+    p(c,[[15,-49],[12,-40],[18,-42]],"#dce4db");
+    p(c,[[14,-38],[23,-35],[15,-32]],t.cloth);
+    health(c,u,s,-59);
+    c.restore(); return;
   }
   const mounted = ["rider", "knight"].includes(u.type);
   if (mounted) {

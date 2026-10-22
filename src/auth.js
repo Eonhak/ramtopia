@@ -21,6 +21,12 @@ function render() {
   $("nicknameField").hidden = mode !== "register";
   $("accountNickname").required = mode === "register";
   $("passwordHelp").hidden = mode !== "register";
+  const loginId = $("accountUsername");
+  loginId.minLength = mode === "register" ? 3 : 1;
+  loginId.maxLength = mode === "register" ? 24 : 254;
+  if (mode === "register") loginId.pattern = "[A-Za-z0-9_]{3,24}";
+  else loginId.removeAttribute("pattern");
+  $("usernameHelp").hidden = !!user || mode !== "register";
   $("accountPassword").autocomplete =
     mode === "register" ? "new-password" : "current-password";
   $("submitAccount").textContent = pending
@@ -34,7 +40,7 @@ function render() {
   $("registerTab").setAttribute("aria-pressed", String(mode === "register"));
   if (user) {
     $("accountWelcome").textContent = `${user.nickname}님, 환영합니다.`;
-    $("profileEmail").textContent = user.email;
+    $("profileUsername").textContent = "아이디: " + (user.username || user.email);
   }
 }
 async function request(path, data) {
@@ -87,7 +93,7 @@ $("accountForm").onsubmit = async (e) => {
   render();
   try {
     user = await request(mode, {
-      email: $("accountEmail").value,
+      username: $("accountUsername").value,
       password: $("accountPassword").value,
       ...(mode === "register" ? { nickname: $("accountNickname").value } : {}),
     });

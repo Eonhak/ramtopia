@@ -52,8 +52,17 @@ for (const id of [
   "recruitCatapult",
   "recruitKnight",
   "inspectUnit",
-])
-  $("productionUnits").append($(id));
+]) {
+  const button = $(id);
+  if (id === "inspectUnit") { $("productionUnits").append(button); continue; }
+  const choice = document.createElement("div"); choice.className = "production-choice";
+  const info = document.createElement("button"); info.className = "production-info";
+  info.type = "button"; info.textContent = "i";
+  info.dataset.unit = {recruit:"warrior",recruitArcher:"archer",recruitRider:"rider",recruitGuard:"guard",recruitAssassin:"assassin",recruitCatapult:"catapult",recruitKnight:"knight"}[id];
+  info.setAttribute("aria-label", UNIT_TYPES[info.dataset.unit].name + " 정보");
+  info.onclick = () => showUnitInfo(info.dataset.unit);
+  choice.append(button,info); $("productionUnits").append(choice);
+}
 
 let gameMode = "single",
   multiGame = null,
@@ -336,7 +345,7 @@ function update() {
     $(id).title =
       `${spec.name} · ${spec.cost}별${missing ? " · " + TECHNOLOGIES[spec.tech].name + " 연구 필요" : ""}${city && city.level < spec.level ? " · 도시 레벨 " + spec.level + " 필요" : ""}${u ? " · 도시의 유닛을 먼저 이동하세요" : ""}`;
     $(id).innerHTML =
-      `<canvas class="production-icon" width="70" height="64" aria-hidden="true"></canvas><b>${spec.name}</b><small>${missing ? TECHNOLOGIES[spec.tech].name + " 연구 필요" : city && city.level < spec.level ? "도시 레벨 " + spec.level + " 필요" : spec.cost + " ✦ · 레벨 " + spec.level}</small>`;
+      `<canvas class="production-icon" width="70" height="64" aria-hidden="true"></canvas><b>${spec.name}</b><small>${spec.cost} ✦</small>`;
   }
   for (const [id, type] of [
     ["recruit", "warrior"],
@@ -356,7 +365,7 @@ function update() {
         c,
         0,
         0,
-        { type, team: 0, hp: UNIT_TYPES[type].hp, acted: true },
+        { type, team: 0, hp: UNIT_TYPES[type].hp, acted: true, preview: true },
         selectedNation,
         false,
       );
@@ -964,6 +973,29 @@ $("recruit").onclick = () => recruit("warrior");
 $("recruitRider").onclick = () => recruit("rider");
 $("recruitGuard").onclick = () => recruit("guard");
 $("recruitCatapult").onclick = () => recruit("catapult");
+function showUnitInfo(type) {
+  const spec = UNIT_TYPES[type];
+  $("unitInfoTitle").textContent = spec.name;
+  $("unitInfoStats").replaceChildren();
+  for (const [name,value] of [["생산 비용",`${spec.cost} ✦`],["최대 체력",spec.hp],["공격",spec.attack],["반격",spec.counter],["이동",spec.moves],["사거리",spec.range],["도시 레벨",`${spec.level} 이상`],["필요 연구",spec.tech ? TECHNOLOGIES[spec.tech].name : "없음"]]) {
+    const item = document.createElement("div"), label = document.createElement("dt"), text = document.createElement("dd");
+    label.textContent = name; text.textContent = value; item.append(label,text); $("unitInfoStats").append(item);
+  }
+  $("unitInfoDescription").textContent = {
+    warrior:"근접전의 기본 보병입니다. 적을 처치하면 해당 칸으로 전진합니다.",
+    archer:"두 칸 떨어진 적에게 화살을 발사합니다. 거리를 유지하며 지원하세요.",
+    rider:"빠른 이동으로 탐험과 측면 공격에 유리합니다.",
+    guard:"높은 체력과 반격으로 도시와 좁은 길을 지킵니다.",
+    assassin:"낮에는 이동 1·공격 1, 밤에는 이동 3·공격 10으로 강화됩니다.",
+    catapult:"사거리 3의 공성 병기입니다. 강력한 돌을 던지지만 근접 반격은 약합니다.",
+    knight:"갑옷과 방패를 갖춘 중기병입니다. 이동 2와 공격 10으로 돌격합니다."
+  }[type];
+  $("unitInfoNote").textContent = "공격·반격 피해는 현재 체력에 따라 달라집니다. 생산한 유닛은 다음 자기 턴부터 행동합니다.";
+  const c = $("unitInfoArt").getContext("2d"); c.clearRect(0,0,140,130); c.save(); c.translate(70,108); c.scale(3,3);
+  drawUnit(c,0,0,{type,team:0,hp:spec.hp,acted:true,preview:true},selectedNation,false); c.restore();
+  $("unitInfoDialog").showModal();
+}
+$("closeUnitInfo").onclick = () => $("unitInfoDialog").close();
 $("recruitKnight").onclick = () => recruit("knight");
 $("recruitArcher").onclick = () => recruit("archer");
 $("recruitAssassin").onclick = () => recruit("assassin");
@@ -1511,6 +1543,7 @@ requireAccount({
       "researchDialog",
       "helpDialog",
       "gameMenu",
+      "unitInfoDialog",
 
     ])
       $(id).close();

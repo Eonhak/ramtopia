@@ -140,3 +140,16 @@ test("login rate limiting and secure cross-origin cookie configuration", async (
     );
   assert.equal((await call("login", credentials)).status, 429);
 });
+
+test("username signup normalizes IDs, rejects invalid and duplicate IDs, and restores sessions", async t => {
+  const {call} = await runServer(t);
+  const account = {username:"Pixel_King",nickname:"아이디왕",password:"username-password"};
+  const registered = await call("register", account);
+  assert.equal(registered.status,201);
+  assert.equal(registered.body.user.username,"pixel_king");
+  assert.equal((await call("register",{...account,username:"PIXEL_KING"})).status,409);
+  for (const username of ["ab","a-b","bad name","new@example.com","가나다","x".repeat(25)])
+    assert.equal((await call("register",{...account,username})).status,400);
+  assert.equal((await call("login",{username:" PIXEL_KING ",password:account.password})).status,200);
+  assert.equal((await call("me",null,registered.cookie.split(";")[0])).body.user.username,"pixel_king");
+});

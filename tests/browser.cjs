@@ -218,7 +218,7 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
     7,
   );
   const rows = await page
-    .locator("#productionUnits button:visible")
+    .locator("#productionUnits button:visible:not(.production-info)")
     .evaluateAll((els) =>
       els.map((el) => Math.round(el.getBoundingClientRect().top)),
     );
