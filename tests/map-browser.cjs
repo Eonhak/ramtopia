@@ -18,7 +18,7 @@ window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from(
     assert.equal(await page.locator('#turnBanner').textContent(),'내 턴입니다');
     assert.equal(await page.locator('#logs').isVisible(),false);
     assert.equal(await page.locator('.map-caption').count(),0);
-    for(const zoom of [.25,1,4,6]) for(const [x,y] of [[1e6,1e6],[-1e6,-1e6],[1e6,-1e6],[-1e6,1e6]]) {
+    for(const zoom of [.25,1,4,6,8]) for(const [x,y] of [[1e6,1e6],[-1e6,-1e6],[1e6,-1e6],[-1e6,1e6]]) {
       await page.evaluate(([x,y,z])=>window.__mapTest.camera(x,y,z),[x,y,zoom]);
       assert(await page.locator('#map').evaluate(c=>{
         const v=window.__mapTest.cameraView;
@@ -26,15 +26,15 @@ window.__mapTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from(
       }),'map remains visible even after extreme diagonal panning');
     }
     await page.evaluate(()=>window.__mapTest.camera(0,0,1));
-    for(let i=0;i<22;i++) await page.click('#zoomIn');
-    assert.equal(await page.locator('#zoomLabel').textContent(),'600%');
+    for(let i=0;i<32;i++) await page.click('#zoomIn');
+    assert.equal(await page.locator('#zoomLabel').textContent(),'800%');
     await page.evaluate(()=>window.__mapTest.camera(0,0,1));
     const cdp=await page.context().newCDPSession(page);
     await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:450,y:400,id:1},{x:550,y:400,id:2}]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:100,y:400,id:1},{x:900,y:400,id:2}]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
-    assert.equal(await page.locator('#zoomLabel').textContent(),'600%','pinching reaches the same maximum as buttons');
+    assert.equal(await page.locator('#zoomLabel').textContent(),'800%','pinching reaches the same maximum as buttons');
     await page.evaluate(()=>window.__mapTest.camera(0,0,1));
     assert.equal((await page.evaluate(()=>window.__mapTest.visible)).length,18);
     await page.click('#research');

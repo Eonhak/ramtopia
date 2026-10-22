@@ -901,7 +901,7 @@ canvas.addEventListener(
   { passive: false },
 );
 function setZoom(value) {
-  zoom = Math.min(6, Math.max(0.25, value));
+  zoom = Math.min(8, Math.max(0.25, value));
   $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
   draw();
 }
