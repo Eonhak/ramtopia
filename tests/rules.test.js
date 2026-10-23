@@ -302,7 +302,7 @@ test("only owned cities allow management and growth increases research prices", 
       { owner: 0, level: 3 },
       { owner: 1, level: 9 },
     ]),
-    13,
+    9,
   );
 });
 test("remaining health scales attack and counter damage", () => {

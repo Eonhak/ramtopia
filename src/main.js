@@ -531,7 +531,7 @@ function showCityReward() {
     icon.className = "reward-icon";
     icon.textContent = {stars:"✦", walls:"♜", expand:"⛶", giant:"♟"}[option.key];
     button.append(icon, title, description);
-    button.disabled = !!multiGame?.turnLocked || (option.key === "giant" && !giantSpawnTile(world, t, units));
+    button.disabled = !!multiGame?.turnLocked || (option.key === "giant" && !giantSpawnTile(world, t, units, researched));
     button.onclick = () => {
       if (multiGame)
         return sendMulti({
@@ -541,7 +541,7 @@ function showCityReward() {
           choice: option.key,
         });
       try {
-        const result = claimCityReward(world, t, option.key, units, 0);
+        const result = claimCityReward(world, t, option.key, units, 0, researched);
         gold += result.gold;
         if (result.unit) units.push({ ...result.unit, bornTurn: turn });
         reveal();
@@ -630,6 +630,31 @@ function draw() {
           ? $("actionPanel").offsetHeight + 65
           : 0,
     });
+  renderClaimMarkers();
+}
+function claimUnit(u) {
+  const t=u&&at(u.x,u.y);
+  if(busy||animating||over||multiGame?.turnLocked||!t||friendlyTeam(t.city?.owner)||!canClaimVillage(u,t,turn)) return;
+  if(multiGame) return sendMulti({type:"claim",unitId:u.id});
+  capture(u,true);reveal();update();draw();
+}
+function renderClaimMarkers() {
+  const container=$("claimMarkers");if(!container) return;
+  if(!view||!world||busy||animating||over||multiGame?.turnLocked) {container.replaceChildren();return;}
+  const keep=new Set();
+  for(const u of units) {
+    const t=at(u.x,u.y);
+    if(u.team!==0||!t?.city||friendlyTeam(t.city.owner)||!inSight(t)||!canClaimVillage(u,t,turn)) continue;
+    const p=project(u.x,u.y),cx=view.ox+p.x*view.scale,cy=view.oy+p.y*view.scale;
+    if(cx<0||cx>canvas.clientWidth||cy<0||cy>canvas.clientHeight+60) continue;
+    const x=Math.max(24,Math.min(canvas.clientWidth-24,cx)),y=Math.max(24,Math.min(canvas.clientHeight-24,cy-Math.min(80,60*view.scale)));
+    const key=String(u.id??`${u.x},${u.y}`);keep.add(key);
+    let button=[...container.children].find(b=>b.dataset.claimUnit===key);
+    if(!button){button=document.createElement("button");button.className="claim-marker";button.type="button";button.textContent="⚑";button.title="도시 점령";button.dataset.claimUnit=key;container.append(button);}
+    button.setAttribute("aria-label",`${t.city.name} 점령`);button.style.left=x+"px";button.style.top=y+"px";
+    button.onclick=e=>{e.stopPropagation();claimUnit(u);};
+  }
+  for(const button of [...container.children]) if(!keep.has(button.dataset.claimUnit)) button.remove();
 }
 function selectTile(t, preferredKind) {
   clearCombatPreview();
@@ -987,12 +1012,7 @@ function setZoom(value) {
   $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
   draw();
 }
-$("claimVillage").onclick = () => {
-  const u = selectedUnit, t = u && at(u.x, u.y);
-  if (busy || animating || over || !canClaimVillage(u, t, turn)) return;
-  if (multiGame) return sendMulti({type: "claim", unitId: u.id});
-  capture(u, true); reveal(); update(); draw();
-};
+$("claimVillage").onclick = () => claimUnit(selectedUnit);
 $("restUnit").onclick = () => {
   if (multiGame) return sendMulti({ type: "rest", unitId: selectedUnit?.id });
   if ($("restUnit").disabled || !selectedUnit) return;
@@ -1199,7 +1219,7 @@ function renderResearch() {
   $("researchSurcharge").textContent = `왕국 규모 할증 +${researchCost(
     { cost: 0 },
     ownCities().map((t) => t.city),
-  )} ✦ · 추가 도시·도시 레벨 상승마다 +2 ✦`;
+  )} ✦ · 추가 도시·도시 레벨 상승마다 +1 ✦`;
   $("techGrid").replaceChildren();
   for (const branch of TECH_BRANCHES) {
     const row = document.createElement("section");

@@ -103,7 +103,7 @@ test("a blocked giant reward preserves the choice and cannot displace a unit", (
     .filter((p) => cityForTile(world, p) === t)
     .map((p) => ({ x: p.x, y: p.y, team: 0 }));
   assert.equal(giantSpawnTile(world, t, units), null);
-  assert.throws(() => claimCityReward(world, t, "giant", units, 0), /빈 육지/);
+  assert.throws(() => claimCityReward(world, t, "giant", units, 0), /빈 칸/);
   assert.deepEqual(t.city.pendingRewards, [5]);
 });
 test("new economy starts at three, infantry costs three and other prices scale from it", () => {
@@ -202,4 +202,24 @@ test("shield reflection uses actual melee damage, including walls and lethal hit
   }
   attacker.type="warrior"; attacker.hp=10; guard.boat="transport";
   assert.equal(counter(),0,"shield reflection is replaced by vessel combat when embarked");
+});
+
+test("giant spawns in the city and pushes its friendly occupant into an adjacent free tile",()=>{
+ const {world,t}=fixture();t.city.pendingRewards=[5];
+ const occupant={id:1,x:t.x,y:t.y,team:0,type:'warrior',hp:7,acted:true,bornTurn:1}, units=[occupant];
+ const reward=claimCityReward(world,t,'giant',units,0);
+ assert.equal(reward.unit.x,t.x);assert.equal(reward.unit.y,t.y);
+ assert.equal(Math.max(Math.abs(occupant.x-t.x),Math.abs(occupant.y-t.y)),1);
+ assert.equal(occupant.hp,7);assert.equal(occupant.acted,true);assert.equal(occupant.bornTurn,1);
+ assert.equal(t.city.pendingRewards.length,0);
+});
+test("giant cannot displace enemies; pushing onto water requires navigation and creates a transport",()=>{
+ const {world,t}=fixture();t.city.pendingRewards=[5];
+ const occupant={x:t.x,y:t.y,team:1,type:'warrior',hp:10};
+ assert.equal(giantSpawnTile(world,t,[occupant]),null);assert.throws(()=>claimCityReward(world,t,'giant',[occupant],0));
+ occupant.team=0;
+ for(const tile of world.flat()) if(Math.max(Math.abs(tile.x-t.x),Math.abs(tile.y-t.y))===1)tile.type='water';
+ assert.equal(giantSpawnTile(world,t,[occupant]),null);
+ const result=claimCityReward(world,t,'giant',[occupant],0,new Set(['navigation']));
+ assert.equal(occupant.boat,'transport');assert.equal(result.unit.x,t.x);assert.equal(result.unit.y,t.y);
 });

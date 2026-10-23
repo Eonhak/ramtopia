@@ -457,26 +457,19 @@ export function cityRewardOptions(city) {
       : []),
   ];
 }
-export function giantSpawnTile(world, cityTile, units) {
-  return (
-    world
-      .flat()
-      .filter(
-        (t) =>
-          cityForTile(world, t) === cityTile &&
-          t.type !== "water" &&
-          t.type !== "mountain" &&
-          !units.some((u) => u.x === t.x && u.y === t.y),
-      )
-      .sort(
-        (a, b) =>
-          gridDistance(a, cityTile) - gridDistance(b, cityTile) ||
-          a.y - b.y ||
-          a.x - b.x,
-      )[0] || null
-  );
+function giantPushTile(world, cityTile, units, techs) {
+  const occupant=units.find(u=>u.x===cityTile.x&&u.y===cityTile.y);
+  if(!occupant||occupant.team!==cityTile.city.owner) return null;
+  return world.flat().filter(t=>gridDistance(t,cityTile)===1&&
+    (!t.city||t.city.owner===occupant.team)&&canEnter(t,occupant,techs)&&
+    !units.some(u=>u.x===t.x&&u.y===t.y)&&movementPath(world,units,occupant,t,2,techs)?.length===1)
+    .sort((a,b)=>(cityForTile(world,b)===cityTile)-(cityForTile(world,a)===cityTile)||(a.type==="water")-(b.type==="water")||a.y-b.y||a.x-b.x)[0]||null;
 }
-export function claimCityReward(world, t, choice, units, team) {
+export function giantSpawnTile(world, cityTile, units, techs=new Set()) {
+  const occupant=units.find(u=>u.x===cityTile.x&&u.y===cityTile.y);
+  return !occupant||giantPushTile(world,cityTile,units,techs) ? cityTile : null;
+}
+export function claimCityReward(world, t, choice, units, team, techs=new Set()) {
   if (
     t?.city?.owner !== team ||
     !cityRewardOptions(t.city).some((o) => o.key === choice)
@@ -484,9 +477,11 @@ export function claimCityReward(world, t, choice, units, team) {
     throw new Error("선택할 수 없는 성장 보상입니다.");
   let unit = null;
   if (choice === "giant") {
-    const spawn = giantSpawnTile(world, t, units);
+    const spawn = giantSpawnTile(world, t, units, techs);
     if (!spawn)
-      throw new Error("도시 영역 안에 거인을 배치할 빈 육지가 필요합니다.");
+      throw new Error("도시 옆에 유닛을 이동시킬 빈 칸이 필요합니다.");
+    const occupant=units.find(u=>u.x===t.x&&u.y===t.y);
+    if(occupant){const pushed=giantPushTile(world,t,units,techs);occupant.x=pushed.x;occupant.y=pushed.y;if(pushed.type==="water")occupant.boat=occupant.boat||"transport";else delete occupant.boat;delete occupant.claimSite;delete occupant.claimRound;}
     unit = { x: spawn.x, y: spawn.y, team, type: "giant", hp: 30, acted: true };
   }
   if (choice === "walls") t.city.walls = true;
@@ -517,7 +512,7 @@ export function retaliationDamage(world, attacker, defender, attackStats, defenc
   if (defender.type === "guard" && !defender.boat)
     return reflectsAttack(defender, attackStats) && gridDistance(attacker, defender) === 1
       ? Math.min(Math.max(0, defender.hp), Math.max(0, incoming)) : 0;
-  return gridDistance(attacker, defender) <= defenceStats.range
+  return gridDistance(attacker, defender) === 1 && defenceStats.range >= 1
     ? battleDamage(defenceStats.counter, defender.hp, defenceStats.hp, world, attacker) : 0;
 }
 export function combatForecast(world, attacker, defender, attackStats, defenceStats) {
@@ -762,7 +757,7 @@ export function changeVessel(u, kind, techs, gold) {
 
 export function researchCost(tech, cities) {
   const own = cities.filter(c => c.owner === 0);
-  return tech.cost + 2 * (Math.max(0, own.length - 1) +
+  return tech.cost + (Math.max(0, own.length - 1) +
     own.reduce((sum, c) => sum + Math.max(0, c.level - 1), 0));
 }
 export function healthDamage(power, hp, maxHp) {

@@ -36,7 +36,7 @@ test('capturing a level-one village increases both income and research prices',(
  const g=board(),v=g.world[3][4];v.city={owner:-1,name:'마을',level:1,population:1,experience:0};assignTerritories(g.world);
  const price=()=>researchCost(TECHNOLOGIES.hunting,g.world.flat().filter(t=>t.city).map(t=>t.city));
  assert.equal(price(),5);applyCommand(g,0,{type:'act',unitId:1,x:4,y:3});assert.equal(price(),5);
- advanceTurn(g);advanceTurn(g);applyCommand(g,0,{type:'claim',unitId:1});assert.equal(price(),7);
+ advanceTurn(g);advanceTurn(g);applyCommand(g,0,{type:'claim',unitId:1});assert.equal(price(),6);
  assert.equal(cityIncome(v.city,new Set()),1);const gold=g.players[0].gold;advanceTurn(g);assert.equal(g.players[0].gold,gold+4);
 });
 test('random maps contain fish, mineral mountains and empty water and mountains',()=>{

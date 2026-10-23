@@ -259,7 +259,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
     if (!target || target.city?.owner !== s) fail("내 도시를 선택하세요.", 403);
     let reward;
     try {
-      reward = claimCityReward(g.world, target, c.choice, g.units, s);
+      reward = claimCityReward(g.world, target, c.choice, g.units, s, ts);
     } catch (error) {
       fail(error.message);
     }

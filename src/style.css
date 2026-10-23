@@ -1952,3 +1952,7 @@ dialog p {
 .room-player:has(button) > select:nth-of-type(2) { grid-column: 2; }
 
 @media(max-width:540px) { .room-player:has(button) { grid-template-columns: minmax(0,1fr) 95px 65px; gap: 5px; } }
+
+#claimMarkers { position:absolute; inset:0; pointer-events:none; z-index:12; }
+.claim-marker { position:absolute; transform:translate(-50%,-50%); width:42px; height:42px; border:2px solid #f8edb7; border-radius:50%; background:#2b765a; color:#fff3bd; font-size:27px; box-shadow:0 3px 9px #102d3b66; pointer-events:auto; touch-action:manipulation; cursor:pointer; }
+.claim-marker:hover { background:#368b68; }

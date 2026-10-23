@@ -52,3 +52,13 @@ test('bots fight other bots and can propose and accept an alliance with a contac
  // If only the two allied bots survive, the normal break penalty prevents a permanent draw.
  g.players[0].eliminated=true;g.activeSeat=1;takeBotTurn(g);assert(!allied(g,1,2));assert.equal(g.players[1].turnLocked,true);
 });
+
+test('ranged units and ships counter only at adjacent distance, with previews matching real attacks',()=>{
+ for(const distance of [1,2]) for(const boat of [null,'warship']){
+  const g=board(),a={id:1,x:6,y:6,team:0,type:'archer',hp:8},d={id:2,x:6+distance,y:6,team:1,type:'archer',hp:8};
+  if(boat){a.boat=d.boat=boat;g.world[6][6].type=g.world[6][6+distance].type='water';g.players[0].researched.push('navigation');}
+  g.players[0].researched.push('scouting');g.units=[a,d];
+  const f=combatForecast(g.world,a,d,combatStats(a),combatStats(d));
+  assert.equal(f.counter>0,distance===1);applyCommand(g,0,{type:'act',unitId:1,x:d.x,y:d.y});assert.equal(a.hp,8-f.counter);
+ }
+});
