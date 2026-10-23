@@ -81,6 +81,8 @@ window.__cityTest={setup(){init();world=Array.from({length:12},(_,y)=>Array.from
     await page.locator("#cityRewardDialog").waitFor({ state: "visible" });
     state = await page.evaluate(() => window.__cityTest.state);
     assert.equal(state.city.level, 2);
+    // The reward UI opens synchronously; the first rendered frame arrives later.
+    await page.waitForFunction(() => window.__growthLevels.includes(2));
     assert(await page.evaluate(() => window.__growthLevels.includes(2)), "city growth renders animation frames");
     assert.equal(await page.locator("#cityRewardDialog").evaluate(el => el.tagName), "SECTION");
     assert.equal(await page.locator("#healthBar").isVisible(), false);
