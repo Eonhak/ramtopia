@@ -1,5 +1,6 @@
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
+const {pixels:decodePNG}=require("./helpers/png.cjs");
 (async () => {
   const browser = await chromium.launch({
     ...(process.env.CHROMIUM_PATH
@@ -325,11 +326,11 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   assert.equal(closeAfter.y, closeBefore.y);
   await page.click("#closeResearch");
   await research("사냥");
-  assert.equal((await snapshot()).gold, 95);
+  assert.equal((await snapshot()).gold, 96);
   assert((await snapshot()).researched.includes("hunting"));
   await research("도로");
   await research("기병");
-  assert.equal((await snapshot()).gold, 80);
+  assert.equal((await snapshot()).gold, 84);
   await clickTile(3, 7);
   assert.equal(await page.locator("#recruitRider").isDisabled(), true);
   await harvest("열매 수확");
@@ -490,25 +491,17 @@ window.__gameTest={expireTurn:()=>{turnDeadline=Date.now()-1},choose:()=>openNat
   await fixture("animals");
   await clickTile(4, 7);
   assert.match(await page.locator("#tileDescription").innerText(), /야생동물/);
-  const countDeer = () =>
-    page.locator("#map").evaluate((c) => {
-      const { data } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
-      let count = 0;
-      for (let i = 0; i < data.length; i += 4)
-        if (
-          Math.abs(data[i] - 224) < 3 &&
-          Math.abs(data[i + 1] - 191) < 3 &&
-          Math.abs(data[i + 2] - 141) < 3
-        )
-          count++;
-      return count;
-    });
-  assert(
-    (await countDeer()) > 5,
-    "animal sprite is visible despite adjacent forest",
-  );
-  await page.click("#develop");
-  assert((await countDeer()) < 5, "harvest removes the animal sprite (allow isolated antialias pixels)");
+  const countDeer = async () => {
+    const clip=await page.locator('#map').evaluate(c=>{const v=window.__gameTest.view,p=v.hit.find(h=>h.t.x===4&&h.t.y===7),r=c.getBoundingClientRect();return {x:r.left+v.ox+p.x*v.scale-40,y:r.top+v.oy+p.y*v.scale-45,width:80,height:65};});
+    // Inspect the composited screenshot: 3D terrain and Canvas HUD are separate layers.
+    const {pixels,channels}=decodePNG(await page.screenshot({clip}));let count=0;
+    for(let i=0;i<pixels.length;i+=channels){const r=pixels[i],g=pixels[i+1],b=pixels[i+2];if(r>130&&r<240&&r>g+10&&g>b+12&&b>60)count++;}
+    return count;
+  };
+  const deerBefore=await countDeer();
+  assert(deerBefore>5,'animal is visible despite adjacent forest');
+  await page.click('#develop');
+  assert((await countDeer())<deerBefore-5,'harvest removes visible animal pixels from the tile');
   assert(!(await snapshot()).resources.some(t => t.x === 4 && t.y === 7));
   await fixture("economy");
   await research("사냥");

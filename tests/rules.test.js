@@ -302,7 +302,7 @@ test("only owned cities allow management and growth increases research prices", 
       { owner: 0, level: 3 },
       { owner: 1, level: 9 },
     ]),
-    9,
+    6,
   );
 });
 test("remaining health scales attack and counter damage", () => {
@@ -315,7 +315,7 @@ test("remaining health scales attack and counter damage", () => {
 
 test("city income starts at three stars and gains one per city level", () => {
   for (const level of [1, 2, 3, 7])
-    assert.equal(cityIncome({ level, isCapital: true }, new Set()), level + 2);
+    assert.equal(cityIncome({ level, isCapital: true }, new Set()), level);
 });
 
 

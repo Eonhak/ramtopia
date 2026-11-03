@@ -347,7 +347,9 @@ export const unitSpec = (u) => UNIT_TYPES[u.type || "warrior"];
 export const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 export const growthRequired = (city) => city.level + 1;
 export const cityIncome = (city, techs) =>
-  city.level + (city.isCapital ? 2 : 0) + (techs.has("trade") ? 2 : 0);
+  city.level + (techs.has("trade") ? 2 : 0);
+export const kingdomIncome = (cities, techs) =>
+  2 + cities.reduce((sum, city) => sum + cityIncome(city, techs), 0);
 export function canRecruit(city, type, techs, gold, occupied = false) {
   const s = UNIT_TYPES[type];
   return (
@@ -757,8 +759,8 @@ export function changeVessel(u, kind, techs, gold) {
 
 export function researchCost(tech, cities) {
   const own = cities.filter(c => c.owner === 0);
-  return tech.cost + (Math.max(0, own.length - 1) +
-    own.reduce((sum, c) => sum + Math.max(0, c.level - 1), 0));
+  const growth = Math.max(0, own.length - 1) + own.reduce((sum, c) => sum + Math.max(0, c.level - 1), 0);
+  return (tech.cost === 0 ? 0 : Math.max(2, Math.round(tech.cost * .8))) + Math.ceil(growth / 3);
 }
 export function healthDamage(power, hp, maxHp) {
   return power <= 0 || hp <= 0

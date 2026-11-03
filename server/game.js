@@ -24,7 +24,7 @@ import {
   claimCityReward,
   combatForecast,
   reflectsAttack,
-  cityIncome,
+  kingdomIncome,
   researchCost,
   seedResources,
   healthDamage,
@@ -50,11 +50,12 @@ function log(g, text) {
 export function createMatch(members, timeLimit, now = Date.now(), options = {}) {
   const settings = gameOptions(options);
   if (members.length < 2 || members.length > 8) fail("2~8명으로 시작하세요.");
-  const { world } = generateWorld(settings.size, Math.random, {...settings,players:members.length}),
-    settlements = world.flat().filter((t) => t.city);
+  const { world, starts, minimumStartDistance } = generateWorld(settings.size, Math.random, {...settings,players:members.length}),
+    settlements = [...starts.map(p => world[p.y][p.x]), ...world.flat().filter(t => t.city && !starts.some(p => p.x===t.x && p.y===t.y))];
   const g = {
     world,
-    rulesVersion: 4,
+    rulesVersion: 5,
+    minimumStartDistance,
     settings,
     alliances: [],
     offers: [],
@@ -62,6 +63,7 @@ export function createMatch(members, timeLimit, now = Date.now(), options = {}) 
       ...p,
       seat,
       gold: 3,
+      turnsStarted: seat === 0 ? 1 : 0,
       researched: [nation(p.nation).tech],
       eliminated: false,
     })),
@@ -78,8 +80,8 @@ export function createMatch(members, timeLimit, now = Date.now(), options = {}) 
   };
   settlements.forEach((t, i) => {
     t.city.owner = i < members.length ? i : -1;
-    t.city.isCapital = i < members.length;
-    t.city.capitalTeam = i < members.length ? i : null;
+    t.city.isCapital = false;
+    delete t.city.capitalTeam;
     if (i < members.length) {
       t.city.name = nation(members[i].nation).capital;
       g.units.push({
@@ -149,37 +151,26 @@ function capture(g, u, claim = false) {
   const t = tile(g, u.x, u.y);
   if (!t.city || allied(g,t.city.owner,u.team)) return;
   if (!claim) { waitAtVillage(u, t, g.round); return; }
-  const old = t.city.owner,
-    capital = t.city.isCapital;
   t.city.owner = u.team;
   u.acted = true;
   log(g, `${nation(g.players[u.team].nation).name}: ${t.city.name} 점령`);
-  if (capital && old >= 0) {
-    eliminate(g, old);
-    t.city.isCapital = false;
-  }
+  t.city.isCapital = false;
 }
 export function advanceTurn(g, now = Date.now(), timeout = false) {
   if (g.finished) return;
   remember(g);
-  const outgoing = g.players[g.activeSeat];
-  if (!outgoing.eliminated) {
-    const income = cities(g, g.activeSeat).reduce(
-      (n, t) => n + cityIncome(t.city, techs(g, g.activeSeat)),
-      0,
-    );
-    outgoing.gold += income;
-    log(
-      g,
-      `${nation(outgoing.nation).name} 수입 +${income} ✦${timeout ? " · 시간 초과" : ""}`,
-    );
-  }
+  if (timeout) log(g, "턴 제한 시간 초과");
   let next = g.activeSeat;
   do {
     next = (next + 1) % g.players.length;
     if (next === 0) g.round++;
   } while (g.players[next].eliminated);
   g.activeSeat = next;
+  const firstTurn=g.players[next].turnsStarted===0;
+  g.players[next].turnsStarted=(g.players[next].turnsStarted||0)+1;
+  const income = firstTurn ? 0 : kingdomIncome(cities(g, next).map(t=>t.city), techs(g, next));
+  g.players[next].gold += income;
+  log(g, `${nation(g.players[next].nation).name} 턴 시작 수입 +${income} ✦`);
   g.players[next].turnLocked = false;
   for (const u of g.units.filter((u) => u.team === next)) {
     u.acted = false;
@@ -366,7 +357,8 @@ export function applyCommand(g, s, c, now = Date.now()) {
           g.lastAttack = {
             id: (g.lastAttack?.id || 0) + 1,
             unitId:u.id, team:u.team, unit:{...u},
-            reflected: reflectsAttack(enemy,stats(g,u)) && counter > 0, counter,
+            reflected: reflectsAttack(enemy,stats(g,u)) && counter > 0, counter, damage,
+            defender:{...enemy}, defenderKilled:damage >= enemy.hp, attackerKilled:counter >= u.hp,
             from:{x:u.x,y:u.y}, to:{x:enemy.x,y:enemy.y},
           };
           const attackAtSea=!!u.boat||g.world[u.y][u.x].type==="water", defenceAtSea=!!enemy.boat||target.type==="water";
@@ -418,6 +410,8 @@ export function applyCommand(g, s, c, now = Date.now()) {
       } else fail("알 수 없는 행동입니다.");
     }
   }
+  for (const player of g.players) if (!player.eliminated && !cities(g,player.seat).length && !g.units.some(u=>u.team===player.seat)) eliminate(g,player.seat);
+  if (!g.finished && g.players[g.activeSeat].eliminated) advanceTurn(g,now);
   remember(g);
 }
 export function matchView(g, s) {
@@ -449,7 +443,7 @@ export function matchView(g, s) {
       .map((u) => ({ ...u, team: mapTeam(u.team), combat: stats(g, u) })),
     attackId: g.lastAttack?.id || 0,
     lastAttack: g.lastAttack && visible[g.lastAttack.from.y]?.[g.lastAttack.from.x]?.visible && visible[g.lastAttack.to.y]?.[g.lastAttack.to.x]?.visible
-      ? {...copy(g.lastAttack), team:mapTeam(g.lastAttack.team), unit:{...copy(g.lastAttack.unit),team:mapTeam(g.lastAttack.team)}} : null,
+      ? {...copy(g.lastAttack), team:mapTeam(g.lastAttack.team), unit:{...copy(g.lastAttack.unit),team:mapTeam(g.lastAttack.team)},defender:g.lastAttack.defender&&{...copy(g.lastAttack.defender),team:mapTeam(g.lastAttack.defender.team)}} : null,
     settings: g.settings,
     turnLocked: !!g.players[s].turnLocked,
     allies: g.players.filter(p=>p.seat!==s && allied(g,s,p.seat)).map(p=>mapTeam(p.seat)),
@@ -481,18 +475,18 @@ export function matchView(g, s) {
 }
 
 export function upgradeMatch(g) {
-  if (g.rulesVersion === 4) return false;
+  if (g.rulesVersion === 5) return false;
   g.settings ||= gameOptions({size:g.world.length});
   g.alliances ||= []; g.offers ||= [];
-  for (const p of g.players) p.researched = [...new Set(p.researched.map(t=>t==="cartography"?"diplomacy":t))];
-  for (const t of g.world.flat()) if (t.city) normalizeCity(t.city);
+  for (const p of g.players) {p.turnsStarted ??= 1;p.researched = [...new Set(p.researched.map(t=>t==="cartography"?"diplomacy":t))];}
+  for (const t of g.world.flat()) if (t.city) {normalizeCity(t.city);t.city.isCapital=false;delete t.city.capitalTeam;}
   assignTerritories(g.world);
   for (const knowledge of g.knowledge)
     for (const t of knowledge)
       if (t) {
-        if (t.city) normalizeCity(t.city);
+        if (t.city) {normalizeCity(t.city);t.city.isCapital=false;delete t.city.capitalTeam;}
         t.territory = g.world[t.y][t.x].territory;
       }
-  g.rulesVersion = 4;
+  g.rulesVersion = 5;
   return true;
 }

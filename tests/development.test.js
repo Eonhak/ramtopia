@@ -35,9 +35,9 @@ test('fish harvest and mineral mine consume stars and grant the owning city XP o
 test('capturing a level-one village increases both income and research prices',()=>{
  const g=board(),v=g.world[3][4];v.city={owner:-1,name:'마을',level:1,population:1,experience:0};assignTerritories(g.world);
  const price=()=>researchCost(TECHNOLOGIES.hunting,g.world.flat().filter(t=>t.city).map(t=>t.city));
- assert.equal(price(),5);applyCommand(g,0,{type:'act',unitId:1,x:4,y:3});assert.equal(price(),5);
- advanceTurn(g);advanceTurn(g);applyCommand(g,0,{type:'claim',unitId:1});assert.equal(price(),6);
- assert.equal(cityIncome(v.city,new Set()),1);const gold=g.players[0].gold;advanceTurn(g);assert.equal(g.players[0].gold,gold+4);
+ assert.equal(price(),4);applyCommand(g,0,{type:'act',unitId:1,x:4,y:3});assert.equal(price(),4);
+ advanceTurn(g);advanceTurn(g);applyCommand(g,0,{type:'claim',unitId:1});assert.equal(price(),5);
+ assert.equal(cityIncome(v.city,new Set()),1);const gold=g.players[0].gold;advanceTurn(g);assert.equal(g.players[0].gold,gold);advanceTurn(g);assert.equal(g.players[0].gold,gold+4);
 });
 test('random maps contain fish, mineral mountains and empty water and mountains',()=>{
  let seed=75;const random=()=>((seed=Math.imul(seed,1664525)+1013904223>>>0)/4294967296);
@@ -96,7 +96,7 @@ test('difficulty controls research pace without changing technology prices or in
  for(const [difficulty,round,expected] of [['easy',1,0],['easy',3,1],['normal',1,1],['hard',1,2]]){
   const g=board(),p=g.players[1];p.bot=true;p.difficulty=difficulty;p.aiStyle='military';p.aiSeed=42;p.gold=1000;g.activeSeat=1;g.round=round;
   takeBotTurn(g);assert.equal(p.researched.length,expected);
-  const spent=p.researched.reduce((sum,tech)=>sum+TECHNOLOGIES[tech].cost,0)+g.units.filter(u=>u.id>=3).reduce((sum,u)=>sum+({warrior:3,archer:3,rider:3,guard:3,catapult:5,knight:6,assassin:4}[u.type]||0),0);
-  assert.equal(p.gold,1000-spent+3);
+  const spent=p.researched.reduce((sum,tech)=>sum+researchCost(TECHNOLOGIES[tech],[{owner:0,level:1}]),0)+g.units.filter(u=>u.id>=3).reduce((sum,u)=>sum+({warrior:3,archer:3,rider:3,guard:3,catapult:5,knight:6,assassin:4}[u.type]||0),0);
+  assert.equal(p.gold,1000-spent);
  }
 });

@@ -158,7 +158,8 @@ test("server timers, unlimited turns, income, rounds and resignations", () => {
   assert.equal(expireTurn(g, 300999), false);
   assert.equal(expireTurn(g, 301000), true);
   assert.equal(g.activeSeat, 1);
-  assert.equal(g.players[0].gold, 6);
+  assert.equal(g.players[0].gold, 3);
+  assert.equal(g.players[1].gold, 3);
   assert.equal(g.deadline, 601000);
   for (let i = 0; i < 3; i++) advanceTurn(g, 400000 + i);
   assert.equal(g.activeSeat, 0);
@@ -362,7 +363,9 @@ test("neutral villages require an explicit claim on the next own turn and pay th
   assert.equal(u.acted, true);
   const before = g.players[0].gold;
   advanceTurn(g);
-  assert.equal(g.players[0].gold - before, 5); // capital 3 + level-two village 2
+  assert.equal(g.players[0].gold, before); // No payment on ending a turn.
+  advanceTurn(g);
+  assert.equal(g.players[0].gold - before, 5); // Kingdom base 2 + level-one and level-two cities.
 });
 
 test("attack events include projectile source and target only when visible", () => {

@@ -109,6 +109,7 @@ const assert = require("node:assert/strict");
     }
     await host.screenshot({ path: "/tmp/ramtopia-multi.png" });
     assert.equal(await host.locator("#endTurn").isDisabled(), false);
+    assert.equal(await host.locator("#gold").textContent(), "3", "first turn starts with three stars");
     assert.equal(await pages[1].locator("#endTurn").isDisabled(), true);
     assert.equal(await host.locator("#turnBanner").textContent(),"내 턴입니다");
     assert.equal(await pages[1].locator("#turnBanner").textContent(),"왕국1님의 턴입니다");
@@ -165,7 +166,7 @@ const assert = require("node:assert/strict");
     assert.equal(await pages[1].locator("#endTurn").isDisabled(), false);
     assert.equal(await pages[1].locator("#turnBanner").textContent(),"내 턴입니다");
     assert.equal(await host.locator("#turnBanner").textContent(),"왕국2님의 턴입니다");
-    assert.equal(await host.locator("#gold").textContent(), "6");
+    assert.equal(await host.locator("#gold").textContent(), "3", "outgoing player receives no income");
     await host.click("#newGame");
     assert.equal(await host.locator("#gameMenu").isVisible(), true);
     await host.click("#menuMain");
@@ -197,6 +198,7 @@ const assert = require("node:assert/strict");
         );
     }
     assert.equal(await host.locator("#endTurn").isDisabled(), false);
+    assert.equal(await host.locator("#gold").textContent(), "6", "income arrives at own turn start");
     assert.equal(
       await host.evaluate(() => window.__multiView().multiGame.round),
       2,

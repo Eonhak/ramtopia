@@ -1,3 +1,4 @@
+import {graphicsActive,ambientInterval} from './scene.js';
 import { createMatch, applyCommand, matchView } from "../server/game.js";
 import { runBots } from "../server/ai.js";
 import { gameOptions } from "./game-options.js";
@@ -31,6 +32,7 @@ import {
   canRecruit,
   canEnter,
   cityIncome,
+  kingdomIncome,
   seedResources,
   TECHNOLOGIES,
   RESOURCES,
@@ -243,7 +245,7 @@ function update() {
     .flat()
     .filter((t) => t.seen && t.type !== "water").length;
   $("income").textContent =
-    "+" + cities.reduce((a, t) => a + cityIncome(t.city, researched), 0);
+    "+" + kingdomIncome(cities.map(t=>t.city), researched);
   $("turnLabel").innerHTML =
     `턴 ${String(turn).padStart(2, "0")} <span>${over ? "게임 종료" : animating ? "행동 중" : busy ? enemyNation.name + "의 차례" : "당신의 차례"}</span>`;
   $("logs").hidden = true;
@@ -606,6 +608,9 @@ function celebrateCity(t) {
   };
   growthFrame = requestAnimationFrame(frame);
 }
+let ambientFrame=null,ambientTime=0;
+function ambientTick(now){ambientFrame=null;if(!world||!graphicsActive()||document.hidden)return;if(now-ambientTime>=ambientInterval()){ambientTime=now;draw();}else ambientFrame=requestAnimationFrame(ambientTick);}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&world)draw();});
 function draw() {
   if (world)
     view = renderMap(canvas, {
@@ -631,6 +636,7 @@ function draw() {
           : 0,
     });
   renderClaimMarkers();
+  if(world&&graphicsActive()&&!ambientFrame&&!document.hidden){ambientFrame=requestAnimationFrame(ambientTick);}
 }
 function claimUnit(u) {
   const t=u&&at(u.x,u.y);
@@ -682,14 +688,14 @@ function finish(win) {
     ? selectedNation.name + "의 새로운 왕이 탄생했습니다!"
     : selectedNation.name + "의 깃발이 내려갔습니다";
   $("status").textContent = win
-    ? enemyNation.name + "의 수도를 정복했습니다. 당신의 왕국에 영광을!"
+    ? "상대 왕국의 도시와 유닛을 모두 정복했습니다."
     : "새로운 왕국에서 다시 도전해 보세요.";
   addLog(
     win
-      ? selectedNation.name + "이 상대 수도를 정복해 승리했습니다."
-      : "수도가 함락되었습니다.",
+      ? selectedNation.name + "이 상대 왕국을 정복해 승리했습니다."
+      : "도시와 유닛을 모두 잃었습니다.",
   );
-  toast(win ? "✦ 승리! 상대 수도를 정복했습니다." : "수도가 함락되었습니다.");
+  toast(win ? "✦ 승리! 상대 왕국을 정복했습니다." : "도시와 유닛을 모두 잃었습니다.");
 }
 function capture(u, claim = false) {
   let t = at(u.x, u.y);
@@ -700,10 +706,8 @@ function capture(u, claim = false) {
     addLog(
       `${u.team === 0 ? selectedNation.name : enemyNation.name}이 ${t.city.name} 점령`,
     );
-    if (u.team === 0 && t.x === enemyCapital.x && t.y === enemyCapital.y)
-      finish(true);
-    if (u.team === 1 && t.x === homeCapital.x && t.y === homeCapital.y)
-      finish(false);
+    if (!world.flat().some(v=>v.city?.owner===1) && !units.some(v=>v.team===1)) finish(true);
+    if (!world.flat().some(v=>v.city?.owner===0) && !units.some(v=>v.team===0)) finish(false);
   }
 }
 function tween(duration, step) {
@@ -725,7 +729,7 @@ async function walk(u, path) {
     if (t.type === "water") u.boat = u.boat || "transport";
     const from = project(u.x, u.y),
       to = project(t.x, t.y);
-    animation = { unit: u, position: from };
+    animation = { unit: u, position: from, from, to };
     await tween(220, (p) => {
       const k = (1 - Math.cos(Math.PI * p)) / 2;
       animation.position = {
@@ -739,11 +743,11 @@ async function walk(u, path) {
     animation = null;
   }
 }
-async function attackVisual(u, from, to, current = () => true) {
+async function attackVisual(u, from, to, current = () => true, defender=null, lethal=false) {
   const ranged = stats(u).range > 1;
-  const visual = {unit:u, position:from};
+  const visual = {unit:u, position:from, from, to, defender:defender&&{...defender}, lethal:lethal&&!ranged};
   animation = visual;
-  await tween(ranged ? 850 : 300, p => {
+  await tween(ranged ? 850 : lethal ? 1200 : 800, p => {
     if (!current()) return;
     visual.pose = {progress:p};
     if (ranged) {
@@ -751,7 +755,7 @@ async function attackVisual(u, from, to, current = () => true) {
       visual.projectile = flight >= 0 && flight <= 1 ? {from,to,progress:flight,arrow:u.type === "archer" && !u.boat} : null;
       visual.impact = p > .83 ? {to,progress:(p-.83)/.17,arrow:u.type === "archer" && !u.boat} : null;
     } else {
-      const k = Math.sin(Math.PI*p)*.38;
+      const k = lethal&&p>=.5?.38+((p-.5)/.5)*.62:Math.sin(Math.PI*p)*.38;
       visual.position = {x:from.x+(to.x-from.x)*k, y:from.y+(to.y-from.y)*k};
     }
   });
@@ -794,16 +798,9 @@ async function act(u, t) {
     if (enemy) {
       const from = project(u.x, u.y),
         to = project(t.x, t.y);
-      await attackVisual(u, from, to);
-      animation = null;
-      const damage = battleDamage(
-          stats(u).attack,
-          u.hp,
-          stats(u).hp,
-          world,
-          enemy,
-        ),
-        counter = retaliationDamage(world, u, enemy, stats(u), stats(enemy), damage);
+      const forecast=combatForecast(world,u,enemy,stats(u),stats(enemy));
+      await attackVisual(u, from, to, ()=>true, enemy, forecast.defenderDies&&!forecast.attackerDies);
+      const {damage,counter}=forecast;
       const attackAtSea=!!u.boat||at(u.x,u.y).type==="water", defenceAtSea=!!enemy.boat||t.type==="water";
       enemy.hp -= damage;
       u.hp -= counter;
@@ -827,8 +824,10 @@ async function act(u, t) {
         units.includes(u) &&
         stats(u).range === 1 &&
         distance(u, t) === 1
-      )
-        await walk(u, [t]);
+      ) {
+        u.x=t.x;u.y=t.y;
+        if(t.type==='water')u.boat=u.boat||'transport';else delete u.boat;
+      }
       addLog(`${stats(u).name} 교전${killed ? " · 적 처치" : ""}`);
     } else await walk(u, path);
     if (units.includes(u)) capture(u);
@@ -1219,7 +1218,7 @@ function renderResearch() {
   $("researchSurcharge").textContent = `왕국 규모 할증 +${researchCost(
     { cost: 0 },
     ownCities().map((t) => t.city),
-  )} ✦ · 추가 도시·도시 레벨 상승마다 +1 ✦`;
+  )} ✦ · 도시 성장에 따라 완만하게 증가`;
   $("techGrid").replaceChildren();
   for (const branch of TECH_BRANCHES) {
     const row = document.createElement("section");
@@ -1340,10 +1339,7 @@ $("endTurn").onclick = async () => {
   if (!over) {
     turn++;
     turnDeadline = singleTimeLimit ? Date.now() + singleTimeLimit * 1000 : null;
-    const earnings = ownCities().reduce(
-      (a, t) => a + cityIncome(t.city, researched),
-      0,
-    );
+    const earnings = kingdomIncome(ownCities().map(t=>t.city), researched);
     gold += earnings;
     addLog(
       `도시 수입 +${earnings} ✦ · ${ownCities()
@@ -1371,7 +1367,7 @@ $("endTurn").onclick = async () => {
         acted: true,
         bornTurn: turn,
       });
-      addLog(enemyNation.name + " 수도에 지원군이 도착했습니다.");
+      addLog(enemyNation.name + " 도시에 지원군이 도착했습니다.");
     }
 
     $("statusTitle").textContent = `턴 ${turn}, 왕국의 다음 걸음`;
@@ -1614,13 +1610,13 @@ async function loadMulti(game, room) {
     if (shot && shot.id !== previousAttack) {
       const shooter = previous.find(u => u.id === shot.unitId) || {...shot.unit, team:shot.team};
       animating = true; update();
-      await attackVisual(shooter, project(shot.from.x,shot.from.y), project(shot.to.x,shot.to.y), () => epoch === mpAnimation);
+      await attackVisual(shooter, project(shot.from.x,shot.from.y), project(shot.to.x,shot.to.y), () => epoch === mpAnimation, shot.defender, shot.defenderKilled&&!shot.attackerKilled);
       if (epoch !== mpAnimation) return;
       animation = null;
     }
     const moved = units.find((u) => {
       const old = previous.find((v) => v.id === u.id);
-      return old && (old.x !== u.x || old.y !== u.y);
+      return old && !(shot?.id!==previousAttack&&shot?.defenderKilled&&!shot?.attackerKilled&&shot?.unitId===u.id) && (old.x !== u.x || old.y !== u.y);
     });
     effects = units.flatMap((u) => {
       const old = previous.find((v) => v.id === u.id);
@@ -1636,7 +1632,7 @@ async function loadMulti(game, room) {
       const old = moved && previous.find((v) => v.id === moved.id),
         from = old && project(old.x, old.y),
         to = moved && project(moved.x, moved.y);
-      const visual = moved ? { unit: moved, position: from } : null;
+      const visual = moved ? { unit: moved, position: from, from, to } : null;
       animation = visual;
       animating = true;
       update();

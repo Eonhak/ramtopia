@@ -114,30 +114,33 @@ export function generateWorld(size = 12, random = Math.random, options = {}) {
     .map((t) => ({ t, r: random() }))
     .sort((a, b) => a.r - b.r)
     .map((o) => o.t);
-  const home =
-    shuffled.find(
-      (t) => t.x <= 3 || t.x >= size - 4 || t.y <= 3 || t.y >= size - 4,
-    ) || shuffled[0];
-  const far = shuffled.filter((t) => cheb(t, home) >= Math.floor(size / 2));
-  const enemy = far[0] || shuffled.at(-1),
-    cities = [home, enemy];
-  // Spread starting capitals first, then fill remaining neutral settlements.
-  while (cities.length < players) {
-    const next = shuffled.filter(t => !cities.includes(t)).sort((a,b) => Math.min(...cities.map(c=>cheb(c,b))) - Math.min(...cities.map(c=>cheb(c,a))))[0];
-    if (!next) throw new Error("도시를 배치할 수 없습니다.");
-    cities.push(next);
+  // Keep explicit player starts: never reassign them by row order later.
+  const grid = Math.ceil(Math.sqrt(players)), spacing = (size - 3) / (grid - 1);
+  const minimum = Math.floor(size / 3), jitter = Math.max(0, Math.floor((Math.floor(spacing) - minimum) / 2));
+  const anchors = [];
+  for (let y = 0; y < grid; y++) for (let x = 0; x < grid; x++) {
+    const px = Math.max(1, Math.min(size - 2, Math.round(1 + x * spacing) + Math.floor(random() * (2*jitter+1)) - jitter));
+    const py = Math.max(1, Math.min(size - 2, Math.round(1 + y * spacing) + Math.floor(random() * (2*jitter+1)) - jitter));
+    anchors.push(world[py][px]);
   }
+  const cities = [anchors[Math.floor(random() * anchors.length)]];
+  while (cities.length < players) {
+    const choices = anchors.filter(t => !cities.includes(t)).map(t => ({t, distance:Math.min(...cities.map(c=>cheb(c,t))), tie:random()}));
+    choices.sort((a,b)=>b.distance-a.distance || a.tie-b.tie);
+    cities.push(choices[0].t);
+  }
+  const starts = cities.map(t => ({x:t.x,y:t.y})), home = cities[0], enemy = cities[1];
   for (const t of shuffled)
     if (cities.length < Math.max(5,players*2) && cities.every((c) => cheb(c, t) >= (players > 4 ? 2 : 3))) cities.push(t);
   for (const [i, t] of cities.entries()) {
     t.type = "grass";
     t.city = {
-      owner: i === 0 ? 0 : i === 1 ? 1 : -1,
+      owner: i < players ? i : -1,
       name:
         i === 0
-          ? "수도"
+          ? "시작 도시"
           : i === 1
-            ? "적의 수도"
+            ? "상대 도시"
             : ["이끼 마을", "바람 마을", "햇살 마을"][(i - 2)%3] + (i>4 ? " " + (i-1) : ""),
       level: 1,
       population: 1,
@@ -145,7 +148,7 @@ export function generateWorld(size = 12, random = Math.random, options = {}) {
       expansions: 0,
       walls: false,
       pendingRewards: [],
-      isCapital: i < 2,
+      isCapital: false,
     };
     const near = world
       .flat()
@@ -188,6 +191,8 @@ export function generateWorld(size = 12, random = Math.random, options = {}) {
   assignTerritories(world);
   return {
     world,
+    starts,
+    minimumStartDistance: minimum,
     home: { x: home.x, y: home.y },
     enemy: { x: enemy.x, y: enemy.y },
   };

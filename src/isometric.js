@@ -1,3 +1,4 @@
+import {renderScene} from './scene.js';
 import { cityForTile, growthRequired } from "./rules.js";
 import { drawCity, drawUnit } from "./visuals.js";
 export const project = (x, y) => ({ x: (x - y) * 30, y: (x + y) * 15 });
@@ -213,7 +214,7 @@ function resourceArt(c, x, y, kind) {
       "#d3c1ed",
     );
 }
-export function renderMap(
+function legacyMap(
   canvas,
   {
     world,
@@ -487,14 +488,6 @@ export function renderMap(
         c.strokeStyle = "#cfb27c"; c.lineWidth = 2;
         c.beginPath(); c.moveTo(rx - 3, ry + 7); c.lineTo(rx - 2, ry + 1);
         c.moveTo(rx + 3, ry + 7); c.lineTo(rx + 2, ry + 1); c.stroke();
-      } else {
-        c.strokeStyle = "#f4df91";
-        c.lineWidth = 2;
-        c.beginPath();
-        c.moveTo(rx - 4, ry);
-        c.lineTo(rx - 1, ry + 3);
-        c.lineTo(rx + 5, ry - 4);
-        c.stroke();
       }
     }
     if(t.building) {
@@ -522,7 +515,7 @@ export function renderMap(
         c.fillStyle = "#ffffff"; c.font = "bold 7px sans-serif"; c.textAlign = "left";
         c.fillText(`Lv.${t.city.level}`, p.x + 11, y + 25);
       } else {
-        const label = allies.includes(owner) ? "동맹 도시" : owner > 0 ? (t.city.isCapital ? "⚔ 적 수도" : "⚔ 적 도시") : "◇ 중립 마을";
+        const label = allies.includes(owner) ? "동맹 도시" : owner > 0 ? "⚔ 적 도시" : "◇ 중립 마을";
         c.fillStyle = allies.includes(owner) ? "#315c64ed" : owner > 0 ? "#743a48ed" : "#f4e4bbf5";
         c.fillRect(p.x - 25, y + 15, 50, 12);
         c.fillStyle = owner === -1 ? "#5d503c" : "#ffffff";
@@ -702,4 +695,36 @@ export function pickTile(view, x, y) {
     ground?.t ||
     null
   );
+}
+
+// Preserve the proven camera/hit testing while using the animated 3D world renderer.
+let lastLayout=null,lastInput=null;
+export function renderMap(canvas,options){
+ const {world,units,selected,zoom,pan,animation,combatPreview}=options;
+ const key=[canvas.clientWidth,canvas.clientHeight,zoom,pan.x,pan.y,selected?.x,selected?.y,options.night,options.panelHeight,options.showIdleUnit,
+ world.flat().map(t=>[t.type,t.seen,t.visible,t.city?.level,t.city?.owner,t.city?.experience].join(':')).join(','),
+ units.map(u=>[u.id,u.x,u.y,u.hp,u.acted,u.moved,u.attacked].join(':')).join(','),combatPreview?.damage,combatPreview?.counter,combatPreview?.defender?.x,combatPreview?.defender?.y].join('|');
+ let view;
+ if(lastInput===key&&lastLayout?.world===world&&lastLayout.canvas===canvas)view=lastLayout.view;
+ else {view=legacyMap(canvas,options);lastInput=key;lastLayout={world,canvas,view};}
+ if(!renderScene(canvas,options,view))return legacyMap(canvas,options);
+ for(const hit of view.hit)hit.y=project(hit.t.x,hit.t.y).y;
+ const c=canvas.getContext('2d'),dpr=devicePixelRatio||1;
+ c.setTransform(dpr,0,0,dpr,0,0);c.save();c.translate(view.ox,view.oy);c.scale(view.scale,view.scale);
+ const ownership=new Map(world.flat().filter(t=>t.city).map(t=>[t.x+','+t.y,t.city.owner]));
+ for(const hit of view.hit){const t=hit.t,p=project(t.x,t.y);if(!t.seen)continue;
+  if(t.territory&&ownership.get(t.territory)!==undefined){const owner=ownership.get(t.territory);if(owner>=0){c.strokeStyle=owner===0?'#bdd5a0':'#d68b87';c.lineWidth=1.3;for(const [dx,dy,edge]of [[-1,0,[[-30,0],[0,-15]]],[0,-1,[[0,-15],[30,0]]],[1,0,[[30,0],[0,15]]],[0,1,[[0,15],[-30,0]]]]){const n=world[t.y+dy]?.[t.x+dx];if(n?.seen&&ownership.get(n.territory)===owner)continue;c.beginPath();c.moveTo(p.x+edge[0][0],p.y+edge[0][1]);c.lineTo(p.x+edge[1][0],p.y+edge[1][1]);c.stroke();}}}
+  const a=options.available(t),sel=selected&&selected.x===t.x&&selected.y===t.y;
+  if(a||sel){if(a==='attack')diamond(c,p.x,p.y,'#b54e4b55');c.strokeStyle=sel?'#f4e4ad':a==='attack'?'#df6863':'#f6f5e6';c.lineWidth=2;c.beginPath();c.moveTo(p.x,p.y-15);c.lineTo(p.x+30,p.y);c.lineTo(p.x,p.y+15);c.lineTo(p.x-30,p.y);c.closePath();c.stroke();}
+  if(t.city){if(t.city.owner===0){const ratio=Math.min(1,(t.city.experience||0)/growthRequired(t.city));c.fillStyle='#264749ed';c.fillRect(p.x-25,p.y+8,50,11);c.fillStyle='#627f73';c.fillRect(p.x-21,p.y+12,26,3);c.fillStyle='#dfd39c';c.fillRect(p.x-21,p.y+12,26*ratio,3);c.fillStyle='#f4f3e3';c.font='bold 7px sans-serif';c.textAlign='left';c.fillText('Lv.'+t.city.level,p.x+8,p.y+16);}else{c.font='bold 7px sans-serif';c.textAlign='center';const label=t.city.owner===-1?'◇ 중립 마을':options.allies?.includes(t.city.owner)?'동맹 도시':'⚔ 적 도시';c.fillStyle=t.city.owner===-1?'#e6dfc4':'#774d54';c.fillRect(p.x-25,p.y+8,50,11);c.fillStyle=t.city.owner===-1?'#5c604d':'#f0eddf';c.fillText(label,p.x,p.y+16);}}
+ }
+ // Screen-facing health stays readable and above city level bars.
+ for(const u of units){if(!(world[u.y]?.[u.x]?.visible??world[u.y]?.[u.x]?.seen))continue;let p=project(u.x,u.y);const active=animation&&(u.id!==undefined?u.id===animation.unit.id:u===animation.unit);if(active)p=animation.position;const height=u.boat?40:u.type==='giant'?57:u.type==='rider'?52:40;c.font='bold 8px sans-serif';c.textAlign='center';c.lineWidth=2;c.strokeStyle='#2d4d50';c.strokeText(String(u.hp),p.x,p.y-height);c.fillStyle='#f5f4e6';c.fillText(String(u.hp),p.x,p.y-height);}
+ if(view.idleUnit){const p=project(view.idleUnit.x,view.idleUnit.y);c.fillStyle='#e9d9a1';c.beginPath();c.arc(p.x+10,p.y-34,5,0,Math.PI*2);c.fill();c.fillStyle='#4b5b4d';c.font='bold 8px sans-serif';c.textAlign='center';c.fillText('!',p.x+10,p.y-31);}
+ if(animation?.projectile){const {from,to,progress:p,arrow}=animation.projectile;const x=from.x+(to.x-from.x)*p,y=from.y+(to.y-from.y)*p-25-Math.sin(p*Math.PI)*(arrow?15:65);if(arrow){c.save();c.translate(x,y);c.rotate(Math.atan2(to.y-from.y-Math.PI*15*Math.cos(Math.PI*p),to.x-from.x));c.strokeStyle='#ecdfb7';c.lineWidth=1.7;c.beginPath();c.moveTo(-7,0);c.lineTo(7,0);c.stroke();poly(c,[[8,0],[3,-3],[3,3]],'#cfdad3');c.restore();}else{c.fillStyle='#9da99e';c.beginPath();c.arc(x,y,5,0,Math.PI*2);c.fill();}}
+ for(const e of options.growthEffects||[]){const p=project(e.x,e.y),k=e.progress;if(!world[e.y]?.[e.x]?.visible)continue;c.save();c.globalAlpha=Math.sin(Math.PI*k);c.strokeStyle='#e9d799';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y,20+k*25,10+k*13,0,0,Math.PI*2);c.stroke();c.font='bold 14px sans-serif';c.fillStyle='#f2e5b7';c.textAlign='center';c.fillText('LEVEL '+e.level,p.x,p.y-50-k*20);c.restore();}
+ for(const e of options.effects||[]){const p=project(e.x,e.y);c.save();c.globalAlpha=1-e.progress;c.fillStyle=e.color||'#eeb6a1';c.strokeStyle='#3d4f4a';c.lineWidth=2;c.font='bold 13px sans-serif';c.textAlign='center';c.strokeText(e.text,p.x,p.y-44-e.progress*25);c.fillText(e.text,p.x,p.y-44-e.progress*25);c.restore();}
+ c.restore();
+ for(const l of view.forecastLabels||[]){c.fillStyle='#334c50f5';c.fillRect(l.x-l.width/2,l.y-13,l.width,26);c.strokeStyle='#dacb99';c.strokeRect(l.x-l.width/2,l.y-13,l.width,26);c.fillStyle='#f6f0db';c.font='bold 13px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(l.text,l.x,l.y);}
+ c.textBaseline='alphabetic';return view;
 }

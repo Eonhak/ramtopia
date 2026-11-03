@@ -27,6 +27,7 @@ export function botPlan(g,s) {
     if(['hunting','gathering','archery'].includes(tech)) score[tech]+=2;
     if(['fishing','navigation'].includes(tech)&&own.filter(t=>t.type==='water').length>=3) score[tech]+=5;
     if(tech==='diplomacy'&&known.players.some(p=>p.bot&&p.seat!==s&&known.units.some(u=>u.team===p.team))) score[tech]+=p.aiStyle==='military'?1:4;
+    if(level==='hard'&&['archery','riding','siege','chivalry','assassination'].includes(tech)) score[tech]+=2.5;
     if(tech==='fortification'&&enemies.some(u=>known.world.flat().some(t=>t.city?.owner===0&&gridDistance(t,u)<=2))) score[tech]+=6;
   }
   // Valuable late technologies pull their prerequisite branches forward too.
@@ -98,7 +99,8 @@ export function takeBotTurn(g, now=Date.now()) {
       .sort((a,b)=>RESOURCES[a.kind].cost-RESOURCES[b.kind].cost);
     for(const {t,kind} of resources) {
       if(developed>=(level==='hard'?4:level==='normal'?2:1)) break;
-      if(p.gold>=RESOURCES[kind].cost&&safe(g,s,{type:kind==='wood'?'lumber':'develop',x:t.x,y:t.y},now)) developed++;
+      const reserve=level==='hard'&&armySize()<2?UNIT_TYPES.warrior.cost:0;
+      if(p.gold>=RESOURCES[kind].cost+reserve&&safe(g,s,{type:kind==='wood'?'lumber':'develop',x:t.x,y:t.y},now)) developed++;
     }
     const militaryReserve=missingAdvanced()?UNIT_TYPES[missingAdvanced()].cost:0;
     for(let bought=0;bought<(level==='hard'?2:1);bought++) {
@@ -125,7 +127,7 @@ export function takeBotTurn(g, now=Date.now()) {
       const dealt=battleDamage(stats(u).attack,u.hp,stats(u).hp,g.world,v);
       const defended=combatStats(v,{night:isNight(g.round),techs:new Set()});
       const counter=retaliationDamage(g.world,u,v,stats(u),defended,dealt);
-      return dealt + (dealt>=v.hp?12:0) - counter*1.3 - (counter>=u.hp?18:0);
+      return dealt + (dealt>=v.hp?12:0) - counter*(v.type==='guard'&&!v.boat?1.3:.95) - (counter>=u.hp?15:0);
     };
     const attack=()=>{
       const targets=enemies().filter(v=>gridDistance(u,v)<=stats(u).range&&stats(u).attack>0&&
@@ -145,7 +147,7 @@ export function takeBotTurn(g, now=Date.now()) {
     const nearest=tiles=>tiles.sort((a,b)=>gridDistance(u,a)-gridDistance(u,b));
     const retreat=level==='hard'&&u.hp<stats(u).hp*.35;
     if(retreat&&here.city?.owner===s) {safe(g,s,{type:'rest',unitId:u.id},now);continue;}
-    const warParty=level==='hard'&&plan.style==='military'&&u.id%3!==0;
+    const warParty=level==='hard'&&armySize()>=2&&u.id%4!==0;
     const objectivesByRole=retreat?[...nearest(cityTiles())]:warParty?[...nearest(enemyGoals),...nearest(hostile),...nearest(neutral)]:[...nearest(neutral),...nearest(enemyGoals),...nearest(hostile)];
     const goals=[...objectivesByRole,...explore.sort((a,b)=>gridDistance(u,a)-gridDistance(u,b)||((a.x-p.capital.x)**2+(a.y-p.capital.y)**2)-((b.x-p.capital.x)**2+(b.y-p.capital.y)**2))];
     let route;
@@ -170,7 +172,7 @@ export function takeBotTurn(g, now=Date.now()) {
   const limit=cityTiles().length*(level==='easy'?1:level==='normal'?3:5)+1;
   for(const t of cityTiles()) {
     if(g.units.filter(u=>u.team===s).length>=limit) break;
-    const saving=level!=='easy'&&!missingAdvanced()&&armySize()>=2&&nextTech()&&p.gold<cost(nextTech())+3;
+    const saving=level!=='easy'&&!missingAdvanced()&&armySize()>=(level==='hard'?4:2)&&nextTech()&&p.gold<cost(nextTech())+3;
     if(saving) continue;
     const kinds=level==='easy'?['warrior','archer','guard']:botPlan(g,s).kinds;
     for(const unitType of kinds) if(canRecruit({...t.city,owner:0},unitType,techs(),p.gold,g.units.some(u=>u.x===t.x&&u.y===t.y))&&safe(g,s,{type:'recruit',x:t.x,y:t.y,unitType},now)) break;
