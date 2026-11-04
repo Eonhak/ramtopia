@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>RAMTOPIA · 동물 유닛 미리보기</title>
+    <script type="module" crossorigin src="../assets/animals-VsseC-Xl.js"></script>
+    <link rel="modulepreload" crossorigin href="../assets/GLTFLoader-sX33In-u.js">
+    <link rel="stylesheet" crossorigin href="../assets/animals-C8tybf2s.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <a class="brand" href="../">RAMTOPIA <span>MODEL STUDIO</span></a>
+          <h1>동물 왕국의 작은 전사들.</h1>
+          <p>동물 기반 2등신 유닛 · 실제 3D 모델 미리보기</p>
+        </div>
+        <div class="badge"><i></i> 게임 적용 전 시안</div>
+      </header>
+      <section class="toolbar">
+        <nav aria-label="미리보기 종류">
+          <button data-mode="nations" class="active">나라별 비교</button
+          ><button data-mode="units">병종별 비교</button
+          ><button data-mode="field">필드에서 보기</button>
+        </nav>
+        <div class="selectors">
+          <label id="nationLabel"
+            >나라
+            <select id="nation"></select></label
+          ><label id="kindLabel"
+            >병종
+            <select id="kind"></select
+          ></label>
+        </div>
+      </section>
+      <section id="stage">
+        <canvas id="preview" aria-label="실제 GLB 유닛 모델 미리보기"></canvas>
+        <div id="labels"></div>
+        <div id="loading">새 모델을 불러오고 있습니다…</div>
+      </section>
+      <footer>
+        <div class="motion">
+          <span>움직임</span
+          ><button data-motion="idle" class="active">대기</button
+          ><button data-motion="walk">걷기</button
+          ><button data-motion="attack">공격</button
+          ><button id="rotate">↻ 돌려보기</button>
+        </div>
+        <p id="note">8개 나라 · 색상뿐 아니라 투구, 옷, 방패도 다르게</p>
+      </footer>
+      <div class="details">
+        <span>나라별 동물 · 발과 꼬리까지 다른 실루엣</span
+        ><span>일러스트가 아닌 실제 메시 · 대기 / 이동 / 공격 모션 포함</span>
+      </div>
+    </main>
+  </body>
+</html>
