@@ -2,7 +2,11 @@ import { defineConfig } from "vite";
 export default defineConfig({
   build: {
     rollupOptions: {
-      input: { game: "index.html", units: "unit-preview/index.html" },
+      input: {
+        game: "index.html",
+        units: "unit-preview/index.html",
+        animals: "animal-preview/index.html",
+      },
     },
   },
   server: {
