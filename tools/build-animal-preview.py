@@ -1,5 +1,6 @@
 """Generate a separate animal-themed alternative; production and human preview stay intact."""
 from pathlib import Path
+import sys
 source=Path(__file__).with_name('build-chibi-preview.py').read_text()
 marker="  if kind in ['guard','knight']:"
 assert source.count(marker)==1
@@ -8,8 +9,8 @@ animals=r'''
   palette={
    'rome':('#c68b40','#f1d49c','#704020'),
    'goguryeo':('#d88b3b','#f5dfb8','#382e29'),
-   'egypt':('#55505c','#bfae9a','#302e3b'),
-   'persia':('#d8915e','#f3ddba','#804a35'),
+   'egypt':('#eee5d6','#fff4df','#b99888'),
+   'persia':('#ac693b','#f5d7a4','#6f4030'),
    'han':('#eee9d9','#f4f0e5','#34383d'),
    'greece':('#a08866','#eee4c9','#584b3b'),
    'mongol':('#899994','#e5e5d4','#526364'),
@@ -47,7 +48,23 @@ animals=r'''
     orb('Tiger white muzzle',s*.085,-.27,.17,.14,.09,.095,'AnimalCream',head)
     for z in [.12,.28,.41]:
      panel('Tiger cheek stripe',[(s*.22,-.254,z),(s*.35,-.157,z+.035),(s*.33,-.185,z+.087)],'AnimalDark',head,.015)
-  elif nation in ['egypt','persia','mongol']:
+  elif nation=='egypt':
+   for side in [-1,1]:
+    shape('Rabbit long soft ear',[(.49,.095,.075,side*.24,.015),(.72,.11,.075,side*.27,.02),(1.05,.085,.055,side*.28,.025),(1.23,.035,.03,side*.25,.025),(1.26,.005,.008,side*.24,.025)],'AnimalFur',head)
+    shape('Rabbit pink inner ear',[(.65,.047,.012,side*.26,-.061),(.87,.05,.012,side*.28,-.055),(1.10,.033,.01,side*.27,-.035),(1.18,.006,.008,side*.25,-.018)],'AnimalInnerEar',head)
+    orb('Rabbit round cheek',side*.115,-.257,.15,.14,.07,.105,'AnimalCream',head)
+    for j in range(2):
+     ribbon('Rabbit fine whisker',[(side*.16,-.295,.17-j*.035),(side*.29,-.26,.19-j*.035)],.003,'AnimalDark',head,.004)
+   orb('Rabbit chin',0,-.25,.055,.11,.06,.05,'AnimalCream',head)
+  elif nation=='persia':
+   for side in [-1,1]:
+    orb('Squirrel rounded ear',side*.31,.015,.67,.11,.075,.13,'AnimalFur',head)
+    orb('Squirrel pink ear',side*.31,-.052,.68,.055,.02,.075,'AnimalInnerEar',head)
+    orb('Squirrel plump cheek',side*.17,-.25,.145,.16,.085,.12,'AnimalCream',head)
+   orb('Squirrel short muzzle',0,-.285,.18,.105,.075,.07,'AnimalCream',head)
+   for side in [-1,1]:
+    panel('Squirrel tiny front tooth',[(side*.005,-.348,.145),(side*.032,-.348,.145),(side*.029,-.348,.10),(side*.006,-.348,.10)],'Linen',head,.012)
+  elif nation=='mongol':
    for s in [-1,1]:
     height=.99 if nation=='egypt' else 1.00 if nation=='persia' else .88
     # Tall swept ears are authored in several contour loops rather than flat triangles.
@@ -85,9 +102,14 @@ animals=r'''
    orb('Animal bright eye',s*.135,y,.32,size,.018,.049,'Eye',head)
    orb('Animal eye highlight',s*.135-.008,y-.017,.337,.009,.004,.011,'Linen',head)
   if nation not in ['greece','maurya']:
-   y=-.457 if nation in ['egypt','persia','mongol'] else -.355
-   orb('Animal soft nose',0,y,.205 if nation not in ['egypt','persia','mongol'] else .185,.048,.025,.031,'AnimalNose',head)
-  if nation in ['persia','mongol']:
+   y=-.457 if nation=='mongol' else -.362 if nation=='persia' else -.329 if nation=='egypt' else -.355
+   orb('Animal soft nose',0,y,.205 if nation not in ['egypt','persia','mongol'] else .185,.031 if nation=='egypt' else .048,.022 if nation in ['egypt','persia'] else .025,.026 if nation in ['egypt','persia'] else .031,'AnimalInnerEar' if nation=='egypt' else 'AnimalNose',head)
+  if nation=='egypt':
+   orb('Rabbit cotton tail',-.18,.27,.30,.14,.14,.14,'AnimalCream',root)
+  elif nation=='persia':
+   shape('Squirrel large curled tail',[(.16,.07,.08,-.16,.30),(.30,.14,.14,-.33,.44),(.52,.22,.19,-.47,.52),(.78,.23,.20,-.50,.54),(1.0,.18,.16,-.44,.53),(1.12,.11,.11,-.32,.49),(1.11,.04,.05,-.23,.43)],'AnimalFur',root)
+   shape('Squirrel pale tail sweep',[(.33,.03,.015,-.42,.295),(.56,.065,.02,-.51,.315),(.80,.065,.025,-.54,.325),(1.0,.04,.02,-.46,.35),(1.08,.006,.012,-.35,.38)],'AnimalCream',root)
+  elif nation=='mongol':
    tail=shape('Plush sweeping tail',[(.18,.05,.06,-.24,.40),(.27,.12,.12,-.31,.52),(.43,.14,.15,-.35,.60),(.62,.11,.13,-.35,.66),(.72,.025,.04,-.31,.69)],'AnimalFur',root)
    orb('Tail pale tip',-.32,.67,.65,.105,.115,.12,'AnimalCream',root)
   elif nation in ['rome','goguryeo']:
@@ -97,4 +119,6 @@ animals=r'''
 '''
 source=source.replace("'public/unit-preview/models'","'public/animal-preview/models'")
 source=source.replace(marker,animals+'\n'+marker)
+if '--only-updated' in sys.argv:
+ source=source.replace('for nation,colors in NATIONS.items():',"for nation,colors in NATIONS.items():\n if nation not in ['egypt','persia']:continue")
 exec(compile(source,str(Path(__file__).with_name('build-chibi-preview.py')),'exec'),globals())

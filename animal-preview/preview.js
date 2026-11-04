@@ -3,8 +3,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const nations = [
   ["rome", "로마 · 사자", "갈기 · 붉은 군단 갑옷"],
   ["goguryeo", "고구려 · 호랑이", "줄무늬 · 푸른 찰갑"],
-  ["egypt", "이집트 · 자칼", "긴 귀 · 금빛 네메스"],
-  ["persia", "페르시아 · 여우", "큰 귀 · 풍성한 꼬리"],
+  ["egypt", "이집트 · 토끼", "긴 귀 · 솜방울 꼬리"],
+  ["persia", "페르시아 · 다람쥐", "통통한 볼 · 말린 꼬리"],
   ["han", "한나라 · 판다", "눈무늬 · 붉은 갑옷"],
   ["greece", "그리스 · 부엉이", "얼굴 깃털 · 청동 투구"],
   ["mongol", "몽골 · 늑대", "회색 털 · 두꺼운 꼬리"],
@@ -51,7 +51,7 @@ scene.add(fill);
 const camera = new T.OrthographicCamera(-7, 7, 5, -5, 0.1, 100);
 const loader = new GLTFLoader(),
   cache = new Map();
-let mode = "nations",
+let mode = "pair",
   motion = "idle",
   rotating = false,
   actors = [],
@@ -123,7 +123,7 @@ function resize() {
     camera.lookAt(0, 0, 0);
   } else {
     const mobile = w < 650,
-      span = mobile ? 9.2 : 3.9;
+      span = mode === "pair" ? (mobile ? 3.5 : 2.4) : mobile ? 9.2 : 3.9;
     camera.left = -span * aspect;
     camera.right = span * aspect;
     camera.top = span;
@@ -146,11 +146,13 @@ async function show() {
   const entries =
     mode === "units"
       ? kinds.map((k) => [nation, k[0], k[1], k[2]])
-      : nations.map((n) => [n[0], kind, n[1], n[2]]);
+      : nations
+          .filter((n) => mode !== "pair" || ["egypt", "persia"].includes(n[0]))
+          .map((n) => [n[0], kind, n[1], n[2]]);
   const loaded = await Promise.all(entries.map(([n, k]) => model(n, k)));
   if (current !== generation) return;
   const mobile = canvas.clientWidth < 650,
-    cols = mobile ? 2 : 4;
+    cols = mode === "pair" ? (mobile ? 1 : 2) : mobile ? 2 : 4;
   resize();
   if (mode === "field") {
     for (let x = -5; x <= 5; x++)
@@ -164,8 +166,8 @@ async function show() {
     } else {
       x = ((i % cols) - (cols - 1) / 2) * (mobile ? 3.2 : 3.05);
       z =
-        (Math.floor(i / cols) - (Math.ceil(8 / cols) - 1) / 2) *
-        (mobile ? 5.8 : 5.5);
+        (Math.floor(i / cols) - (Math.ceil(entries.length / cols) - 1) / 2) *
+        (mode === "pair" && mobile ? 3.7 : mobile ? 5.8 : 5.5);
     }
     const root = loaded[i].scene.clone(true);
     const scale = mode === "field" ? 0.46 : entry[1] === "giant" ? 1.02 : 1.2;
@@ -203,7 +205,7 @@ async function show() {
       ? "필드 배치 시안 · 기존과 같은 마름모 격자 · 유닛 크기 비교용"
       : mode === "units"
         ? "같은 나라 안에서도 무기와 실루엣으로 병종 구분"
-        : "8개 나라 · 사자 · 호랑이 · 자칼 · 여우 · 판다 · 부엉이 · 늑대 · 코끼리";
+        : "8개 나라 · 사자 · 호랑이 · 토끼 · 다람쥐 · 판다 · 부엉이 · 늑대 · 코끼리";
   $("loading").hidden = true;
   canvas.dataset.ready = String(current);
 }
