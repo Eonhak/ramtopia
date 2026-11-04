@@ -1,4 +1,5 @@
 import * as T from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const assetURLs = {
   warrior: new URL("./assets/units/warrior.glb", import.meta.url).href,
@@ -10,7 +11,11 @@ const assetURLs = {
   catapult: new URL("./assets/units/catapult.glb", import.meta.url).href,
   giant: new URL("./assets/units/giant.glb", import.meta.url).href,
 };
-let software = false;
+let software = false,
+  cloudGeometry,
+  cloudMaterial,
+  fogBatch,
+  fogFloor;
 let renderer,
   scene,
   unitScene,
@@ -34,7 +39,7 @@ export function graphicsActive() {
   return !!renderer && !failed;
 }
 export function ambientInterval() {
-  return software ? 180 : 33;
+  return failed ? 100 : software ? 100 : 33;
 }
 const mat = (c) =>
   new T.MeshStandardMaterial({ color: c, roughness: 1, flatShading: true });
@@ -241,7 +246,7 @@ function disposeTile(record) {
   unitScene.remove(record.resource);
   for (const root of [record.g, record.resource])
     root.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
+      if (o.geometry && !o.userData.sharedGeometry) o.geometry.dispose();
     });
 }
 function createTile(t, nations) {
@@ -251,7 +256,7 @@ function createTile(t, nations) {
   const motion = [];
   trees = [];
   flags = [];
-  dim = t.seen ? ((t.visible ?? true) ? 1 : 0.43) : 0.28;
+  dim = t.seen ? ((t.visible ?? true) ? 1 : 0.64) : 1;
   const water = t.seen && t.type === "water",
     color = !t.seen
       ? "#536a70"
@@ -262,7 +267,36 @@ function createTile(t, nations) {
           : (t.x + t.y) % 2
             ? "#91af83"
             : "#9db88b";
-  box(g, 0.986, 0.12, 0.986, color, 0, -0.07, 0);
+  if (!t.seen) {
+    if (!cloudGeometry) {
+      const parts = [
+        [-0.24, 0.2, -0.12, 0.46, 0.22, 0.42],
+        [0.22, 0.22, 0.12, 0.48, 0.25, 0.44],
+        [0.02, 0.31, -0.1, 0.4, 0.28, 0.41],
+      ].map(([x, y, z, sx, sy, sz]) => {
+        const geo = new T.IcosahedronGeometry(1, software ? 1 : 2);
+        geo.scale(sx, sy, sz);
+        geo.translate(x, y, z);
+        return geo;
+      });
+      cloudGeometry = mergeGeometries(parts);
+      for (const part of parts) part.dispose();
+    }
+    cloudMaterial ||= new T.MeshLambertMaterial({
+      color: "#ccdae4",
+      flatShading: false,
+    });
+    const cloud = new T.Object3D();
+    g.add(cloud);
+    const seed = ((t.x * 17 + t.y * 31) % 11) / 11;
+    cloud.rotation.y = seed * Math.PI * 2;
+    cloud.scale.set(1.08 + seed * 0.08, 0.8 + seed * 0.15, 1.08 + seed * 0.08);
+    cloud.castShadow = false;
+    cloud.receiveShadow = false;
+    // Shared geometry is retained when individual fog tiles are revealed.
+    cloud.userData.sharedGeometry = true;
+    motion.push({ o: cloud, kind: "cloud" });
+  } else box(g, 0.986, 0.12, 0.986, color, 0, -0.07, 0);
   if (water) {
     for (const z of [-0.28, 0.2]) {
       const wave = mesh(
@@ -511,8 +545,8 @@ export function renderScene(canvas, opts, view) {
   camera.bottom = -(h - view.oy) / factor;
   camera.updateProjectionMatrix();
   scene.background = new T.Color(night ? "#172d40" : "#41616a");
-  sun.intensity = night ? 0.55 : 2.1;
-  hemi.intensity = night ? 0.95 : 1.8;
+  sun.intensity = 2.1;
+  hemi.intensity = 1.8;
   unitSun.intensity = sun.intensity;
   unitHemi.intensity = hemi.intensity;
   sun.position.set(n / 2 - 10, 30, n / 2 + 12);
@@ -536,18 +570,30 @@ export function renderScene(canvas, opts, view) {
       tiles.delete(key);
     }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches,
-    time = reduced ? 0 : performance.now() / 1000;
+    time = performance.now() / 1000,
+    motionScale = reduced ? 0.35 : 1;
   for (const r of tiles.values()) {
     for (const m of r.motion) {
       if (m.kind === "wave")
         m.o.position.z =
           m.z + Math.sin(time * 1.2 + r.g.position.x + r.g.position.z) * 0.07;
-      else if (m.kind === "deer")
-        m.o.rotation.x = Math.sin(time + r.g.position.x) * 0.16;
-      else m.o.rotation.y = Math.sin(time + r.g.position.z) * 0.2;
+      else if (m.kind === "deer") {
+        m.o.rotation.x =
+          Math.sin(time * 1.2 + r.g.position.x) * 0.42 * motionScale;
+        m.o.position.y =
+          0.34 + Math.sin(time * 1.2 + r.g.position.x) * 0.065 * motionScale;
+        m.o.position.z =
+          0.18 + Math.sin(time * 1.2 + r.g.position.x) * 0.03 * motionScale;
+      } else if (m.kind === "cloud")
+        m.o.position.y =
+          Math.sin(time * 0.5 + r.g.position.x * 0.3 + r.g.position.z * 0.2) *
+          0.025 *
+          motionScale;
+      else m.o.rotation.y = Math.sin(time + r.g.position.z) * 0.3 * motionScale;
     }
     for (let i = 0; i < r.trees.length; i++)
-      r.trees[i].rotation.z = Math.sin(time * 1.5 + i + r.g.position.x) * 0.022;
+      r.trees[i].rotation.z =
+        Math.sin(time * 1.3 + i + r.g.position.x) * 0.065 * motionScale;
     for (const f of r.flags) {
       const p = f.o.geometry.attributes.position;
       for (let i = 0; i < p.count; i++)
@@ -555,6 +601,44 @@ export function renderScene(canvas, opts, view) {
       p.needsUpdate = true;
     }
   }
+  const cloudNodes = [...tiles.values()].flatMap((r) =>
+    r.motion.filter((m) => m.kind === "cloud").map((m) => m.o),
+  );
+  if (cloudGeometry) {
+    if (!fogBatch || fogBatch.instanceMatrix.count !== n * n) {
+      if (fogBatch) {
+        scene.remove(fogBatch);
+        fogBatch.dispose();
+      }
+      fogBatch = new T.InstancedMesh(cloudGeometry, cloudMaterial, n * n);
+      fogBatch.frustumCulled = false;
+      scene.add(fogBatch);
+    }
+    fogBatch.count = cloudNodes.length;
+    cloudNodes.forEach((cloud, i) => {
+      cloud.updateWorldMatrix(true, false);
+      fogBatch.setMatrixAt(i, cloud.matrixWorld);
+    });
+    fogBatch.instanceMatrix.needsUpdate = true;
+    if (!fogFloor || fogFloor.userData.size !== n) {
+      if (fogFloor) {
+        scene.remove(fogFloor);
+        fogFloor.geometry.dispose();
+        fogFloor.material.dispose();
+      }
+      fogFloor = new T.Mesh(
+        new T.PlaneGeometry(n, n),
+        new T.MeshBasicMaterial({ color: "#c4d3da" }),
+      );
+      fogFloor.rotation.x = -Math.PI / 2;
+      fogFloor.position.set((n - 1) / 2, -0.14, (n - 1) / 2);
+      fogFloor.userData.size = n;
+      scene.add(fogFloor);
+    }
+    fogFloor.visible = cloudNodes.length > 0;
+  }
+  canvas.dataset.cloudInstances = String(cloudNodes.length);
+  canvas.dataset.cloudBatches = cloudNodes.length ? "1" : "0";
   const visibleUnits = units.filter(
     (u) => world[u.y]?.[u.x]?.visible ?? world[u.y]?.[u.x]?.seen,
   );
@@ -595,7 +679,14 @@ export function renderScene(canvas, opts, view) {
     a.g.rotation.set(0, a.yaw, 0);
     a.model.rotation.set(0, 0, 0);
     a.g.position.set(u.x, 0.015, u.y);
-    a.mixer?.setTime(0.4 + Math.sin(time * 1.5 + u.x) * 0.2);
+    a.mixer?.setTime(time % 1.95);
+    a.model.position.y =
+      Math.abs(Math.sin(time * 1.7 + u.x + u.y)) * 0.025 * motionScale;
+    const head = a.model.getObjectByName("Head");
+    if (head) {
+      head.rotation.y += Math.sin(time * 0.7 + u.x) * 0.22 * motionScale;
+      head.rotation.z += Math.sin(time * 1.2 + u.y) * 0.025 * motionScale;
+    }
     a.model.traverse((o) => {
       if (o.isMesh) {
         o.material.opacity = 1;
@@ -632,7 +723,11 @@ export function renderScene(canvas, opts, view) {
           a.mixer.setTime(4.4 + progress);
           const k = Math.sin(Math.PI * progress);
           a.g.position.addScaledVector(correction, k);
-          if (animation.lethal && progress >= 0.5) {
+          if (
+            animation.lethal &&
+            animation.advance !== false &&
+            progress >= 0.5
+          ) {
             const advance = Math.min(1, (progress - 0.5) / 0.5);
             a.g.position
               .set(from.x, 0.015, from.y)
@@ -645,6 +740,16 @@ export function renderScene(canvas, opts, view) {
         a.mixer?.setTime(2.1 + (time % 1.7));
         if (u.boat) a.g.rotation.z = Math.sin(time * 2) * 0.025;
       }
+      if (animation.death !== undefined) {
+        const k = animation.death;
+        a.model.rotation.x = (-k * Math.PI) / 2;
+        a.model.traverse((o) => {
+          if (o.isMesh) {
+            o.material.transparent = true;
+            o.material.opacity = 1 - Math.max(0, (k - 0.65) / 0.35);
+          }
+        });
+      }
     } else if (u.boat) {
       a.g.position.y += Math.sin(time * 2 + u.x) * 0.015;
       a.g.rotation.z = Math.sin(time * 1.7) * 0.025;
@@ -653,14 +758,16 @@ export function renderScene(canvas, opts, view) {
       defender &&
       (u.id !== undefined ? u.id === defender.id : u === defender) &&
       animation.lethal &&
-      progress >= 0.5
+      progress >= (animation.hitAt ?? 0.5)
     ) {
-      const fall = Math.min(1, (progress - 0.5) / 0.3);
+      const deathProgress =
+        (progress - (animation.hitAt ?? 0.5)) / (1 - (animation.hitAt ?? 0.5));
+      const fall = Math.min(1, deathProgress / 0.6);
       const from = animation.from ? unproject(animation.from) : animation.unit;
       a.g.rotation.y = Math.atan2(from.x - u.x, from.y - u.y);
       a.model.rotation.x = (-fall * Math.PI) / 2;
       a.g.position.y -= fall * 0.02;
-      const opacity = 1 - Math.max(0, (progress - 0.8) / 0.2);
+      const opacity = 1 - Math.max(0, (deathProgress - 0.65) / 0.35);
       a.model.traverse((o) => {
         if (o.isMesh) {
           o.material.transparent = true;
@@ -703,5 +810,23 @@ export function renderScene(canvas, opts, view) {
   canvas.dataset.renderer = "webgl";
   canvas.dataset.unitModels = String(sceneInfo.models);
   canvas.dataset.frames = String(sceneInfo.frames);
+  canvas.dataset.fog = "clouds";
+  canvas.dataset.visibleLighting = "daylight";
+  sceneInfo.motion = {
+    time,
+    trees:
+      [...tiles.values()]
+        .flatMap((r) => r.trees)
+        .slice(0, 1)
+        .map((o) => o.rotation.z)[0] ?? null,
+    animal:
+      [...tiles.values()]
+        .flatMap((r) => r.motion)
+        .find((m) => m.kind === "deer")?.o.rotation.x ?? null,
+    units:
+      [...actors.values()].slice(0, 1).map((a) => a.model.position.y)[0] ??
+      null,
+  };
+  canvas.dataset.motion = JSON.stringify(sceneInfo.motion);
   return true;
 }

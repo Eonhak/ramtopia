@@ -109,18 +109,32 @@ const assert = require("node:assert/strict");
     }
     await host.screenshot({ path: "/tmp/ramtopia-multi.png" });
     assert.equal(await host.locator("#endTurn").isDisabled(), false);
-    assert.equal(await host.locator("#gold").textContent(), "3", "first turn starts with three stars");
-    assert.equal(await pages[1].locator("#endTurn").isDisabled(), true);
-    assert.equal(await host.locator("#turnBanner").textContent(),"내 턴입니다");
-    assert.equal(await pages[1].locator("#turnBanner").textContent(),"왕국1님의 턴입니다");
-    for (const p of pages) {
-      assert.equal(await p.locator("#logs").isVisible(),false);
-      assert.deepEqual(await p.evaluate(() => window.__multiView().multiGame.logs),[]);
-    }
-    assert.match(
-      await host.locator("#turnClock").textContent(),
-      /^(10:00|9:5\d)$/,
+    assert.equal(
+      await host.locator("#gold").textContent(),
+      "3",
+      "first turn starts with three stars",
     );
+    assert.equal(await pages[1].locator("#endTurn").isDisabled(), true);
+    assert.equal(
+      await host.locator("#turnBanner").textContent(),
+      "내 턴입니다",
+    );
+    assert.equal(
+      await pages[1].locator("#turnBanner").textContent(),
+      "왕국1님의 턴입니다",
+    );
+    for (const p of pages) {
+      assert.equal(await p.locator("#logs").isVisible(), false);
+      assert.deepEqual(
+        await p.evaluate(() => window.__multiView().multiGame.logs),
+        [],
+      );
+    }
+    assert.equal(await host.evaluate(()=>window.__multiView().multiGame.timeLimit),600);
+    await host.waitForFunction(()=>{
+      const clock=document.querySelector('#turnClock').textContent.split(':').map(Number),game=window.__multiView().multiGame;
+      return Math.abs(clock[0]*60+clock[1]-Math.max(0,Math.ceil((game.deadline-Date.now())/1000)))<=2;
+    });
     // Move through the actual canvas, then check stars/turn synchronization across all four clients.
     const actor = await host.evaluate(() =>
       window.__multiView().units.find((u) => u.team === 0),
@@ -141,14 +155,23 @@ const assert = require("node:assert/strict");
       await page.mouse.click(p.x, p.y);
     }
     await click(host, actor.x, actor.y);
-    const target = await host.evaluate(
-      () => {
-        const v = window.__multiView().view, canvas = document.querySelector('#map'), r = canvas.getBoundingClientRect();
-        return v.hit.find(p => p.available === "move" && !p.t.city &&
-          window.__multiView().pickTile(v, v.ox+p.x*v.scale, v.oy+p.y*v.scale) === p.t &&
-          document.elementFromPoint(r.left + v.ox + p.x*v.scale, r.top + v.oy + p.y*v.scale) === canvas)?.t;
-      },
-    );
+    const target = await host.evaluate(() => {
+      const v = window.__multiView().view,
+        canvas = document.querySelector("#map"),
+        r = canvas.getBoundingClientRect();
+      return v.hit.find(
+        (p) =>
+          p.available === "move" &&
+          !p.t.city &&
+          window
+            .__multiView()
+            .pickTile(v, v.ox + p.x * v.scale, v.oy + p.y * v.scale) === p.t &&
+          document.elementFromPoint(
+            r.left + v.ox + p.x * v.scale,
+            r.top + v.oy + p.y * v.scale,
+          ) === canvas,
+      )?.t;
+    });
     assert(target, "initial unit has a walkable tile");
     await click(host, target.x, target.y);
     await host.waitForFunction(
@@ -164,21 +187,35 @@ const assert = require("node:assert/strict");
         () => window.__multiView().multiGame.activeSeat === 1,
       );
     assert.equal(await pages[1].locator("#endTurn").isDisabled(), false);
-    assert.equal(await pages[1].locator("#turnBanner").textContent(),"내 턴입니다");
-    assert.equal(await host.locator("#turnBanner").textContent(),"왕국2님의 턴입니다");
-    assert.equal(await host.locator("#gold").textContent(), "3", "outgoing player receives no income");
+    assert.equal(
+      await pages[1].locator("#turnBanner").textContent(),
+      "내 턴입니다",
+    );
+    assert.equal(
+      await host.locator("#turnBanner").textContent(),
+      "왕국2님의 턴입니다",
+    );
+    assert.equal(
+      await host.locator("#gold").textContent(),
+      "3",
+      "outgoing player receives no income",
+    );
     await host.click("#newGame");
     assert.equal(await host.locator("#gameMenu").isVisible(), true);
     await host.click("#menuMain");
     assert.equal(await host.locator("#modeDialog").isVisible(), true);
     await host.waitForTimeout(1500);
-    assert.equal(await host.locator("#modeDialog").isVisible(), true,"background polling keeps main menu open");
+    assert.equal(
+      await host.locator("#modeDialog").isVisible(),
+      true,
+      "background polling keeps main menu open",
+    );
     await host.click("#continueMatch");
     assert.equal(await host.locator("#modeDialog").isVisible(), false);
     const context = pages[2].context();
     await pages[2].close();
     pages[2] = await context.newPage();
-    pages[2].on("pageerror", e => errors.push(e.message));
+    pages[2].on("pageerror", (e) => errors.push(e.message));
     await pages[2].goto(process.env.TEST_URL || "http://localhost:3000");
     await pages[2].waitForFunction(
       () => window.__multiView()?.multiGame?.activeSeat === 1,
@@ -198,7 +235,11 @@ const assert = require("node:assert/strict");
         );
     }
     assert.equal(await host.locator("#endTurn").isDisabled(), false);
-    assert.equal(await host.locator("#gold").textContent(), "6", "income arrives at own turn start");
+    assert.equal(
+      await host.locator("#gold").textContent(),
+      "6",
+      "income arrives at own turn start",
+    );
     assert.equal(
       await host.evaluate(() => window.__multiView().multiGame.round),
       2,

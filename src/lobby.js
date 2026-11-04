@@ -9,8 +9,11 @@ let user,
   pending = false,
   callbacks = {},
   offset = 0,
+  bestClockRoundTrip = Infinity,
+  lastClockSample = 0,
   viewMode = "game";
 async function request(path, data) {
+  const requestedAt = Date.now();
   let response;
   try {
     response = await fetch(base + "/api/rooms" + path, {
@@ -26,6 +29,19 @@ async function request(path, data) {
   const value = await response.json().catch(() => null);
   if (!response.ok || !value || !Object.hasOwn(value, "room"))
     throw new Error(value?.error || "게임 서버에 연결할 수 없습니다.");
+  if (value.room?.serverNow) {
+    const receivedAt = Date.now(),
+      roundTrip = receivedAt - requestedAt;
+    // Prefer fast samples; AI calculation and a busy rendering thread are not clock skew.
+    if (
+      roundTrip <= bestClockRoundTrip ||
+      (receivedAt - lastClockSample > 120000 && roundTrip < 1000)
+    ) {
+      offset = value.room.serverNow - (requestedAt + receivedAt) / 2;
+      bestClockRoundTrip = roundTrip;
+      lastClockSample = receivedAt;
+    }
+  }
   return value.room;
 }
 function message(text) {
@@ -37,7 +53,6 @@ function closeDialogs() {
 }
 async function accept(value) {
   if (!value) return;
-  if (value.serverNow) offset = value.serverNow - Date.now();
   if (value.unchanged) return;
   if (room?.code === value.code && room.version > value.version) return;
   room = value;
@@ -72,7 +87,11 @@ function schedule() {
   }, 1200);
 }
 function selectedOptions(prefix) {
-  return {size:Number($(prefix+"Size").value),terrain:$(prefix+"Terrain").value,difficulty:$(prefix+"Difficulty").value};
+  return {
+    size: Number($(prefix + "Size").value),
+    terrain: $(prefix + "Terrain").value,
+    difficulty: $(prefix + "Difficulty").value,
+  };
 }
 function renderRoom() {
   if (!room) return;
@@ -87,12 +106,15 @@ function renderRoom() {
     me = room.members.find((p) => p.userId === user.id);
   $("roomTimer").value = String(room.timeLimit);
   $("roomTimer").disabled = pending || !host || room.phase !== "lobby";
-  for(const key of ["Size","Terrain","Difficulty"]) {
-    $("room"+key).value=String(room.settings?.[key.toLowerCase()] ?? (key==="Size"?16:key==="Terrain"?"balanced":"normal"));
-    $("room"+key).disabled=pending || !host || room.phase!=="lobby";
+  for (const key of ["Size", "Terrain", "Difficulty"]) {
+    $("room" + key).value = String(
+      room.settings?.[key.toLowerCase()] ??
+        (key === "Size" ? 16 : key === "Terrain" ? "balanced" : "normal"),
+    );
+    $("room" + key).disabled = pending || !host || room.phase !== "lobby";
   }
-  $("addBot").hidden=!host || room.phase!=="lobby";
-  $("addBot").disabled=pending || room.members.length>=8;
+  $("addBot").hidden = !host || room.phase !== "lobby";
+  $("addBot").disabled = pending || room.members.length >= 8;
   $("roomPlayers").replaceChildren();
   for (const m of room.members) {
     const row = document.createElement("div");
@@ -112,23 +134,46 @@ function renderRoom() {
       n.add(option);
     }
     n.value = m.nation;
-    n.disabled = pending || !(m.userId === user.id || (host && m.bot)) || room.phase !== "lobby";
+    n.disabled =
+      pending ||
+      !(m.userId === user.id || (host && m.bot)) ||
+      room.phase !== "lobby";
     n.onchange = () =>
-      command({ type: "nation", nation: n.value, ...(m.bot?{userId:m.userId}:{}) }).catch((e) =>
-        message(e.message),
-      );
+      command({
+        type: "nation",
+        nation: n.value,
+        ...(m.bot ? { userId: m.userId } : {}),
+      }).catch((e) => message(e.message));
     const ready = document.createElement("span");
-    ready.textContent = m.bot ? "AI · " + AI_LEVELS[m.difficulty] : m.ready ? "준비 완료" : "나라 선택 중";
+    ready.textContent = m.bot
+      ? "AI · " + AI_LEVELS[m.difficulty]
+      : m.ready
+        ? "준비 완료"
+        : "나라 선택 중";
     ready.className = m.ready ? "ready" : "";
     row.append(title, n, ready);
-    if(m.bot && host && room.phase === "lobby") {
-      const difficulty=document.createElement("select"); difficulty.setAttribute("aria-label",m.nickname+" 난이도");
-      for(const [value,label] of Object.entries(AI_LEVELS)) difficulty.add(new Option(label,value));
-      difficulty.value=m.difficulty; difficulty.disabled=pending;
-      difficulty.onchange=()=>command({type:"botDifficulty",userId:m.userId,difficulty:difficulty.value}).catch(e=>message(e.message));
+    if (m.bot && host && room.phase === "lobby") {
+      const difficulty = document.createElement("select");
+      difficulty.setAttribute("aria-label", m.nickname + " 난이도");
+      for (const [value, label] of Object.entries(AI_LEVELS))
+        difficulty.add(new Option(label, value));
+      difficulty.value = m.difficulty;
+      difficulty.disabled = pending;
+      difficulty.onchange = () =>
+        command({
+          type: "botDifficulty",
+          userId: m.userId,
+          difficulty: difficulty.value,
+        }).catch((e) => message(e.message));
       row.append(difficulty);
-      const remove=document.createElement("button"); remove.textContent="제거"; remove.disabled=pending;
-      remove.onclick=()=>command({type:"removeBot",userId:m.userId}).catch(e=>message(e.message)); row.append(remove);
+      const remove = document.createElement("button");
+      remove.textContent = "제거";
+      remove.disabled = pending;
+      remove.onclick = () =>
+        command({ type: "removeBot", userId: m.userId }).catch((e) =>
+          message(e.message),
+        );
+      row.append(remove);
     }
     $("roomPlayers").append(row);
   }
@@ -211,7 +256,7 @@ async function perform(fn) {
 $("singleMode").onclick = () => {
   viewMode = "single";
   closeDialogs();
-  callbacks.onSingle(Number($("singleTimer").value),selectedOptions("single"));
+  callbacks.onSingle(Number($("singleTimer").value), selectedOptions("single"));
 };
 $("createRoom").onclick = () =>
   perform(async () => {
@@ -235,8 +280,17 @@ $("joinRoom").onsubmit = (e) => {
     schedule();
   });
 };
-for(const id of ["roomTimer","roomSize","roomTerrain","roomDifficulty"]) $(id).onchange=()=>command({type:"settings",timeLimit:Number($("roomTimer").value),settings:selectedOptions("room")}).catch(e=>message(e.message));
-$("addBot").onclick=()=>command({type:"addBot",difficulty:$("roomDifficulty").value}).catch(e=>message(e.message));
+for (const id of ["roomTimer", "roomSize", "roomTerrain", "roomDifficulty"])
+  $(id).onchange = () =>
+    command({
+      type: "settings",
+      timeLimit: Number($("roomTimer").value),
+      settings: selectedOptions("room"),
+    }).catch((e) => message(e.message));
+$("addBot").onclick = () =>
+  command({ type: "addBot", difficulty: $("roomDifficulty").value }).catch(
+    (e) => message(e.message),
+  );
 $("readyRoom").onclick = () =>
   command({
     type: "ready",
@@ -271,20 +325,30 @@ async function recoverMatch() {
   try {
     const value = await request("/current");
     if (session !== generation) return;
-    if (!value) { message("진행 중인 멀티플레이가 없습니다."); return; }
+    if (!value) {
+      message("진행 중인 멀티플레이가 없습니다.");
+      return;
+    }
     viewMode = "game";
-    await accept(value); schedule();
-  } catch(e) { message(e.message); }
+    await accept(value);
+    schedule();
+  } catch (e) {
+    message(e.message);
+  }
 }
 $("recoverMatch").onclick = recoverMatch;
 $("continueMatch").onclick = async () => {
   if (!room?.game) return recoverMatch();
-  viewMode = "game"; closeDialogs();
-  await callbacks.onGame(room.game,room);
+  viewMode = "game";
+  closeDialogs();
+  await callbacks.onGame(room.game, room);
 };
-window.addEventListener("online", () => { if (viewMode === "game") recoverMatch(); });
+window.addEventListener("online", () => {
+  if (viewMode === "game") recoverMatch();
+});
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && viewMode === "game") recoverMatch();
+  if (document.visibilityState === "visible" && viewMode === "game")
+    recoverMatch();
 });
 export const lobby = {
   async open(account, handlers) {
@@ -298,7 +362,11 @@ export const lobby = {
     try {
       const invite = new URL(location.href).searchParams.get("room");
       const existing = await request("/current");
-      const value = existing || (invite ? await request("/join", {code:invite.toUpperCase()}) : null);
+      const value =
+        existing ||
+        (invite
+          ? await request("/join", { code: invite.toUpperCase() })
+          : null);
       if (session !== generation) return;
       if (value) {
         await accept(value);

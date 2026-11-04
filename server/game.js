@@ -190,6 +190,191 @@ export function expireTurn(g, now = Date.now()) {
   }
   return false;
 }
+// Keep a bounded, per-viewer presentation history. Hidden endpoints never leave the server.
+const VISUAL_LIMIT = 64;
+function visualBefore(g, s, c) {
+  const field = [
+    "develop",
+    "lumber",
+    "build",
+    "cityReward",
+    "recruit",
+  ].includes(c.type);
+  if (c.type !== "act" && c.type !== "claim" && !field) return null;
+  const u = g.units.find((u) => u.id === c.unitId && u.team === s);
+  if (!u && !field) return null;
+  const target = tile(g, c.x, c.y),
+    defender = !field && target && occupant(g, target);
+  if (field && !target) return null;
+  const path =
+    c.type === "act" && !defender && target
+      ? movementPath(
+          g.world,
+          g.units,
+          u,
+          target,
+          stats(g, u).moves,
+          techs(g, s),
+          isNight(g.round),
+        )
+      : null;
+  return {
+    fieldOccupant: field && target ? copy(occupant(g, target) || null) : null,
+    team: s,
+    field,
+    tile: field ? { x: target.x, y: target.y } : null,
+    unit: u ? copy(u) : null,
+    defender: defender && copy(defender),
+    path: path?.map((t) => ({ x: t.x, y: t.y })),
+    round: g.round,
+    visible: g.players.map((p) =>
+      p.eliminated
+        ? []
+        : visibility(g, p.seat)
+            .flat()
+            .filter((t) => t.visible)
+            .map((t) => t.y * g.world.length + t.x),
+    ),
+  };
+}
+function visualAfter(g, before, c) {
+  if (!before) return;
+  g.visualQueues ||= g.players.map(() => []);
+  g.visualCounters ||= g.players.map(() => 0);
+  const unit = before.unit && g.units.find((u) => u.id === before.unit.id),
+    defender =
+      before.defender && g.units.find((u) => u.id === before.defender.id),
+    n = g.world.length;
+  for (const viewer of g.players) {
+    const old = new Set(before.visible[viewer.seat]),
+      after = viewer.eliminated
+        ? []
+        : visibility(g, viewer.seat)
+            .flat()
+            .filter((t) => t.visible)
+            .map((t) => t.y * n + t.x),
+      mask = new Set([...old, ...after]);
+    const sees = (p) => !!p && mask.has(p.y * n + p.x);
+    const append = (e) => {
+      const queue = g.visualQueues[viewer.seat];
+      queue.push({
+        ...e,
+        ...(e.kind === "hit" ? {} : { team: before.team }),
+        id: ++g.visualCounters[viewer.seat],
+        round: before.round,
+        visibleTiles: [...mask],
+      });
+      if (queue.length > VISUAL_LIMIT)
+        queue.splice(0, queue.length - VISUAL_LIMIT);
+    };
+    if (before.field) {
+      if (sees(before.tile)) {
+        const displaced =
+          before.fieldOccupant &&
+          g.units.find((u) => u.id === before.fieldOccupant.id);
+        if (
+          displaced &&
+          (displaced.x !== before.fieldOccupant.x ||
+            displaced.y !== before.fieldOccupant.y)
+        ) {
+          const from = { x: before.fieldOccupant.x, y: before.fieldOccupant.y };
+          if (sees(displaced))
+            append({
+              kind: "move",
+              actor: before.fieldOccupant,
+              actorAfter: copy(displaced),
+              from,
+              to: { x: displaced.x, y: displaced.y },
+            });
+          else append({ kind: "leave", actor: before.fieldOccupant, from });
+        }
+        const t = copy(g.world[before.tile.y][before.tile.x]);
+        const recruit =
+          c.type === "recruit" || c.type === "cityReward"
+            ? occupant(g, t)
+            : null;
+        append({
+          kind: "tile",
+          tile: t,
+          actor: recruit && copy(recruit),
+          to: { ...before.tile },
+        });
+      }
+    } else if (c.type === "claim") {
+      if (sees(before.unit))
+        append({
+          kind: "claim",
+          actor: unit ? copy(unit) : before.unit,
+          from: { x: before.unit.x, y: before.unit.y },
+          city: copy(g.world[before.unit.y][before.unit.x].city),
+        });
+    } else if (before.defender) {
+      if (sees(before.unit) && sees(before.defender))
+        append({
+          kind: "attack",
+          actor: before.unit,
+          defender: before.defender,
+          from: { x: before.unit.x, y: before.unit.y },
+          to: { x: before.defender.x, y: before.defender.y },
+          actorAfter: unit ? copy(unit) : null,
+          defenderAfter: defender ? copy(defender) : null,
+          damage: g.lastAttack?.damage || 0,
+          counter: g.lastAttack?.counter || 0,
+          reflected: !!g.lastAttack?.reflected,
+        });
+      else if (sees(before.defender))
+        append({
+          kind: "hit",
+          defender: before.defender,
+          to: { x: before.defender.x, y: before.defender.y },
+          defenderAfter: defender ? copy(defender) : null,
+          damage: g.lastAttack?.damage || 0,
+        });
+      else if (sees(before.unit))
+        append({
+          kind: "activity",
+          actor: before.unit,
+          from: { x: before.unit.x, y: before.unit.y },
+          actorAfter: unit && sees(unit) ? copy(unit) : null,
+        });
+    } else if (unit && before.path?.length) {
+      const steps = [before.unit, ...before.path];
+      let vessel=before.unit.boat;
+      for (let i = 1; i < steps.length; i++) {
+        const from = { x: steps[i - 1].x, y: steps[i - 1].y },
+          to = { x: steps[i].x, y: steps[i].y };
+        const nextVessel=g.world[to.y][to.x].type==='water'?vessel||'transport':undefined;
+        const sailing=nextVessel||vessel;
+        if (sees(from) && sees(to))
+          append({
+            kind: "move",
+            actor: { ...copy(unit), ...from,boat:sailing },
+            from,
+            to,
+            actorAfter: { ...copy(unit), ...to,boat:nextVessel },
+          });
+        else if (sees(from))
+          append({ kind: "leave", actor: { ...before.unit, ...from,boat:vessel }, from });
+        else if (sees(to))
+          append({ kind: "appear", actor: { ...copy(unit), ...to,boat:nextVessel }, to });
+        vessel=nextVessel;
+      }
+    }
+  }
+}
+function viewerVisuals(g, s, mapTeam) {
+  return (g.visualQueues?.[s] || []).map((raw) => {
+    const event = copy(raw);
+    if (event.team !== undefined) event.team = mapTeam(event.team);
+    for (const key of ["actor", "defender", "actorAfter", "defenderAfter"])
+      if(event[key]){event[key]=Object.fromEntries(Object.entries(event[key]).filter(([key])=>['id','x','y','team','type','hp','boat','kills','veteran','acted','moved','attacked','bornTurn'].includes(key)));event[key].team=mapTeam(event[key].team);}
+    if (event.city) event.city.owner = mapTeam(event.city.owner);
+    if (event.tile?.city)
+      event.tile.city.owner = mapTeam(event.tile.city.owner);
+    return event;
+  });
+}
+
 export function applyCommand(g, s, c, now = Date.now()) {
   if (g.finished) fail("종료된 게임입니다.", 409);
   if (g.players[s]?.eliminated) fail("이미 탈락한 플레이어입니다.", 403);
@@ -204,6 +389,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
     ts = techs(g, s),
     own = cities(g, s),
     target = tile(g, c.x, c.y);
+  const beforeVisual=visualBefore(g,s,c);
   if (c.type === "endTurn") {
     advanceTurn(g, now);
     return;
@@ -410,6 +596,7 @@ export function applyCommand(g, s, c, now = Date.now()) {
       } else fail("알 수 없는 행동입니다.");
     }
   }
+  visualAfter(g,beforeVisual,c);
   for (const player of g.players) if (!player.eliminated && !cities(g,player.seat).length && !g.units.some(u=>u.team===player.seat)) eliminate(g,player.seat);
   if (!g.finished && g.players[g.activeSeat].eliminated) advanceTurn(g,now);
   remember(g);
@@ -438,6 +625,8 @@ export function matchView(g, s) {
   );
   return {
     world,
+    visualEvents:viewerVisuals(g,s,mapTeam),
+    visualSequence:g.visualCounters?.[s]||0,
     units: g.units
       .filter((u) => u.team === s || visible[u.y][u.x].visible)
       .map((u) => ({ ...u, team: mapTeam(u.team), combat: stats(g, u) })),

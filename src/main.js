@@ -1,4 +1,4 @@
-import {graphicsActive,ambientInterval} from './scene.js';
+import {ambientInterval} from './scene.js';
 import { createMatch, applyCommand, matchView } from "../server/game.js";
 import { runBots } from "../server/ai.js";
 import { gameOptions } from "./game-options.js";
@@ -86,6 +86,7 @@ let gameMode = "single",
   singleTimeLimit = 0,
   turnDeadline = null;
 let accountGameId = 0;
+let cityOwners=null;
 let teamNations = null,
   mpAnimation = 0;
 $("productionDock").prepend($("cityGrowth"));
@@ -133,7 +134,7 @@ const stats = (u) =>
   });
 const inSight = (t) => t.visible ?? t.seen;
 function init() {
-  singleMatch = null; multiGame = null; multiRoom = null; gameMode = "single";
+  singleMatch = null; multiGame = null; multiRoom = null; gameMode = "single";visualPlayback=null;
   $("statusTitle").textContent = "당신의 이야기가 시작됩니다";
   $("status").textContent = "전사나 도시를 클릭해 가능한 행동을 확인하세요.";
   clearCombatPreview();
@@ -254,16 +255,16 @@ function update() {
   if (multiGame) {
     const active = multiGame.players[multiGame.activeSeat];
     $("turnLabel").replaceChildren(
-      document.createTextNode(`라운드 ${turn} · ${active.nickname}의 차례`),
+      document.createTextNode(`라운드 ${turn} · ${visualPlayback?visualPlayback.name+"의 행동":active.nickname+"의 차례"}`),
     );
-    $("statusTitle").textContent = over
+    $("statusTitle").textContent = visualPlayback?visualPlayback.name+"의 행동을 보고 있습니다":over
       ? multiGame.winner === multiGame.selfSeat
         ? "승리했습니다!"
         : "왕국이 함락되었습니다."
       : busy
         ? `${active.nickname}의 차례입니다`
         : "당신의 차례입니다";
-    $("status").textContent = over
+    $("status").textContent = visualPlayback?"시야 안에서 일어나는 이동과 전투를 지켜보세요.":over
       ? "방 메뉴에서 나가 새 게임을 시작할 수 있습니다."
       : "서버에서 차례와 행동을 동기화하고 있습니다.";
   }
@@ -609,7 +610,7 @@ function celebrateCity(t) {
   growthFrame = requestAnimationFrame(frame);
 }
 let ambientFrame=null,ambientTime=0;
-function ambientTick(now){ambientFrame=null;if(!world||!graphicsActive()||document.hidden)return;if(now-ambientTime>=ambientInterval()){ambientTime=now;draw();}else ambientFrame=requestAnimationFrame(ambientTick);}
+function ambientTick(now){ambientFrame=null;if(!world||document.hidden)return;if(now-ambientTime>=ambientInterval()){ambientTime=now;draw();}else ambientFrame=requestAnimationFrame(ambientTick);}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&world)draw();});
 function draw() {
   if (world)
@@ -628,6 +629,7 @@ function draw() {
       nation: selectedNation,
       enemyNation,
       teamNations,
+      cityOwners,
       allies: multiGame?.allies || [],
       showIdleUnit: !busy && !animating && !over && !multiGame?.turnLocked,
       panelHeight:
@@ -636,7 +638,7 @@ function draw() {
           : 0,
     });
   renderClaimMarkers();
-  if(world&&graphicsActive()&&!ambientFrame&&!document.hidden){ambientFrame=requestAnimationFrame(ambientTick);}
+  if(world&&!ambientFrame&&!document.hidden){ambientFrame=requestAnimationFrame(ambientTick);}
 }
 function claimUnit(u) {
   const t=u&&at(u.x,u.y);
@@ -743,19 +745,19 @@ async function walk(u, path) {
     animation = null;
   }
 }
-async function attackVisual(u, from, to, current = () => true, defender=null, lethal=false) {
+async function attackVisual(u, from, to, current = () => true, defender=null, lethal=false,advance=true) {
   const ranged = stats(u).range > 1;
-  const visual = {unit:u, position:from, from, to, defender:defender&&{...defender}, lethal:lethal&&!ranged};
+  const visual = {unit:u, position:from, from, to, defender:defender&&{...defender}, lethal,advance:advance&&!ranged,hitAt:ranged?.72:.5};
   animation = visual;
-  await tween(ranged ? 850 : lethal ? 1200 : 800, p => {
+  await tween(ranged ? (lethal?1300:850) : lethal ? 1200 : 800, p => {
     if (!current()) return;
     visual.pose = {progress:p};
     if (ranged) {
-      const flight = (p-.28)/.55;
+      const flight = (p-.2)/.52;
       visual.projectile = flight >= 0 && flight <= 1 ? {from,to,progress:flight,arrow:u.type === "archer" && !u.boat} : null;
-      visual.impact = p > .83 ? {to,progress:(p-.83)/.17,arrow:u.type === "archer" && !u.boat} : null;
+      visual.impact = p > .72 ? {to,progress:(p-.72)/.28,arrow:u.type === "archer" && !u.boat} : null;
     } else {
-      const k = lethal&&p>=.5?.38+((p-.5)/.5)*.62:Math.sin(Math.PI*p)*.38;
+      const k = lethal&&advance&&p>=.5?.38+((p-.5)/.5)*.62:Math.sin(Math.PI*p)*.38;
       visual.position = {x:from.x+(to.x-from.x)*k, y:from.y+(to.y-from.y)*k};
     }
   });
@@ -1488,7 +1490,7 @@ function updateTurnClock() {
           Math.ceil((deadline - (multiGame && !singleMatch ? lobby.now() : Date.now())) / 1000),
         );
   $("turnClock").textContent =
-    remaining === null
+    visualPlayback?"행동 중":remaining === null
       ? "무한"
       : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
   $("turnClock").classList.toggle(
@@ -1546,25 +1548,282 @@ async function sendMulti(command) {
     }
   }
 }
-async function loadMulti(game, room) {
+let snapshotQueue = Promise.resolve(),
+  lastVisualSequence = 0,
+  visualPlayback = null;
+function loadMulti(game, room) {
+  const session = accountGameId;
+  const pending = snapshotQueue.then(() =>
+    session === accountGameId ? applyMultiSnapshot(game, room) : undefined,
+  );
+  snapshotQueue = pending.catch(() => {});
+  return pending;
+}
+function upsertVisualUnit(unit, id) {
+  units = units.filter((u) => u.id !== id);
+  if (unit && unit.hp > 0) units.push(structuredClone(unit));
+}
+async function focusVisual(point, epoch) {
+  if (!point || !view || activePointers.size) return;
+  const p = project(point.x, point.y),
+    x = view.ox + p.x * view.scale,
+    y = view.oy + p.y * view.scale;
+  if (
+    x > canvas.clientWidth * 0.25 &&
+    x < canvas.clientWidth * 0.75 &&
+    y > canvas.clientHeight * 0.22 &&
+    y < canvas.clientHeight * 0.72
+  )
+    return;
+  const start = { ...pan },
+    end = {
+      x: pan.x + canvas.clientWidth * 0.5 - x,
+      y: pan.y + canvas.clientHeight * 0.46 - y,
+    };
+  await tween(180, (p) => {
+    if (epoch !== mpAnimation) return;
+    const k = p * p * (3 - 2 * p);
+    pan = {
+      x: start.x + (end.x - start.x) * k,
+      y: start.y + (end.y - start.y) * k,
+    };
+  });
+}
+async function visualDeath(unit, epoch) {
+  if (!unit) return;
+  const p = project(unit.x, unit.y),
+    visual = { unit, position: p, from: p, to: p, death: 0 };
+  animation = visual;
+  await tween(380, (p) => {
+    if (epoch === mpAnimation) visual.death = p;
+  });
+  animation = null;
+}
+async function replayVisualEvents(
+  events,
+  game,
+  previous,
+  oldWorld,
+  epoch,
+  previousGold,
+) {
+  const finalWorld = world,
+    finalUnits = units,
+    finalTurn = turn,
+    finalOver = over,
+    finalGold = gold,
+    originalPan = { ...pan };
+  world = structuredClone(oldWorld);
+  units = structuredClone(previous);
+  gold = previousGold;
+  busy = true;
+  animating = true;
+  over = false;
+  let followed = false,
+    lastTeam = null;
+  try {
+    for (const event of events) {
+      if (epoch !== mpAnimation) return;
+      for (const t of world.flat()) t.visible = false;
+      for (const i of event.visibleTiles || []) {
+        const x = i % world.length,
+          y = Math.floor(i / world.length);
+        if (!world[y]?.[x]) continue;
+        if (!world[y][x].seen) world[y][x] = structuredClone(finalWorld[y][x]);
+        world[y][x].seen = true;
+        world[y][x].visible = true;
+      }
+      turn = event.round || turn;
+      const actingTeam = event.actor?.team ?? event.team;
+      visualPlayback = {
+        name:
+          actingTeam !== undefined
+            ? cityOwners?.[actingTeam] ||
+              teamNations?.[actingTeam]?.name ||
+              "상대"
+            : "상대",
+        kind: event.kind,
+      };
+      if (event.actor) upsertVisualUnit(event.actor, event.actor.id);
+      if (event.defender) upsertVisualUnit(event.defender, event.defender.id);
+      update();
+      draw();
+      const focus =
+          event.from && event.to
+            ? {
+                x: (event.from.x + event.to.x) / 2,
+                y: (event.from.y + event.to.y) / 2,
+              }
+            : event.to || event.from,
+        opponent = actingTeam !== 0;
+      if (opponent) {
+        followed = true;
+        await focusVisual(focus, epoch);
+        if (actingTeam !== lastTeam) {
+          lastTeam = actingTeam;
+          showTurnBanner(
+            lastTeam === undefined
+              ? "공격을 받았습니다"
+              : (cityOwners?.[lastTeam] ||
+                  teamNations?.[lastTeam]?.name ||
+                  "상대") + "의 행동",
+          );
+        }
+      }
+      if (epoch !== mpAnimation) return;
+      if (event.kind === "move") {
+        const unit = units.find((u) => u.id === event.actor.id),
+          from = project(event.from.x, event.from.y),
+          to = project(event.to.x, event.to.y),
+          visual = { unit, position: from, from, to };
+        animation = visual;
+        await tween(events.length > 16 ? 140 : 240, (p) => {
+          if (epoch !== mpAnimation) return;
+          const k = p * p * (3 - 2 * p);
+          visual.position = {
+            x: from.x + (to.x - from.x) * k,
+            y: from.y + (to.y - from.y) * k,
+          };
+        });
+        upsertVisualUnit(event.actorAfter, event.actor.id);
+      } else if (event.kind === "attack") {
+        const actor = units.find((u) => u.id === event.actor.id),
+          defender = units.find((u) => u.id === event.defender.id),
+          from = project(event.from.x, event.from.y),
+          to = project(event.to.x, event.to.y);
+        await attackVisual(
+          actor,
+          from,
+          to,
+          () => epoch === mpAnimation,
+          defender,
+          !event.defenderAfter && !event.actorAfter
+            ? false
+            : !event.defenderAfter,
+        );
+        let actorDeathShown = false;
+        if (event.counter && !event.reflected && event.defenderAfter) {
+          await attackVisual(
+            defender,
+            to,
+            from,
+            () => epoch === mpAnimation,
+            actor,
+            !event.actorAfter,
+            false,
+          );
+          actorDeathShown = !event.actorAfter;
+        }
+        if (!event.actorAfter && !actorDeathShown)
+          await visualDeath(actor, epoch);
+        upsertVisualUnit(event.actorAfter, actor.id);
+        upsertVisualUnit(event.defenderAfter, defender.id);
+        effects = [
+          {
+            x: event.to.x,
+            y: event.to.y,
+            text: "−" + event.damage,
+            progress: 0,
+          },
+          ...(event.counter
+            ? [
+                {
+                  x: event.from.x,
+                  y: event.from.y,
+                  text: (event.reflected ? "반사 −" : "−") + event.counter,
+                  progress: 0,
+                },
+              ]
+            : []),
+        ];
+        await tween(160, (p) => {
+          if (epoch === mpAnimation) effects.forEach((e) => (e.progress = p));
+        });
+      } else if (event.kind === "hit") {
+        effects = [{ ...event.to, text: "−" + event.damage, progress: 0 }];
+        if (!event.defenderAfter) await visualDeath(event.defender, epoch);
+        else
+          await tween(220, (p) => {
+            if (epoch === mpAnimation) effects.forEach((e) => (e.progress = p));
+          });
+        upsertVisualUnit(event.defenderAfter, event.defender.id);
+      } else if (event.kind === "leave") {
+        upsertVisualUnit(null, event.actor.id);
+      } else if (event.kind === "appear") {
+        upsertVisualUnit(event.actor, event.actor.id);
+        await tween(100, () => {});
+      } else if (event.kind === "activity") {
+        upsertVisualUnit(event.actorAfter, event.actor.id);
+      } else if (event.kind === "tile") {
+        if (event.tile) {
+          const { x, y } = event.tile;
+          const oldLevel = world[y][x].city?.level || 0;
+          world[y][x] = {
+            ...structuredClone(event.tile),
+            seen: true,
+            visible: true,
+          };
+          if (world[y][x].city?.level > oldLevel) celebrateCity(world[y][x]);
+          if (event.actor) upsertVisualUnit(event.actor, event.actor.id);
+          draw();
+          await tween(100, () => {});
+        }
+      } else if (event.kind === "claim") {
+        const t = world[event.from.y]?.[event.from.x];
+        if (t && event.city) t.city = structuredClone(event.city);
+        await tween(160, () => {});
+      }
+      if (epoch !== mpAnimation) return;
+      animation = null;
+      effects = [];
+      draw();
+    }
+    if (followed && game.activeSeat === game.selfSeat && !activePointers.size) {
+      const start = { ...pan };
+      await tween(180, (p) => {
+        if (epoch === mpAnimation)
+          pan = {
+            x: start.x + (originalPan.x - start.x) * p,
+            y: start.y + (originalPan.y - start.y) * p,
+          };
+      });
+    }
+  } finally {
+    if (epoch === mpAnimation) {
+      world = finalWorld;
+      units = finalUnits;
+      turn = finalTurn;
+      gold = finalGold;
+      over = finalOver;
+      visualPlayback = null;
+      animation = null;
+      effects = [];
+      animating = false;
+      busy = mpSending || game.activeSeat !== game.selfSeat || game.eliminated;
+    }
+  }
+}
+
+async function applyMultiSnapshot(game, room) {
   if (multiRoom?.code === room.code && multiRoom.version >= room.version)
     return;
   clearCombatPreview();
-  const previousSeat = multiGame?.activeSeat, previousRound = multiGame?.round;
+  const previousSeat = multiGame?.activeSeat, previousRound = multiGame?.round,previousGold=gold;
   const previous = units || [];
   const previousAttack = multiGame?.attackId;
   const epoch = ++mpAnimation;
   animation = null;
   effects = [];
   animating = false;
-  const first = !multiGame || multiRoom?.code !== room.code;
+  const first = !multiGame || multiRoom?.code !== room.code;if(first)visualPlayback=null;
   const selectedId = selectedUnit?.id;
+  const visualEvents=first?[]:(game.visualEvents||[]).filter(e=>e.id>lastVisualSequence);
   gameMode = singleMatch ? "single" : "multi";
   multiGame = game;
   multiRoom = room;
   const oldWorld = world;
   world = game.world;
-  if (!first && oldWorld) for (const row of world) for (const t of row) {
+  if (!first && oldWorld&&!visualEvents.length) for (const row of world) for (const t of row) {
     const old = oldWorld[t.y]?.[t.x]?.city;
     if (old && t.city?.level > old.level) celebrateCity(t);
   }
@@ -1576,16 +1835,13 @@ async function loadMulti(game, room) {
   researched = new Set(game.researched);
   turn = game.round;
   logs = [];
-  if (!game.finished && (first || previousSeat !== game.activeSeat || previousRound !== game.round)) {
-    const active = game.players[game.activeSeat];
-    showTurnBanner(game.activeSeat === game.selfSeat ? "내 턴입니다" : active.nickname + "님의 턴입니다");
-  }
   selectedNation = NATIONS.find(
     (n) => n.id === game.players[game.selfSeat].nation,
   );
   teamNations = Object.fromEntries(
     game.players.map((p) => [p.team, NATIONS.find((n) => n.id === p.nation)]),
   );
+  cityOwners=Object.fromEntries(game.players.map(p=>[p.team,p.nickname||teamNations[p.team]?.name]));
   enemyNation = teamNations[1] || NATIONS[1];
   homeCapital = game.homeCapital;
   enemyCapital = { x: 0, y: 0 };
@@ -1598,6 +1854,12 @@ async function loadMulti(game, room) {
     pan = { x: 0, y: 0 };
     $("zoomLabel").textContent = "100%";
   }
+  if(!first&&oldWorld&&visualEvents.length&&visualEvents[0].id===lastVisualSequence+1){await replayVisualEvents(visualEvents,game,previous,oldWorld,epoch,previousGold);if(epoch!==mpAnimation)return;}
+  lastVisualSequence=game.visualSequence||0;
+  if (!game.finished && (first || previousSeat !== game.activeSeat || previousRound !== game.round)) {
+    const active = game.players[game.activeSeat];
+    showTurnBanner(game.activeSeat === game.selfSeat ? "내 턴입니다" : active.nickname + "님의 턴입니다");
+  }
   selectedUnit = first ? null : units.find((u) => u.id === selectedId && u.team === 0) || null;
   if (selectedUnit) selected = { x: selectedUnit.x, y: selectedUnit.y };
   actionMode = selectedUnit && !busy && !over ? "unit" : null;
@@ -1605,7 +1867,7 @@ async function loadMulti(game, room) {
   update();
   draw();
   if ($("researchDialog").open) renderResearch();
-  if (!first) {
+  if (!first&&!visualEvents.length) {
     const shot = game.lastAttack;
     if (shot && shot.id !== previousAttack) {
       const shooter = previous.find(u => u.id === shot.unitId) || {...shot.unit, team:shot.team};
@@ -1675,6 +1937,7 @@ requireAccount({
     $("app").inert = false;
     await lobby.open(user, {
       onSingle(limit,options) {
+        accountGameId++;mpAnimation++;visualPlayback=null;animation=null;effects=[];animating=false;busy=false;
         singleMatch=null; singleOptions=gameOptions(options,12);
         gameMode = "single";
         multiGame = null;
