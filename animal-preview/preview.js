@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const nations = [
   ["rome", "로마 · 사자", "갈기 · 붉은 군단 갑옷"],
   ["goguryeo", "고구려 · 호랑이", "줄무늬 · 푸른 찰갑"],
-  ["egypt", "이집트 · 토끼", "긴 귀 · 솜방울 꼬리"],
+  ["egypt", "이집트 · 토끼", "분홍 털 · 긴 귀 · 솜꼬리"],
   ["persia", "페르시아 · 다람쥐", "통통한 볼 · 말린 꼬리"],
   ["han", "한나라 · 판다", "눈무늬 · 붉은 갑옷"],
   ["greece", "그리스 · 부엉이", "얼굴 깃털 · 청동 투구"],
@@ -12,7 +12,7 @@ const nations = [
 ];
 const kinds = [
   ["warrior", "보병", "검과 작은 방패"],
-  ["guard", "방패병", "넓은 갑옷 · 커다란 방패"],
+  ["guard", "방패병", "검 없이 · 큰 방패 하나"],
   ["archer", "궁수", "굽은 활 · 화살통"],
   ["rider", "기병", "통통한 조랑말"],
   ["knight", "기사", "대검 · 판금 · 짧은 망토"],

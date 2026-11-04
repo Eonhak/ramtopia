@@ -9,7 +9,7 @@ animals=r'''
   palette={
    'rome':('#c68b40','#f1d49c','#704020'),
    'goguryeo':('#d88b3b','#f5dfb8','#382e29'),
-   'egypt':('#eee5d6','#fff4df','#b99888'),
+   'egypt':('#e7a4b9','#ffe0eb','#bd728e'),
    'persia':('#ac693b','#f5d7a4','#6f4030'),
    'han':('#eee9d9','#f4f0e5','#34383d'),
    'greece':('#a08866','#eee4c9','#584b3b'),
@@ -119,6 +119,11 @@ animals=r'''
 '''
 source=source.replace("'public/unit-preview/models'","'public/animal-preview/models'")
 source=source.replace(marker,animals+'\n'+marker)
+# Animal guards carry only an oversized shield; retain the standard national outfit.
+source=source.replace("  if kind in ['guard','knight']:","  if kind=='knight':")
+source=source.replace("  else:sword(weapon,","  elif kind!='guard':sword(weapon,")
+source=source.replace("sz=1.35 if kind=='guard' else .77","sz=1.65 if kind=='guard' else .77")
+source=source.replace("hit*(-1.55 if i==1 and kind!='archer' else .85)","hit*((-.95 if i==0 else .12) if kind=='guard' else (-1.55 if i==1 and kind!='archer' else .85))")
 if '--only-updated' in sys.argv:
- source=source.replace('for nation,colors in NATIONS.items():',"for nation,colors in NATIONS.items():\n if nation not in ['egypt','persia']:continue")
+ source=source.replace(' for kind in KINDS:'," for kind in KINDS:\n  if nation!='egypt' and kind!='guard':continue")
 exec(compile(source,str(Path(__file__).with_name('build-chibi-preview.py')),'exec'),globals())
