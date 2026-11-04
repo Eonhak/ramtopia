@@ -533,7 +533,7 @@ function legacyMap(
       teamNations?.[animation.unit.team] ||
         (animation.unit.team === 0 ? nation : enemyNation),
       night,
-      animation.pose,
+      animation.pose || {walking:true,progress:Math.min(.999,Math.hypot(p.x-animation.from.x,p.y-animation.from.y)/Math.max(1,Math.hypot(animation.to.x-animation.from.x,animation.to.y-animation.from.y)))},
     );
   }
   const forecastLabels = [];

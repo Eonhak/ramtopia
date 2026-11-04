@@ -3,6 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY index.html vite.config.js ./
+COPY public ./public
+COPY unit-preview ./unit-preview
+COPY animal-preview ./animal-preview
 COPY src ./src
 COPY server ./server
 ARG VITE_API_BASE_URL

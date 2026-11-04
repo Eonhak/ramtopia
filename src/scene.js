@@ -1,16 +1,44 @@
 import * as T from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-const assetURLs = {
-  warrior: new URL("./assets/units/warrior.glb", import.meta.url).href,
-  archer: new URL("./assets/units/archer.glb", import.meta.url).href,
-  guard: new URL("./assets/units/guard.glb", import.meta.url).href,
-  rider: new URL("./assets/units/rider.glb", import.meta.url).href,
-  knight: new URL("./assets/units/knight.glb", import.meta.url).href,
-  assassin: new URL("./assets/units/assassin.glb", import.meta.url).href,
-  catapult: new URL("./assets/units/catapult.glb", import.meta.url).href,
-  giant: new URL("./assets/units/giant.glb", import.meta.url).href,
-};
+import { animalURL, ANIMAL_NATIONS, UNIT_KINDS } from "./unit-art.js";
+const modelLoader = new GLTFLoader(),
+  nationLoads = new Map();
+function requestedNations(opts) {
+  return [
+    ...new Set(
+      Object.values(opts.teamNations || { 0: opts.nation, 1: opts.enemyNation })
+        .map((n) => n?.id)
+        .filter((n) => ANIMAL_NATIONS.includes(n)),
+    ),
+  ];
+}
+function loadNation(nation) {
+  if (!nationLoads.has(nation))
+    nationLoads.set(
+      nation,
+      Promise.all(
+        UNIT_KINDS.map(async (kind) => [
+          kind,
+          await modelLoader.loadAsync(animalURL(nation, kind)),
+        ]),
+      )
+        .then((entries) => {
+          templates[nation] = Object.fromEntries(entries);
+          sceneInfo.models = Object.keys(templates).length * UNIT_KINDS.length;
+        })
+        .catch((error) => {
+          failed = true;
+          sceneInfo.failed = true;
+          console.warn(
+            "Animal models unavailable; using animal sprites",
+            error,
+          );
+        }),
+    );
+  return nationLoads.get(nation);
+}
+
 let software = false,
   cloudGeometry,
   cloudMaterial,
@@ -180,7 +208,7 @@ function city(parent, type, level = 1) {
   return g;
 }
 
-function init() {
+function init(opts) {
   if (renderer || failed) return;
   try {
     renderer = new T.WebGLRenderer({ antialias: true, alpha: false });
@@ -219,22 +247,15 @@ function init() {
     unitSun = sun.clone();
     unitSun.castShadow = false;
     unitScene.add(unitHemi, unitSun, unitSun.target);
-    const loader = new GLTFLoader();
-    Promise.all(
-      Object.entries(assetURLs).map(async ([kind, url]) => {
-        templates[kind] = await loader.loadAsync(url);
-      }),
-    )
-      .then(() => {
-        ready = true;
-        sceneInfo.ready = true;
-        sceneInfo.models = Object.keys(templates).length;
-      })
-      .catch((e) => {
-        failed = true;
-        sceneInfo.failed = true;
-        console.warn("3D assets unavailable; using canvas graphics", e);
-      });
+    const requested = requestedNations(opts);
+    Promise.all((requested.length ? requested : ["rome"]).map(loadNation)).then(
+      () => {
+        if (!failed) {
+          ready = true;
+          sceneInfo.ready = true;
+        }
+      },
+    );
   } catch (e) {
     failed = true;
     sceneInfo.failed = true;
@@ -465,12 +486,16 @@ function actor(u, nation) {
   let model, mixer, tip;
   if (u.boat) model = boatModel(u.boat, color);
   else {
-    const asset = templates[u.type || "warrior"] || templates.warrior;
+    const pack =
+      templates[nation?.id] || templates.rome || Object.values(templates)[0];
+    const asset = pack[u.type || "warrior"] || pack.warrior;
     model = asset.scene.clone(true);
     model.scale.setScalar(0.4);
     mixer = new T.AnimationMixer(model);
     for (const clip of asset.animations) mixer.clipAction(clip).play();
-    tip = model.getObjectByName("BladeTip");
+    tip =
+      model.getObjectByName("BladeTip") ||
+      (u.type === "guard" ? model.getObjectByName("Shield") : null);
   }
   g.add(model);
   model.traverse((o) => {
@@ -478,11 +503,6 @@ function actor(u, nation) {
       o.castShadow = true;
       o.receiveShadow = true;
       o.material = o.material.clone();
-      if (o.material.name.includes("Tunic") && u.type !== "assassin") {
-        o.material.color
-          .set(color)
-          .multiplyScalar(o.material.name.includes("Shadow") ? 0.6 : 1);
-      }
     }
   });
   unitScene.add(g);
@@ -525,8 +545,10 @@ function atPosition(record, p) {
   record.g.position.set(p.x, 0.015, p.y);
 }
 export function renderScene(canvas, opts, view) {
-  init();
-  if (!ready || failed) return false;
+  init(opts);
+  if (!failed) for (const nation of requestedNations(opts)) loadNation(nation);
+  if (!ready || failed || requestedNations(opts).some((n) => !templates[n]))
+    return false;
   const { world, units, animation, night, nation, enemyNation, teamNations } =
       opts,
     nations = teamNations || { 0: nation, 1: enemyNation },
@@ -679,6 +701,8 @@ export function renderScene(canvas, opts, view) {
     a.g.rotation.set(0, a.yaw, 0);
     a.model.rotation.set(0, 0, 0);
     a.g.position.set(u.x, 0.015, u.y);
+    a.mode = "idle";
+    a.walkPhase = null;
     a.mixer?.setTime(time % 1.95);
     a.model.position.y =
       Math.abs(Math.sin(time * 1.7 + u.x + u.y)) * 0.025 * motionScale;
@@ -707,6 +731,7 @@ export function renderScene(canvas, opts, view) {
       if (Math.abs(dx) + Math.abs(dz) > 0.001) a.yaw = Math.atan2(dx, dz);
       a.g.rotation.y = a.yaw;
       if (animation.pose) {
+        a.mode = "attack";
         a.mixer?.setTime(4.4 + progress);
         if (!u.boat && a.tip && animation.to) {
           a.g.position.set(from.x, 0.015, from.y);
@@ -737,7 +762,27 @@ export function renderScene(canvas, opts, view) {
           }
         }
       } else {
-        a.mixer?.setTime(2.1 + (time % 1.7));
+        const distance = Math.hypot(dx, dz),
+          travel = distance
+            ? Math.min(1, Math.hypot(pos.x - from.x, pos.y - from.y) / distance)
+            : 0;
+        a.mode = animation.death === undefined ? "walk" : "death";
+        a.walkPhase = 2.2 + (travel * Math.PI) / 5;
+        a.mixer?.setTime(a.walkPhase);
+        if (u.type === "catapult" && !u.boat)
+          a.model.traverse((o) => {
+            if (o.name.startsWith("Wheel")) {
+              o.userData.restSpin ||= o.quaternion.clone();
+              o.quaternion
+                .copy(o.userData.restSpin)
+                .multiply(
+                  new T.Quaternion().setFromAxisAngle(
+                    new T.Vector3(0, 1, 0),
+                    travel * Math.PI * 2,
+                  ),
+                );
+            }
+          });
         if (u.boat) a.g.rotation.z = Math.sin(time * 2) * 0.025;
       }
       if (animation.death !== undefined) {
@@ -809,6 +854,21 @@ export function renderScene(canvas, opts, view) {
   sceneInfo.frames++;
   canvas.dataset.renderer = "webgl";
   canvas.dataset.unitModels = String(sceneInfo.models);
+  canvas.dataset.unitModelSet = "animals";
+  canvas.dataset.modelNations = JSON.stringify(Object.keys(templates));
+  canvas.dataset.unitAnimations = JSON.stringify(
+    [...actors.entries()].map(([id, a]) => ({
+      id,
+      mode: a.mode,
+      phase: a.walkPhase,
+      nation: a.key.split("|")[2],
+      kind: a.key.split("|")[0],
+      leg: a.model.getObjectByName("HipL")?.rotation.x ?? null,
+      shield: a.model.getObjectByName("ShoulderL")?.rotation.x ?? null,
+      x: a.g.position.x,
+      z: a.g.position.z,
+    })),
+  );
   canvas.dataset.frames = String(sceneInfo.frames);
   canvas.dataset.fog = "clouds";
   canvas.dataset.visibleLighting = "daylight";

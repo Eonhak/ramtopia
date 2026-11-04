@@ -1,3 +1,4 @@
+import { animalSprite } from './unit-art.js';
 import { combatStats } from "./rules.js";
 const THEMES = {
   rome: {
@@ -574,6 +575,18 @@ export function drawUnit(c, x, y, u, nation, night, pose) {
   c.save();
   if(!u.preview&&!pose)y-=Math.abs(Math.sin(performance.now()/600+(u.x||0)))*.9;
   c.translate(x, y);
+  if(!u.boat){
+    const image=animalSprite(nation?.id,u.type),h=u.preview?32:60;
+    const frame=pose?.walking?1+Math.floor((pose.progress%1)*4):pose?5+Math.min(3,Math.floor(pose.progress*4)):0;
+    if(image)c.drawImage(image,frame*128,0,128,160,-h*.4,-h*.85,h*.8,h);
+    else{ // Animal silhouette while its small sprite sheet loads.
+      c.fillStyle=({egypt:'#e7a4b9',goguryeo:'#d88b3b',han:'#eee9d9',rome:'#c68b40',persia:'#ac693b',greece:'#a08866',mongol:'#899994',maurya:'#9ba5a3'})[nation?.id]||'#c68b40';
+      c.beginPath();c.ellipse(0,-h*.45,h*.17,h*.18,0,0,Math.PI*2);c.fill();
+      c.fillStyle=nation?.color||'#477866';c.fillRect(-h*.1,-h*.30,h*.2,h*.2);
+    }
+    if(!u.preview){c.scale(.5,.5);health(c,u,combatStats(u,{night}),-h*1.3);}
+    c.restore();return;
+  }
   const scale = u.preview ? (u.type === "catapult" ? 0.72 : u.type === "giant" ? 0.58 : 0.42) : u.type === "catapult" && !u.boat ? 0.61 : u.type === "giant" ? 0.70 : 0.53;
   c.scale(scale, scale);
   if (pose && u.type === "archer") c.rotate(-Math.sin(pose.progress*Math.PI)*0.12);

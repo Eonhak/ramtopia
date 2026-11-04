@@ -22,6 +22,9 @@ const types = {
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".gif": "image/gif",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
   ".glb": "model/gltf-binary",
   ".ico": "image/x-icon",
 };
@@ -133,7 +136,7 @@ export function createApp({
           root,
           "." +
             decodeURIComponent(
-              url.pathname === "/" ? "/index.html" : url.pathname,
+              url.pathname.endsWith("/") ? url.pathname + "index.html" : url.pathname,
             ),
         );
         if (!path.startsWith(root + sep))

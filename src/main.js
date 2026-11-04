@@ -715,9 +715,11 @@ function capture(u, claim = false) {
 function tween(duration, step) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return new Promise((resolve) => {
-    const start = performance.now();
+    let previous = performance.now(), elapsed = 0;
     function frame(now) {
-      const p = reduced ? 1 : Math.min(1, (now - start) / duration);
+      // Keep intermediate poses visible when a slow frame would skip the entire stride.
+      elapsed += Math.min(80, Math.max(0, now - previous));previous=now;
+      const p = reduced ? 1 : Math.min(1, elapsed / duration);
       step(p);
       draw();
       if (p < 1) requestAnimationFrame(frame);
@@ -732,11 +734,11 @@ async function walk(u, path) {
     const from = project(u.x, u.y),
       to = project(t.x, t.y);
     animation = { unit: u, position: from, from, to };
-    await tween(220, (p) => {
+    await tween(420, (p) => {
       const k = (1 - Math.cos(Math.PI * p)) / 2;
       animation.position = {
         x: from.x + (to.x - from.x) * k,
-        y: from.y + (to.y - from.y) * k - Math.sin(Math.PI * p) * 4,
+        y: from.y + (to.y - from.y) * k,
       };
     });
     u.x = t.x;
@@ -1429,6 +1431,13 @@ function openNationChoice() {
   $("cancelNation").hidden = false;
   $("nationDialog").showModal();
 }
+window.addEventListener('unit-art-ready',()=>{
+ if(world){update();draw();}
+ for(const card of document.querySelectorAll('[data-nation]')){
+  const art=card.querySelector('canvas'),n=NATIONS.find(n=>n.id===card.dataset.nation);if(!art||!n)continue;
+  const c=art.getContext('2d');c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,art.width,art.height);c.translate(48,79);c.scale(1.3,1.3);drawCity(c,0,0,{owner:0,level:1},n);drawUnit(c,40,-2,{team:0,hp:10,type:'warrior',acted:true,preview:true},n,false);
+ }
+});
 $("startNation").onclick = async () => {
   selectedNation = pendingNation;
   $("nationDialog").close();
@@ -1677,7 +1686,7 @@ async function replayVisualEvents(
           to = project(event.to.x, event.to.y),
           visual = { unit, position: from, from, to };
         animation = visual;
-        await tween(events.length > 16 ? 140 : 240, (p) => {
+        await tween(events.length > 16 ? 280 : 420, (p) => {
           if (epoch !== mpAnimation) return;
           const k = p * p * (3 - 2 * p);
           visual.position = {
@@ -1898,7 +1907,7 @@ async function applyMultiSnapshot(game, room) {
       animation = visual;
       animating = true;
       update();
-      await tween(260, (p) => {
+      await tween(420, (p) => {
         if (epoch !== mpAnimation) return;
         if (visual)
           visual.position = {

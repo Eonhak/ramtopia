@@ -12,6 +12,19 @@ const assert = require("node:assert/strict");
       viewport: { width: 1100, height: 850 },
     });
     const errors = [];
+    await page.addInitScript(() => {
+      window.__walkingFrames = [];
+      const raf = requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (cb) =>
+        raf((t) => {
+          cb(t);
+          const raw = document.querySelector("#map")?.dataset.unitAnimations;
+          if (raw)
+            for (const a of JSON.parse(raw))
+              if (a.id === "id:1" && a.mode === "walk")
+                window.__walkingFrames.push(a);
+        });
+    });
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/api/auth/me", (r) =>
       r.fulfill({
@@ -36,9 +49,13 @@ window.__graphicsTest={get status(){return {models:Number(canvas.dataset.unitMod
     await page.click("#singleMode");
     await page.click("#startNation");
     await page.evaluate(() => window.__graphicsTest.setup());
-    await page.waitForFunction(() => window.__graphicsTest.status.models === 8);
+    await page.waitForFunction(() => window.__graphicsTest.status.models >= 8);
+    assert.equal(
+      await page.locator("#map").getAttribute("data-unit-model-set"),
+      "animals",
+    );
     const initial = await page.evaluate(() => window.__graphicsTest.status);
-    assert.equal(initial.models, 8);
+    assert(initial.models >= 8);
     await page.waitForFunction(
       (n) => window.__graphicsTest.status.frames > n + 2,
       initial.frames,
@@ -58,6 +75,20 @@ window.__graphicsTest={get status(){return {models:Number(canvas.dataset.unitMod
         (u) => u.id === 1,
       ).x,
       4,
+    );
+    const walking = await page.evaluate(() => window.__walkingFrames);
+    assert(walking.length >= 2, "movement renders multiple walking frames");
+    assert(
+      Math.max(...walking.map((x) => x.leg)) -
+        Math.min(...walking.map((x) => x.leg)) >
+        0.12,
+      "actual GLB legs change pose during tile movement",
+    );
+    assert(
+      Math.max(...walking.map((x) => x.x)) -
+        Math.min(...walking.map((x) => x.x)) >
+        0.1,
+      "walking accompanies movement across the field",
     );
     await click(5, 6);
     await page.waitForFunction(() => !window.__graphicsTest.state.animating);
